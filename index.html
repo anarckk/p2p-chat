@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PeerJS 测试</title>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="peerjs-http-util.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      min-height: 100vh;
+    }
+    .container { max-width: 500px; }
+    h2 { color: #4ec9b0; margin-bottom: 15px; }
+    .section { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 5px; color: #9cdcfe; }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      background: #252526;
+      border: 1px solid #3c3c3c;
+      color: #d4d4d4;
+      font-family: monospace;
+    }
+    input:focus, textarea:focus { outline: 1px solid #007acc; }
+    button {
+      padding: 8px 20px;
+      background: #0e639c;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-family: monospace;
+    }
+    button:hover { background: #1177bb; }
+    .status {
+      padding: 10px;
+      background: #252526;
+      border-left: 3px solid #4ec9b0;
+      margin-bottom: 15px;
+    }
+    .my-id { color: #ce9178; word-break: break-all; user-select: all; }
+    #messages {
+      background: #252526;
+      padding: 10px;
+      min-height: 200px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .msg {
+      padding: 5px 0;
+      border-bottom: 1px solid #3c3c3c;
+    }
+    .msg-from { color: #4ec9b0; }
+    .msg-content { color: #d4d4d4; }
+    .msg-time { color: #808080; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>PeerJS 测试</h2>
+
+    <div class="status">
+      我的 ID: <span id="myId" class="my-id">连接中...</span>
+    </div>
+
+    <div class="section">
+      <label>对方 ID:</label>
+      <input type="text" id="targetId" placeholder="粘贴对方的 ID">
+    </div>
+
+    <div class="section">
+      <label>消息内容:</label>
+      <textarea id="message" rows="3" placeholder="输入要发送的消息"></textarea>
+    </div>
+
+    <button onclick="sendMessage()">发送消息</button>
+
+    <div class="section" style="margin-top: 20px;">
+      <label>消息记录:</label>
+      <div id="messages"></div>
+    </div>
+  </div>
+
+  <script>
+    let peerHttp;
+
+    peerHttp = new PeerHttpUtil();
+
+    peerHttp.on('open', (id) => {
+      document.getElementById('myId').textContent = id;
+    });
+
+    peerHttp.on('message', (data) => {
+      addMessage(data.from, data.data);
+    });
+
+    function sendMessage() {
+      const targetId = document.getElementById('targetId').value.trim();
+      const message = document.getElementById('message').value.trim();
+
+      if (!targetId) {
+        alert('请输入对方 ID');
+        return;
+      }
+
+      if (!message) {
+        alert('请输入消息内容');
+        return;
+      }
+
+      peerHttp.send(targetId, message)
+        .then((result) => {
+          addMessage('我', message);
+          document.getElementById('message').value = '';
+        })
+        .catch((err) => {
+          addMessage('系统', '发送失败: ' + err, true);
+        });
+    }
+
+    function addMessage(from, content, isSystem = false) {
+      const messages = document.getElementById('messages');
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = 'msg';
+      if (isSystem) {
+        div.innerHTML = '<span class="msg-time">[' + time + ']</span> <span class="msg-content" style="color: #dcdcaa;">' + content + '</span>';
+      } else {
+        div.innerHTML = '<span class="msg-time">[' + time + ']</span> <span class="msg-from">' + from + ':</span> <span class="msg-content">' + content + '</span>';
+      }
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+  </script>
+</body>
+</html>
