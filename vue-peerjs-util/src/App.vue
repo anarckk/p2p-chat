@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
+import { message } from 'ant-design-vue';
 import { PeerHttpUtil } from './util/PeerHttpUtil';
 
 const targetId = ref('');
-const message = ref('');
+const messageContent = ref('');
 const myId = ref('连接中...');
 const messages = ref<Array<{ from: string; content: string; time: string; isSystem?: boolean }>>(
   [],
@@ -30,15 +31,15 @@ onUnmounted(() => {
 
 function sendMessage() {
   const tid = targetId.value.trim();
-  const msg = message.value.trim();
+  const msg = messageContent.value.trim();
 
   if (!tid) {
-    alert('请输入对方 ID');
+    message.warning('请输入对方 ID');
     return;
   }
 
   if (!msg) {
-    alert('请输入消息内容');
+    message.warning('请输入消息内容');
     return;
   }
 
@@ -46,7 +47,7 @@ function sendMessage() {
     .send(tid, msg)
     .then(() => {
       addMessage('我', msg);
-      message.value = '';
+      messageContent.value = '';
     })
     .catch((err: Error) => {
       addMessage('系统', '发送失败: ' + err.message, true);
@@ -65,138 +66,73 @@ function addMessage(from: string, content: string, isSystem = false) {
 
 <template>
   <div class="container">
-    <h2>PeerJS 测试</h2>
+    <a-card title="PeerJS 测试" :bordered="false">
+      <a-descriptions bordered :column="1">
+        <a-descriptions-item label="我的 ID">
+          <a-typography-text copyable>{{ myId }}</a-typography-text>
+        </a-descriptions-item>
+      </a-descriptions>
 
-    <div class="status">
-      我的 ID: <span class="my-id">{{ myId }}</span>
-    </div>
+      <a-divider />
 
-    <div class="section">
-      <label>对方 ID:</label>
-      <input v-model="targetId" type="text" placeholder="粘贴对方的 ID" />
-    </div>
+      <a-form layout="vertical">
+        <a-form-item label="对方 ID">
+          <a-input v-model:value="targetId" placeholder="粘贴对方的 ID" />
+        </a-form-item>
 
-    <div class="section">
-      <label>消息内容:</label>
-      <textarea v-model="message" rows="3" placeholder="输入要发送的消息" />
-    </div>
+        <a-form-item label="消息内容">
+          <a-textarea
+            v-model:value="messageContent"
+            :rows="3"
+            placeholder="输入要发送的消息"
+          />
+        </a-form-item>
 
-    <button @click="sendMessage">发送消息</button>
+        <a-form-item>
+          <a-button type="primary" @click="sendMessage">发送消息</a-button>
+        </a-form-item>
+      </a-form>
 
-    <div class="section" style="margin-top: 20px">
-      <label>消息记录:</label>
-      <div id="messages">
-        <div v-for="(msg, index) in messages" :key="index" class="msg">
-          <span class="msg-time">[{{ msg.time }}]</span>
-          <span v-if="msg.isSystem" class="msg-content" style="color: #dcdcaa">
-            {{ msg.content }}
-          </span>
-          <span v-else>
-            <span class="msg-from">{{ msg.from }}:</span>
-            <span class="msg-content">{{ msg.content }}</span>
-          </span>
-        </div>
+      <a-divider />
+
+      <a-typography-title :level="5">消息记录</a-typography-title>
+      <div class="messages-container">
+        <a-list :data-source="messages" size="small">
+          <template #renderItem="{ item }">
+            <a-list-item>
+              <a-typography-text type="secondary">[{{ item.time }}]</a-typography-text>
+              <template v-if="item.isSystem">
+                <a-tag color="warning">{{ item.content }}</a-tag>
+              </template>
+              <template v-else>
+                <a-tag color="blue">{{ item.from }}</a-tag>
+                <span>{{ item.content }}</span>
+              </template>
+            </a-list-item>
+          </template>
+        </a-list>
       </div>
-    </div>
+    </a-card>
   </div>
 </template>
 
 <style scoped>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 .container {
-  font-family: monospace;
   padding: 20px;
-  background: #1e1e1e;
-  color: #d4d4d4;
+  display: flex;
+  justify-content: center;
   min-height: 100vh;
-  max-width: 500px;
+  background: #f0f2f5;
 }
 
-h2 {
-  color: #4ec9b0;
-  margin-bottom: 15px;
-}
-
-.section {
-  margin-bottom: 20px;
-}
-
-label {
-  display: block;
-  margin-bottom: 5px;
-  color: #9cdcfe;
-}
-
-input,
-textarea {
+.container :deep(.ant-card) {
   width: 100%;
-  padding: 8px;
-  margin-bottom: 10px;
-  background: #252526;
-  border: 1px solid #3c3c3c;
-  color: #d4d4d4;
-  font-family: monospace;
+  max-width: 600px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-input:focus,
-textarea:focus {
-  outline: 1px solid #007acc;
-}
-
-button {
-  padding: 8px 20px;
-  background: #0e639c;
-  color: white;
-  border: none;
-  cursor: pointer;
-  font-family: monospace;
-}
-
-button:hover {
-  background: #1177bb;
-}
-
-.status {
-  padding: 10px;
-  background: #252526;
-  border-left: 3px solid #4ec9b0;
-  margin-bottom: 15px;
-}
-
-.my-id {
-  color: #ce9178;
-  word-break: break-all;
-  user-select: all;
-}
-
-#messages {
-  background: #252526;
-  padding: 10px;
-  min-height: 200px;
+.messages-container {
   max-height: 400px;
   overflow-y: auto;
-}
-
-.msg {
-  padding: 5px 0;
-  border-bottom: 1px solid #3c3c3c;
-}
-
-.msg-from {
-  color: #4ec9b0;
-}
-
-.msg-content {
-  color: #d4d4d4;
-}
-
-.msg-time {
-  color: #808080;
-  font-size: 12px;
 }
 </style>

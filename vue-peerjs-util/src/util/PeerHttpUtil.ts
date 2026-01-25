@@ -17,7 +17,8 @@ export class PeerHttpUtil {
    * @param options - PeerJS 配置选项
    */
   constructor(peerId: string | null = null, options: any = {}) {
-    this.peer = new Peer(peerId, { debug: 1, ...options });
+    const peerOptions = { debug: 1, ...options };
+    this.peer = peerId ? new Peer(peerId, peerOptions) : new Peer(peerOptions);
 
     this.peer.on('connection', (conn: any) => {
       conn.on('data', (data: any) => {
