@@ -1,5 +1,5 @@
 {
-  "name": "mybatis-demo-web",
+  "name": "vue-peerjs-util",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -17,6 +17,7 @@
   "dependencies": {
     "ant-design-vue": "^4.2.6",
     "axios": "^1.13.2",
+    "peerjs": "^1.5.5",
     "pinia": "^3.0.4",
     "vue": "^3.5.26",
     "vue-router": "^4.6.4"

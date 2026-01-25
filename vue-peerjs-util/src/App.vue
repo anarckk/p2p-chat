@@ -1,312 +1,202 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
-import axios from 'axios'
-import type { TableProps } from 'ant-design-vue'
-import { SearchOutlined, ReloadOutlined } from '@ant-design/icons-vue'
+import { ref, onMounted, onUnmounted } from 'vue';
+import { PeerHttpUtil } from './util/PeerHttpUtil';
 
-interface User {
-  id: number
-  name: string
-  gender: string
-  email: string
-  birthDate: string
-  idCard: string
-  createdDate: string
-}
-
-interface PageResult {
-  records: User[]
-  total: number
-  size: number
-  current: number
-  pages: number
-}
-
-interface SearchParams {
-  name: string
-  gender: string
-  email: string
-  birthDate: string
-  idCard: string
-}
-
-const dataSource = ref<User[]>([])
-const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = ref(20)
-const total = ref(0)
-const searchParams = ref<SearchParams>({
-  name: '',
-  gender: '',
-  email: '',
-  birthDate: '',
-  idCard: ''
-})
-const tableContainerRef = ref<HTMLElement | null>(null)
-const tableContainerHeight = ref(0)
-
-const tableScrollY = computed(() => {
-  if (tableContainerHeight.value > 0) {
-    return tableContainerHeight.value - 80 - 32
-  }
-  return 500
-})
-
-const columns = [
-  { title: 'ID', dataIndex: 'id', key: 'id', width: 80, align: 'center' as const },
-  { title: '姓名', dataIndex: 'name', key: 'name', width: 120 },
-  { title: '性别', dataIndex: 'gender', key: 'gender', width: 80, align: 'center' as const },
-  { title: '邮箱', dataIndex: 'email', key: 'email' },
-  { title: '生日', dataIndex: 'birthDate', key: 'birthDate', width: 120 },
-  { title: '身份证号', dataIndex: 'idCard', key: 'idCard', width: 200 },
-  { title: '创建日期', dataIndex: 'createdDate', key: 'createdDate', width: 180 },
-]
-
-const fetchUsers = async () => {
-  loading.value = true
-  try {
-    const params: Record<string, any> = {
-      page: currentPage.value,
-      size: pageSize.value,
-    }
-
-    if (searchParams.value.name) params.name = searchParams.value.name
-    if (searchParams.value.gender) params.gender = searchParams.value.gender
-    if (searchParams.value.email) params.email = searchParams.value.email
-    if (searchParams.value.birthDate) params.birthDate = searchParams.value.birthDate
-    if (searchParams.value.idCard) params.idCard = searchParams.value.idCard
-
-    const { data } = await axios.get<any, { data: { data: PageResult } }>('/api/users/page', {
-      params,
-    })
-    dataSource.value = data.data.records
-    total.value = data.data.total
-  } catch (error) {
-    console.error('获取用户列表失败:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-const handlePageChange: TableProps['onChange'] = (pagination, filters, sorter) => {
-  currentPage.value = pagination.current || 1
-  pageSize.value = pagination.pageSize || 10
-  fetchUsers()
-}
-
-const handleSearch = () => {
-  currentPage.value = 1
-  fetchUsers()
-}
-
-const clearSearch = () => {
-  searchParams.value = {
-    name: '',
-    gender: '',
-    email: '',
-    birthDate: '',
-    idCard: ''
-  }
-  currentPage.value = 1
-  fetchUsers()
-}
-
-const updateTableContainerHeight = () => {
-  nextTick(() => {
-    if (tableContainerRef.value) {
-      tableContainerHeight.value = tableContainerRef.value.offsetHeight
-    }
-  })
-}
+const targetId = ref('');
+const message = ref('');
+const myId = ref('连接中...');
+const messages = ref<Array<{ from: string; content: string; time: string; isSystem?: boolean }>>(
+  [],
+);
+let peerHttp: PeerHttpUtil | null = null;
 
 onMounted(() => {
-  fetchUsers()
-  updateTableContainerHeight()
-  window.addEventListener('resize', updateTableContainerHeight)
-})
+  peerHttp = new PeerHttpUtil();
+
+  peerHttp.on('open', (id: string) => {
+    myId.value = id;
+  });
+
+  peerHttp.on('message', (data: any) => {
+    addMessage(data.from, data.data);
+  });
+});
+
+onUnmounted(() => {
+  if (peerHttp) {
+    peerHttp.destroy();
+  }
+});
+
+function sendMessage() {
+  const tid = targetId.value.trim();
+  const msg = message.value.trim();
+
+  if (!tid) {
+    alert('请输入对方 ID');
+    return;
+  }
+
+  if (!msg) {
+    alert('请输入消息内容');
+    return;
+  }
+
+  peerHttp!
+    .send(tid, msg)
+    .then(() => {
+      addMessage('我', msg);
+      message.value = '';
+    })
+    .catch((err: Error) => {
+      addMessage('系统', '发送失败: ' + err.message, true);
+    });
+}
+
+function addMessage(from: string, content: string, isSystem = false) {
+  messages.value.push({
+    from,
+    content,
+    time: new Date().toLocaleTimeString(),
+    isSystem,
+  });
+}
 </script>
 
 <template>
   <div class="container">
-    <div class="header">
-      <h1 class="title">用户管理系统</h1>
-      <p class="subtitle">User Management System</p>
+    <h2>PeerJS 测试</h2>
+
+    <div class="status">
+      我的 ID: <span class="my-id">{{ myId }}</span>
     </div>
 
-    <div class="search-bar">
-      <a-space :size="12" wrap>
-        <a-input
-          v-model:value="searchParams.name"
-          placeholder="姓名(模糊)"
-          allow-clear
-          :style="{ width: '150px' }"
-        >
-          <template #prefix>
-            <SearchOutlined />
-          </template>
-        </a-input>
-
-        <a-select
-          v-model:value="searchParams.gender"
-          placeholder="性别"
-          allow-clear
-          :style="{ width: '100px' }"
-        >
-          <a-select-option value="男">男</a-select-option>
-          <a-select-option value="女">女</a-select-option>
-        </a-select>
-
-        <a-input
-          v-model:value="searchParams.email"
-          placeholder="邮箱(模糊)"
-          allow-clear
-          :style="{ width: '200px' }"
-        >
-          <template #prefix>
-            <SearchOutlined />
-          </template>
-        </a-input>
-
-        <a-date-picker
-          v-model:value="searchParams.birthDate"
-          placeholder="生日"
-          allow-clear
-          :style="{ width: '150px' }"
-          value-format="YYYY-MM-DD"
-        />
-
-        <a-input
-          v-model:value="searchParams.idCard"
-          placeholder="身份证号(精确)"
-          allow-clear
-          :style="{ width: '200px' }"
-        >
-          <template #prefix>
-            <SearchOutlined />
-          </template>
-        </a-input>
-
-        <a-button type="primary" size="large" @click="handleSearch">
-          <template #icon>
-            <SearchOutlined />
-          </template>
-          搜索
-        </a-button>
-
-        <a-button size="large" @click="clearSearch">
-          重置
-        </a-button>
-
-        <a-button size="large" @click="fetchUsers" :loading="loading">
-          <template #icon>
-            <ReloadOutlined />
-          </template>
-          刷新
-        </a-button>
-      </a-space>
+    <div class="section">
+      <label>对方 ID:</label>
+      <input v-model="targetId" type="text" placeholder="粘贴对方的 ID" />
     </div>
 
-    <div class="table-container" ref="tableContainerRef">
-      <a-table
-        :columns="columns"
-        :data-source="dataSource"
-        :loading="loading"
-        :pagination="{
-          current: currentPage,
-          pageSize: pageSize,
-          total: total,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          pageSizeOptions: ['10', '20', '50', '100'],
-          showTotal: (total) => `共 ${total.toLocaleString()} 条数据`,
-          onChange: (page, size) => handlePageChange({ current: page, pageSize: size }),
-        }"
-        row-key="id"
-        bordered
-        size="small"
-        :scroll="{ y: tableScrollY }"
-        :row-class-name="(_record, index) => index % 2 === 1 ? 'table-row-odd' : ''"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'gender'">
-            <a-tag :color="record.gender === '男' ? 'blue' : 'pink'">
-              {{ record.gender }}
-            </a-tag>
-          </template>
-          <template v-else-if="column.key === 'name'">
-            <a>{{ record.name }}</a>
-          </template>
-          <template v-else-if="column.key === 'email'">
-            <a :href="`mailto:${record.email}`">{{ record.email }}</a>
-          </template>
-        </template>
-      </a-table>
+    <div class="section">
+      <label>消息内容:</label>
+      <textarea v-model="message" rows="3" placeholder="输入要发送的消息" />
+    </div>
+
+    <button @click="sendMessage">发送消息</button>
+
+    <div class="section" style="margin-top: 20px">
+      <label>消息记录:</label>
+      <div id="messages">
+        <div v-for="(msg, index) in messages" :key="index" class="msg">
+          <span class="msg-time">[{{ msg.time }}]</span>
+          <span v-if="msg.isSystem" class="msg-content" style="color: #dcdcaa">
+            {{ msg.content }}
+          </span>
+          <span v-else>
+            <span class="msg-from">{{ msg.from }}:</span>
+            <span class="msg-content">{{ msg.content }}</span>
+          </span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 .container {
-  height: 100%;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  padding: 16px;
-  max-width: 1400px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  font-family: monospace;
+  padding: 20px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  min-height: 100vh;
+  max-width: 500px;
 }
 
-.header {
-  flex-shrink: 0;
-  text-align: center;
-  margin-bottom: 16px;
-  padding: 16px 20px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+h2 {
+  color: #4ec9b0;
+  margin-bottom: 15px;
 }
 
-.title {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: #1890ff;
-  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.section {
+  margin-bottom: 20px;
 }
 
-.subtitle {
-  margin: 4px 0 0 0;
+label {
+  display: block;
+  margin-bottom: 5px;
+  color: #9cdcfe;
+}
+
+input,
+textarea {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 10px;
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  color: #d4d4d4;
+  font-family: monospace;
+}
+
+input:focus,
+textarea:focus {
+  outline: 1px solid #007acc;
+}
+
+button {
+  padding: 8px 20px;
+  background: #0e639c;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-family: monospace;
+}
+
+button:hover {
+  background: #1177bb;
+}
+
+.status {
+  padding: 10px;
+  background: #252526;
+  border-left: 3px solid #4ec9b0;
+  margin-bottom: 15px;
+}
+
+.my-id {
+  color: #ce9178;
+  word-break: break-all;
+  user-select: all;
+}
+
+#messages {
+  background: #252526;
+  padding: 10px;
+  min-height: 200px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.msg {
+  padding: 5px 0;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.msg-from {
+  color: #4ec9b0;
+}
+
+.msg-content {
+  color: #d4d4d4;
+}
+
+.msg-time {
+  color: #808080;
   font-size: 12px;
-  color: #8c8c8c;
-  letter-spacing: 2px;
-}
-
-.search-bar {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 16px 20px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.table-container {
-  flex: 1;
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 </style>
