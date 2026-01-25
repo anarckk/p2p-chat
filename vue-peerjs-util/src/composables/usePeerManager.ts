@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue';
+import { ref } from 'vue';
 import { PeerHttpUtil } from '../util/PeerHttpUtil';
 import { useChatStore } from '../stores/chatStore';
 import { useUserStore } from '../stores/userStore';
@@ -23,32 +23,70 @@ export function usePeerManager() {
 
   const isConnected = ref(false);
 
-  function init() {
-    if (peerInstance) {
-      return peerInstance;
-    }
+  function init(): Promise<PeerHttpUtil> {
+    return new Promise((resolve, reject) => {
+      // 总是重新初始化 peerInstance，确保连接有效
+      if (peerInstance) {
+        peerInstance.destroy();
+        peerInstance = null;
+      }
 
-    // 优先使用已存储的 PeerId，保持不变
-    let peerId = userStore.userInfo.peerId;
+      // 优先使用已存储的 PeerId，保持不变
+      let peerId = userStore.userInfo.peerId;
 
-    // 如果没有存储的 PeerId，生成新的
-    if (!peerId) {
-      const username = userStore.userInfo.username || 'user';
-      peerId = `${username}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }
+      // 如果没有存储的 PeerId，生成新的
+      if (!peerId) {
+        const username = userStore.userInfo.username || 'user';
+        peerId = `${username}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      }
 
-    peerInstance = new PeerHttpUtil(peerId);
+      console.log('[Peer] Initializing with PeerId:', peerId);
+      peerInstance = new PeerHttpUtil(peerId);
 
-    peerInstance.on('open', (id: string) => {
-      isConnected.value = true;
-      userStore.setPeerId(id);
-      console.log('[Peer] Connected with ID:', id);
+      // 设置连接超时
+      const timeout = setTimeout(() => {
+        console.error('[Peer] Connection timeout');
+        isConnected.value = false;
+        reject(new Error('Peer connection timeout'));
+      }, 30000); // 30秒超时
+
+      peerInstance.on('open', (id: string) => {
+        clearTimeout(timeout);
+        isConnected.value = true;
+        userStore.setPeerId(id);
+        console.log('[Peer] Connected with ID:', id);
+
+        // 注册所有协议处理器
+        registerProtocolHandlers();
+
+        resolve(peerInstance!);
+      });
+
+      // 如果已经连接，直接设置状态（用于恢复已存在的连接）
+      if (peerInstance.getId()) {
+        clearTimeout(timeout);
+        isConnected.value = true;
+        console.log('[Peer] Already connected with ID:', peerInstance.getId());
+        registerProtocolHandlers();
+        resolve(peerInstance);
+      }
+
+      // 监听连接错误（不使用，因为 PeerHttpUtil 不暴露 error 事件）
+      // 错误会在连接建立时自然超时
+
+      // 监听底层 PeerJS 错误
+      peerInstance.on('error', (error: any) => {
+        console.error('[Peer] PeerJS error:', error);
+        // 某些错误可以忽略，如 peer-unavailable（对端离线）
+        if (error?.type === 'peer-unavailable') {
+          console.log('[Peer] Target peer unavailable:', error);
+        }
+      });
     });
+  }
 
-    // 如果已经连接，直接设置状态（用于恢复已存在的连接）
-    if (peerInstance.getId()) {
-      isConnected.value = true;
-    }
+  function registerProtocolHandlers() {
+    if (!peerInstance) return;
 
     // 处理送达确认
     deliveryAckHandler = (protocol: any, _from: string) => {
@@ -215,10 +253,12 @@ export function usePeerManager() {
   async function handleChatMessage(from: string, chatMessage: ChatMessage) {
     const { id, from: sender, content, type, timestamp } = chatMessage;
 
+    console.log('[Peer] Received chat message:', { from, id, type, content });
+
     // 检查消息是否已处理（去重）
     if (chatStore.isMessageProcessed(id)) {
-      // 已处理过，但仍需发送送达确认
-      await sendDeliveryAck(sender, id);
+      console.log('[Peer] Message already processed, skipping:', id);
+      // 已处理过，送达确认已在 PeerHttpUtil 中发送
       return;
     }
 
@@ -248,22 +288,19 @@ export function usePeerManager() {
 
     // 保存消息（状态已设置为 delivered）
     chatStore.addMessage(from, chatMessage);
+    console.log('[Peer] Message added to store:', chatMessage);
 
-    // 发送送达确认
-    await sendDeliveryAck(from, id);
+    // 送达确认已在 PeerHttpUtil 的 handleMessageContent 中自动发送
+    // 这里不需要再发送
 
     // 对方上线了，检查是否有待发送的消息
     await retryPendingMessages(from);
   }
 
-  async function sendDeliveryAck(peerId: string, messageId: string) {
-    if (!peerInstance) return;
-
-    try {
-      await peerInstance.send(peerId, `ack_${messageId}`, '', 'system');
-    } catch (error) {
-      console.error('[Peer] Failed to send delivery ack:', error);
-    }
+  // 注意：送达确认已在 PeerHttpUtil 的 handleMessageContent 中自动发送
+  // 这里保留空函数以兼容现有代码
+  async function sendDeliveryAck(_peerId: string, _messageId: string) {
+    // 送达确认由 PeerHttpUtil 内部处理，无需手动发送
   }
 
   async function retryPendingMessages(peerId: string) {
@@ -273,11 +310,13 @@ export function usePeerManager() {
     console.log(`[Peer] Retrying ${pending.length} pending messages for ${peerId}`);
 
     for (const pendingMsg of pending) {
+      // 重试时使用 isRetry=true，只发送消息ID
       const success = await sendChatMessage(
         peerId,
         pendingMsg.id,
         pendingMsg.content,
         pendingMsg.type,
+        true, // isRetry = true，只发送消息ID
       );
 
       if (success) {
@@ -296,20 +335,36 @@ export function usePeerManager() {
 
   /**
    * 发送聊天消息（使用三段式协议）
+   * @param isRetry - 是否为重试（重试时只发送消息ID）
    */
   async function sendChatMessage(
     peerId: string,
     messageId: string,
     content: MessageContent,
     type: MessageType = 'text',
+    isRetry: boolean = false,
   ): Promise<boolean> {
     if (!peerInstance) {
+      console.error('[Peer] Peer instance not initialized');
       message.error('Peer 未连接');
       return false;
     }
 
+    console.log('[Peer] Sending chat message via PeerHttpUtil:', { peerId, messageId, type, isRetry });
+
     try {
-      const result = await peerInstance.send(peerId, messageId, content, type);
+      const result = await peerInstance.send(peerId, messageId, content, type, isRetry);
+      console.log('[Peer] PeerHttpUtil.send result:', result);
+
+      // 更新消息的 messageStage
+      if (result.sent && result.stage) {
+        chatStore.updateMessageStatus(peerId, messageId, 'sending');
+        const msg = chatStore.getMessageById(messageId);
+        if (msg) {
+          msg.messageStage = result.stage;
+        }
+      }
+
       return result.sent;
     } catch (error) {
       console.error('[Peer] Send error:', error);
@@ -321,7 +376,7 @@ export function usePeerManager() {
    * 生成消息唯一ID
    */
   function generateMessageId(): string {
-    return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 
   /**
@@ -332,7 +387,16 @@ export function usePeerManager() {
     content: MessageContent,
     type: MessageType = 'text',
   ): Promise<string> {
+    // 确保 Peer 已连接
+    if (!isConnected.value || !peerInstance) {
+      console.error('[Peer] Peer not connected, cannot send message');
+      message.error('Peer 未连接，请稍后重试');
+      throw new Error('Peer not connected');
+    }
+
     const messageId = generateMessageId();
+
+    console.log('[Peer] Sending message with retry:', { messageId, peerId, type, content });
 
     // 先保存消息到本地
     const chatMessage: ChatMessage = {
@@ -346,12 +410,17 @@ export function usePeerManager() {
     };
 
     chatStore.addMessage(peerId, chatMessage);
+    console.log('[Peer] Message added to local store:', chatMessage);
 
     // 尝试发送
     const success = await sendChatMessage(peerId, messageId, content, type);
 
+    console.log('[Peer] Send result:', { messageId, success });
+
     if (success) {
-      chatStore.updateMessageStatus(peerId, messageId, 'sent');
+      // 发送成功，等待送达确认（状态保持为 sending）
+      // 当收到 delivery_ack 时，状态会更新为 delivered
+      chatStore.updateMessageStatus(peerId, messageId, 'sending');
     } else {
       // 发送失败，加入待发送队列
       chatStore.addPendingMessage({
@@ -470,13 +539,14 @@ export function usePeerManager() {
       onlineCheckResponseHandler = null;
       isConnected.value = false;
     }
-    // 停止心跳定时器
-    deviceStore.stopHeartbeatTimer();
+    // 不要停止心跳定时器，让它在全局持续运行
+    // deviceStore.stopHeartbeatTimer();
   }
 
-  onUnmounted(() => {
-    destroy();
-  });
+  // 不要在组件卸载时销毁 peer 实例，保持全局单例
+  // onUnmounted(() => {
+  //   destroy();
+  // });
 
   return {
     isConnected,

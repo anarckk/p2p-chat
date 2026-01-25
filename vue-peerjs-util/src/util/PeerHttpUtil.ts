@@ -15,6 +15,7 @@ import type {
 
 export type MessageHandler = (data: { from: string; data: any }) => void;
 export type OpenHandler = (id: string) => void;
+export type ErrorHandler = (error: any) => void;
 export type ProtocolMessageHandler = (protocol: AnyProtocol, from: string) => void;
 
 // 临时存储待发送的消息内容（用于三段式通信的第三段）
@@ -26,6 +27,8 @@ interface PendingMessageContent {
 export class PeerHttpUtil {
   private peer: any;
   private messageHandlers: MessageHandler[] = [];
+  private openHandlers: OpenHandler[] = [];
+  private errorHandlers: ErrorHandler[] = [];
   private protocolHandlers: Map<string, ProtocolMessageHandler[]> = new Map();
 
   // 存储待发送的消息内容（key: messageId, value: content + type）
@@ -46,6 +49,30 @@ export class PeerHttpUtil {
     const peerOptions = { debug: 1, ...options };
     this.peer = peerId ? new Peer(peerId, peerOptions) : new Peer(peerOptions);
 
+    // 监听连接打开事件
+    this.peer.on('open', (id: string) => {
+      console.log('[PeerHttp] Peer connection opened:', id);
+      this.openHandlers.forEach((handler) => {
+        try {
+          handler(id);
+        } catch (err) {
+          console.error('[PeerHttp] Open handler error:', err);
+        }
+      });
+    });
+
+    // 监听错误事件
+    this.peer.on('error', (error: any) => {
+      console.error('[PeerHttp] Peer error:', error);
+      this.errorHandlers.forEach((handler) => {
+        try {
+          handler(error);
+        } catch (err) {
+          console.error('[PeerHttp] Error handler error:', err);
+        }
+      });
+    });
+
     this.peer.on('connection', (conn: any) => {
       conn.on('data', (data: any) => {
         // 检查是否是协议消息
@@ -61,7 +88,14 @@ export class PeerHttpUtil {
             }
           });
         }
-        conn.close();
+        // 延迟关闭连接，确保数据已处理完成
+        setTimeout(() => {
+          try {
+            conn.close();
+          } catch (e) {
+            // 忽略关闭错误
+          }
+        }, 50);
       });
     });
   }
@@ -182,6 +216,8 @@ export class PeerHttpUtil {
   ) {
     const { messageId, content, msgType, from: sender } = protocol;
 
+    console.log('[PeerHttp] Received message content:', { messageId, sender, msgType });
+
     // 标记消息已处理
     this.receivedMessageIds.add(messageId);
 
@@ -199,6 +235,8 @@ export class PeerHttpUtil {
       type: msgType,
       deliveredAt: Date.now(),
     };
+
+    console.log('[PeerHttp] Triggering message handlers with chatMessage:', chatMessage);
 
     this.messageHandlers.forEach((handler) => {
       try {
@@ -329,18 +367,39 @@ export class PeerHttpUtil {
    * 发送协议消息
    */
   private sendProtocol(peerId: string, protocol: AnyProtocol): Promise<void> {
+    console.log('[PeerHttp] Sending protocol:', { peerId, protocolType: protocol.type });
+
     return new Promise((resolve, reject) => {
       const conn = this.peer.connect(peerId);
+      const timeout = setTimeout(() => {
+        console.error('[PeerHttp] Connection timeout for:', peerId);
+        conn.close();
+        reject(new Error('Connection timeout'));
+      }, 10000);
+
       conn.on('open', () => {
+        console.log('[PeerHttp] Connection opened to:', peerId);
         try {
           conn.send(protocol);
-          resolve();
+          console.log('[PeerHttp] Protocol sent successfully');
+          // 等待一小段时间确保数据发送完成
+          setTimeout(() => {
+            clearTimeout(timeout);
+            conn.close();
+            resolve();
+          }, 100);
         } catch (err) {
+          console.error('[PeerHttp] Error sending protocol:', err);
+          clearTimeout(timeout);
           conn.close();
           reject(err);
         }
       });
-      conn.on('error', reject);
+      conn.on('error', (err: any) => {
+        console.error('[PeerHttp] Connection error:', err);
+        clearTimeout(timeout);
+        reject(err);
+      });
     });
   }
 
@@ -365,15 +424,24 @@ export class PeerHttpUtil {
    * @param messageId - 消息唯一标识
    * @param content - 消息内容
    * @param type - 消息类型
+   * @param isRetry - 是否为重试（重试时只发送消息ID，不重新存储内容）
    */
   send(
     peerId: string,
     messageId: string,
     content: MessageContent,
     type: MessageType = 'text',
-  ): Promise<{ peerId: string; messageId: string; sent: boolean }> {
-    // 存储消息内容，等待对端请求
-    this.pendingMessageContents.set(messageId, { content, type });
+    isRetry: boolean = false,
+  ): Promise<{ peerId: string; messageId: string; sent: boolean; stage: 'id_sent' | 'content_requested' | 'delivered' }> {
+    console.log('[PeerHttp] Starting three-stage send:', { peerId, messageId, type, isRetry });
+
+    // 只有非重试时才存储消息内容
+    if (!isRetry) {
+      this.pendingMessageContents.set(messageId, { content, type });
+      console.log('[PeerHttp] Stored message content for:', messageId);
+    } else {
+      console.log('[PeerHttp] Retry mode: resending messageId only (content already stored)');
+    }
 
     // 一段：发送消息ID给对端
     return new Promise((resolve, reject) => {
@@ -386,10 +454,14 @@ export class PeerHttpUtil {
         msgType: type,
       })
         .then(() => {
-          resolve({ peerId, messageId, sent: true });
+          console.log('[PeerHttp] Stage 1 complete: messageId sent');
+          resolve({ peerId, messageId, sent: true, stage: 'id_sent' });
         })
         .catch((err) => {
-          this.pendingMessageContents.delete(messageId);
+          console.error('[PeerHttp] Stage 1 failed:', err);
+          if (!isRetry) {
+            this.pendingMessageContents.delete(messageId);
+          }
           reject(err);
         });
     });
@@ -648,16 +720,19 @@ export class PeerHttpUtil {
 
   /**
    * 监听消息事件
-   * @param event - 仅支持 'message' | 'open'
-   * @param handler - 消息处理函数，接收 { from, data }
+   * @param event - 支持 'message' | 'open' | 'error'
+   * @param handler - 消息处理函数
    */
   on(event: 'message', handler: MessageHandler): void;
   on(event: 'open', handler: OpenHandler): void;
+  on(event: 'error', handler: ErrorHandler): void;
   on(event: string, handler: any): void {
     if (event === 'message') {
       this.messageHandlers.push(handler);
     } else if (event === 'open') {
-      this.peer.on('open', handler);
+      this.openHandlers.push(handler);
+    } else if (event === 'error') {
+      this.errorHandlers.push(handler);
     }
   }
 

@@ -63,6 +63,7 @@ export interface ChatMessage {
   status: MessageStatus;
   type: MessageType;
   deliveredAt?: number; // 送达时间
+  messageStage?: 'id_sent' | 'content_requested' | 'delivered'; // 三段式协议阶段
 }
 
 export interface Contact {

@@ -63,6 +63,7 @@ sx-peerjs-http-util/
         └── util/
             └── PeerHttpUtil.ts - PeerJS 工具类（三段式通信协议、去中心化发现中心、在线检查协议 checkOnline/respondOnlineCheck）
     ├── e2e/
+        ├── test-helpers.ts - E2E 测试共享辅助函数（类型定义、SELECTORS/WAIT_TIMES 常量、数据工厂函数、页面操作、等待策略、设备管理、断言辅助、时间辅助函数）
         ├── center.spec.ts - 发现中心 E2E 测试（多浏览器 session 测试、被动发现测试）
         ├── device-persistence.spec.ts - 设备持久化 E2E 测试（localStorage 持久化、页面切换保持、3天过期删除、在线/离线状态、定时器跨页运行）
         ├── wechat.spec.ts - 聊天功能 E2E 测试
@@ -225,3 +226,11 @@ sx-peerjs-http-util/
 2. 本设备收到"我发现你"通知
 3. 自动将对方加入发现中心
 4. 可选择发起聊天
+
+---
+
+# 运行所有 E2E 测试
+npm run test:e2e
+
+# 运行特定测试文件
+npx playwright test e2e/center.spec.ts

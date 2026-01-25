@@ -6,29 +6,22 @@ import { useDeviceStore } from '../stores/deviceStore';
 import { usePeerManager } from '../composables/usePeerManager';
 import { message } from 'ant-design-vue';
 import type { OnlineDevice } from '../types';
-import { ReloadOutlined, TeamOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons-vue';
+import { ReloadOutlined, TeamOutlined, PlusOutlined } from '@ant-design/icons-vue';
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
 const deviceStore = useDeviceStore();
+const peerManager = usePeerManager();
 const {
   isConnected,
-  init,
   queryDiscoveredDevices,
   addDiscoveredDevice,
   sendDiscoveryNotification,
   queryUsername,
-} = usePeerManager();
+} = peerManager;
 
 const queryPeerIdInput = ref('');
 const isQuerying = ref(false);
-const showSetupModal = ref(false);
-
-const setupForm = ref({
-  username: '',
-  avatarFile: null as File | null,
-  avatarPreview: null as string | null,
-});
 
 // 使用 deviceStore 中的设备列表
 const storedDevices = computed(() => deviceStore.allDevices);
@@ -62,7 +55,8 @@ const sortedDevices = computed(() => {
 
 // 检查设备是否已在聊天列表
 function isInChat(peerId: string): boolean {
-  return chatStore.getContact(peerId) !== undefined;
+  const contact = chatStore.getContact(peerId);
+  return contact !== undefined;
 }
 
 // 在线检查函数：检查指定设备是否在线
@@ -82,21 +76,11 @@ async function checkDeviceOnline(device: OnlineDevice): Promise<boolean> {
 }
 
 onMounted(async () => {
-  // 加载用户信息
-  const isSetup = userStore.loadUserInfo();
-
-  // 如果用户未设置，显示设置弹窗
-  if (!isSetup) {
-    showSetupModal.value = true;
-  }
-
   // 从 localStorage 加载已保存的设备列表
   deviceStore.loadDevices();
 
-  // 确保 Peer 已初始化
-  if (!isConnected.value) {
-    init();
-  }
+  // 加载聊天数据（确保 isInChat 能正确工作）
+  chatStore.loadFromStorage();
 
   // 启动心跳定时器
   deviceStore.startHeartbeatTimer(async (device: OnlineDevice) => {
@@ -180,6 +164,8 @@ async function addDeviceManually() {
     return;
   }
 
+  console.log('[Center] Adding device manually:', peerId);
+
   // 先添加到在线设备列表（使用临时用户名）
   const newDevice: OnlineDevice = {
     peerId,
@@ -190,19 +176,29 @@ async function addDeviceManually() {
     isOnline: true,
   };
 
+  // 添加到 peerInstance 和 deviceStore
   addDiscoveredDevice(newDevice);
+  console.log('[Center] Device added to store:', newDevice);
 
   // 发送发现通知给对端
   await sendDiscoveryNotification(peerId);
+  console.log('[Center] Discovery notification sent to:', peerId);
 
   // 查询对端的用户名
   const userInfo = await queryUsername(peerId);
   if (userInfo) {
+    console.log('[Center] Received user info:', userInfo);
     // 更新设备信息
     newDevice.username = userInfo.username;
     newDevice.avatar = userInfo.avatar;
     // 同时更新 peerInstance 和 deviceStore
     addDiscoveredDevice({ ...newDevice });
+    // 触发 UI 更新
+    deviceStore.addOrUpdateDevice({ ...newDevice });
+  } else {
+    console.warn('[Center] Failed to get user info for:', peerId);
+    // 即使查询失败，设备也已添加
+    deviceStore.addOrUpdateDevice({ ...newDevice });
   }
 
   message.success(`已添加设备 ${newDevice.username}`);
@@ -235,105 +231,10 @@ function refreshDiscovery() {
   deviceStore.updateOnlineStatus();
   message.success(`已刷新，当前发现 ${storedDevices.value.length} 个设备`);
 }
-
-/**
- * 提交用户设置
- */
-async function handleSetupSubmit() {
-  const username = setupForm.value.username.trim();
-  if (!username) {
-    message.warning('请输入用户名');
-    return;
-  }
-
-  let avatarDataUrl: string | null = null;
-
-  if (setupForm.value.avatarFile) {
-    try {
-      avatarDataUrl = await fileToDataUrl(setupForm.value.avatarFile);
-    } catch (e) {
-      message.error('头像处理失败');
-      return;
-    }
-  }
-
-  userStore.saveUserInfo({
-    username,
-    avatar: avatarDataUrl,
-  });
-
-  showSetupModal.value = false;
-  message.success('设置完成');
-}
-
-/**
- * 文件转 DataURL
- */
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target?.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * 头像变更
- */
-function handleAvatarChange(e: Event) {
-  const target = e.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (file) {
-    if (file.size > 2 * 1024 * 1024) {
-      message.warning('头像大小不能超过 2MB');
-      return;
-    }
-
-    setupForm.value.avatarFile = file;
-    fileToDataUrl(file).then((dataUrl) => {
-      setupForm.value.avatarPreview = dataUrl;
-    });
-  }
-}
 </script>
 
 <template>
   <div class="center-container">
-    <!-- 用户设置弹窗 -->
-    <a-modal
-      v-model:open="showSetupModal"
-      title="设置用户信息"
-      :mask-closable="false"
-      :closable="false"
-      ok-text="完成"
-      @ok="handleSetupSubmit"
-    >
-      <a-form layout="vertical">
-        <a-form-item label="用户名" required>
-          <a-input
-            v-model:value="setupForm.username"
-            placeholder="请输入用户名"
-            :maxlength="20"
-          />
-        </a-form-item>
-        <a-form-item label="头像（可选）">
-          <a-upload
-            :before-upload="() => false"
-            @change="handleAvatarChange"
-            :show-upload-list="false"
-            accept="image/*"
-          >
-            <a-avatar :size="64" :src="setupForm.avatarPreview || undefined" style="cursor: pointer">
-              <template #icon>
-                <UserOutlined />
-              </template>
-            </a-avatar>
-          </a-upload>
-          <div class="avatar-tip">点击上传头像，最大 2MB</div>
-        </a-form-item>
-      </a-form>
-    </a-modal>
     <a-row :gutter="[16, 16]">
       <a-col :xs="24" :md="8">
         <a-card title="我的信息" :bordered="false">
@@ -365,7 +266,7 @@ function handleAvatarChange(e: Event) {
       <a-col :xs="24" :md="16">
         <a-card title="发现中心" :bordered="false">
           <template #extra>
-            <a-button size="small" @click="refreshDiscovery">
+            <a-button size="small" @click="refreshDiscovery" aria-label="refresh-discovery">
               <template #icon>
                 <ReloadOutlined />
               </template>
@@ -382,10 +283,10 @@ function handleAvatarChange(e: Event) {
                 style="width: calc(100% - 130px)"
                 @pressEnter="queryDevices"
               />
-              <a-button type="primary" @click="queryDevices" :loading="isQuerying">
+              <a-button type="primary" @click="queryDevices" :loading="isQuerying" aria-label="query-devices">
                 查询
               </a-button>
-              <a-button @click="addDeviceManually">
+              <a-button @click="addDeviceManually" aria-label="add-device">
                 <template #icon>
                   <PlusOutlined />
                 </template>
@@ -501,9 +402,4 @@ function handleAvatarChange(e: Event) {
   }
 }
 
-.avatar-tip {
-  font-size: 12px;
-  color: #999;
-  margin-top: 8px;
-}
 </style>

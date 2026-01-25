@@ -47,6 +47,11 @@ export const useChatStore = defineStore('chat', () => {
       try {
         const parsed = JSON.parse(contactsData);
         contacts.value = new Map(Object.entries(parsed));
+
+        // 为每个联系人加载对应的消息
+        contacts.value.forEach((contact, peerId) => {
+          loadMessages(peerId);
+        });
       } catch (e) {
         console.error('Failed to load contacts:', e);
       }

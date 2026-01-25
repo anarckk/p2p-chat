@@ -8,10 +8,8 @@ import type { ChatMessage, Contact, MessageType, MessageContent } from '../types
 import type { FileContent, ImageContent, VideoContent } from '../types';
 import {
   UserOutlined,
-  SettingOutlined,
   LeftOutlined,
   MoreOutlined,
-  CloseOutlined,
   MessageOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
@@ -26,9 +24,9 @@ import {
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
-const { init, sendMessageWithRetry } = usePeerManager();
+const peerManager = usePeerManager();
+const { sendMessageWithRetry } = peerManager;
 
-const showSetupModal = ref(false);
 const showAddChatModal = ref(false);
 const messageInput = ref('');
 const addChatPeerIdInput = ref('');
@@ -41,26 +39,9 @@ const currentContact = computed(() => {
   return chatStore.getContact(chatStore.currentChatPeerId);
 });
 
-const setupForm = ref({
-  username: '',
-  avatarFile: null as File | null,
-  avatarPreview: null as string | null,
-});
-
 onMounted(() => {
-  // 加载用户信息
-  const isSetup = userStore.loadUserInfo();
-  if (!isSetup) {
-    showSetupModal.value = true;
-  }
-
   // 加载聊天数据
   chatStore.loadFromStorage();
-
-  // 初始化 Peer
-  if (!userStore.myPeerId) {
-    init();
-  }
 
   // 检测移动端
   checkMobile();
@@ -98,33 +79,6 @@ function scrollToBottom() {
   }
 }
 
-async function handleSetupSubmit() {
-  const username = setupForm.value.username.trim();
-  if (!username) {
-    message.warning('请输入用户名');
-    return;
-  }
-
-  let avatarDataUrl: string | null = null;
-
-  if (setupForm.value.avatarFile) {
-    try {
-      avatarDataUrl = await fileToDataUrl(setupForm.value.avatarFile);
-    } catch (e) {
-      message.error('头像处理失败');
-      return;
-    }
-  }
-
-  userStore.saveUserInfo({
-    username,
-    avatar: avatarDataUrl,
-  });
-
-  showSetupModal.value = false;
-  message.success('设置完成');
-}
-
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -132,22 +86,6 @@ function fileToDataUrl(file: File): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
-}
-
-function handleAvatarChange(e: Event) {
-  const target = e.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (file) {
-    if (file.size > 2 * 1024 * 1024) {
-      message.warning('头像大小不能超过 2MB');
-      return;
-    }
-
-    setupForm.value.avatarFile = file;
-    fileToDataUrl(file).then((dataUrl) => {
-      setupForm.value.avatarPreview = dataUrl;
-    });
-  }
 }
 
 function selectContact(peerId: string) {
@@ -204,8 +142,17 @@ async function sendTextMessage() {
     return;
   }
 
-  await sendMessageWithRetry(chatStore.currentChatPeerId, content, 'text');
+  console.log('[WeChat] Sending text message:', { to: chatStore.currentChatPeerId, content });
+
+  const messageId = await sendMessageWithRetry(chatStore.currentChatPeerId, content, 'text');
+
+  console.log('[WeChat] Message sent with ID:', messageId);
+
   messageInput.value = '';
+
+  // 等待一小段时间确保消息已添加到 store
+  await nextTick();
+  console.log('[WeChat] Current messages count:', chatStore.currentMessages.length);
 }
 
 /**
@@ -341,20 +288,6 @@ function formatTime(timestamp: number): string {
 }
 
 /**
- * 获取消息状态图标
- */
-function getMessageStatusIcon(msg: ChatMessage) {
-  if (msg.status === 'delivered') {
-    return h(CheckCircleOutlined, { style: { color: '#52c41a', fontSize: '12px' } });
-  } else if (msg.status === 'failed') {
-    return h(ExclamationCircleOutlined, { style: { color: '#ff4d4f', fontSize: '12px' } });
-  } else if (msg.status === 'sending') {
-    return h(LoadingOutlined, { style: { fontSize: '12px' } });
-  }
-  return null;
-}
-
-/**
  * 渲染消息内容
  */
 function renderMessageContent(msg: ChatMessage) {
@@ -416,41 +349,6 @@ function renderMessageContent(msg: ChatMessage) {
 
 <template>
   <div class="wechat-container">
-    <!-- 用户设置弹窗 -->
-    <a-modal
-      v-model:open="showSetupModal"
-      title="设置用户信息"
-      :mask-closable="false"
-      :closable="false"
-      ok-text="完成"
-      @ok="handleSetupSubmit"
-    >
-      <a-form layout="vertical">
-        <a-form-item label="用户名">
-          <a-input
-            v-model:value="setupForm.username"
-            placeholder="请输入用户名"
-            :maxlength="20"
-          />
-        </a-form-item>
-        <a-form-item label="头像（可选）">
-          <a-upload
-            :before-upload="() => false"
-            @change="handleAvatarChange"
-            :show-upload-list="false"
-            accept="image/*"
-          >
-            <a-avatar :size="64" :src="setupForm.avatarPreview || undefined" style="cursor: pointer">
-              <template #icon>
-                <UserOutlined />
-              </template>
-            </a-avatar>
-          </a-upload>
-          <div class="avatar-tip">点击上传头像，最大 2MB</div>
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
     <!-- 新增聊天弹窗 -->
     <a-modal
       v-model:open="showAddChatModal"
@@ -486,11 +384,6 @@ function renderMessageContent(msg: ChatMessage) {
             <a-button type="text" size="small" aria-label="plus" @click="showAddChatModal = true">
               <template #icon>
                 <PlusOutlined />
-              </template>
-            </a-button>
-            <a-button type="text" size="small" aria-label="setting" @click="showSetupModal = true">
-              <template #icon>
-                <SettingOutlined />
               </template>
             </a-button>
           </div>
@@ -603,8 +496,10 @@ function renderMessageContent(msg: ChatMessage) {
                   <component :is="renderMessageContent(msg)" />
                   <div class="message-meta">
                     <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
-                    <span v-if="msg.from === userStore.myPeerId" class="message-status">
-                      <component :is="getMessageStatusIcon(msg)" />
+                    <span v-if="msg.from === userStore.myPeerId" class="message-status" :class="`message-status-${msg.status}`">
+                      <CheckCircleOutlined v-if="msg.status === 'delivered'" style="color: #52c41a; font-size: 12px" />
+                      <ExclamationCircleOutlined v-else-if="msg.status === 'failed'" style="color: #ff4d4f; font-size: 12px" />
+                      <LoadingOutlined v-else-if="msg.status === 'sending'" style="font-size: 12px" />
                     </span>
                   </div>
                 </div>
@@ -615,22 +510,22 @@ function renderMessageContent(msg: ChatMessage) {
           <!-- 输入区域 -->
           <div class="input-area">
             <div class="input-toolbar">
-              <a-button type="text" size="small" @click="selectFile">
+              <a-button type="text" size="small" aria-label="upload-file" @click="selectFile">
                 <template #icon>
                   <PlusOutlined />
                 </template>
               </a-button>
-              <a-button type="text" size="small">
+              <a-button type="text" size="small" aria-label="upload-image">
                 <template #icon>
                   <PictureOutlined />
                 </template>
               </a-button>
-              <a-button type="text" size="small">
+              <a-button type="text" size="small" aria-label="upload-file">
                 <template #icon>
                   <FileOutlined />
                 </template>
               </a-button>
-              <a-button type="text" size="small">
+              <a-button type="text" size="small" aria-label="upload-video">
                 <template #icon>
                   <VideoCameraOutlined />
                 </template>
@@ -655,6 +550,7 @@ function renderMessageContent(msg: ChatMessage) {
                     type="primary"
                     :disabled="!messageInput.trim()"
                     @click="sendTextMessage"
+                    aria-label="send"
                   >
                     <template #icon>
                       <SendOutlined />
@@ -1003,10 +899,4 @@ function renderMessageContent(msg: ChatMessage) {
   }
 }
 
-/* 设置弹窗 */
-.avatar-tip {
-  font-size: 12px;
-  color: #999;
-  margin-top: 8px;
-}
 </style>

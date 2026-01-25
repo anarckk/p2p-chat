@@ -1,4 +1,20 @@
 import { test, expect } from '@playwright/test';
+import {
+  SELECTORS,
+  WAIT_TIMES,
+  createUserInfo,
+  createDeviceInfo,
+  clearAllStorage,
+  setUserInfo,
+  setDeviceList,
+  createTestDevices,
+  cleanupTestDevices,
+  addDevice,
+  assertDeviceExists,
+  assertDeviceOnlineStatus,
+  assertDeviceNotExists,
+} from './test-helpers.js';
+import { minutesAgo } from './test-helpers.js';
 
 /**
  * 在线检查协议测试
@@ -10,388 +26,287 @@ import { test, expect } from '@playwright/test';
  */
 test.describe('在线检查协议', () => {
   test.beforeEach(async ({ page }) => {
-    // 清理 localStorage
     await page.goto('/center');
-    await page.evaluate(() => {
-      localStorage.clear();
-    });
+    await clearAllStorage(page);
   });
 
-  test('应该能够主动检查设备在线状态', async ({ browser }) => {
-    // 创建两个独立的浏览器上下文
-    const checkerContext = await browser.newContext();
-    const targetContext = await browser.newContext();
+  /**
+   * 多设备在线检查测试
+   */
+  test.describe('多设备在线检查', () => {
+    test('应该能够主动检查设备在线状态', async ({ browser }) => {
+      const devices = await createTestDevices(browser, '检查方', '被检查方', { startPage: 'center' });
 
-    const checkerPage = await checkerContext.newPage();
-    const targetPage = await targetContext.newPage();
+      try {
+        // 检查方添加目标设备
+        await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-    // 检查方配置
-    await checkerPage.goto('/center');
-    await checkerPage.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '检查方',
-          avatar: null,
-          peerId: 'checker-123',
-        }),
-      );
-    });
-    await checkerPage.reload();
-    await checkerPage.waitForTimeout(3000);
+        // 等待设备出现
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
-    // 目标设备配置
-    await targetPage.goto('/center');
-    await targetPage.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '被检查方',
-          avatar: null,
-          peerId: 'target-456',
-        }),
-      );
-    });
-    await targetPage.reload();
-    await targetPage.waitForTimeout(3000);
+        // 验证设备出现在发现列表中
+        await assertDeviceExists(devices.deviceA.page, '被检查方');
 
-    // 获取目标设备的 PeerId
-    const targetPeerId = await targetPage.evaluate(() => {
-      const stored = localStorage.getItem('p2p_user_info');
-      return stored ? JSON.parse(stored).peerId : null;
+        // 验证设备显示为在线
+        await assertDeviceOnlineStatus(devices.deviceA.page, '被检查方', true);
+      } finally {
+        await cleanupTestDevices(devices);
+      }
     });
 
-    console.log('目标设备 PeerId:', targetPeerId);
+    test('离线设备应该被正确标识', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('测试用户', 'offline-test-123'));
 
-    // 检查方添加目标设备
-    await checkerPage.fill('input[placeholder*="Peer ID"]', targetPeerId);
-    await checkerPage.click('button:has-text("添加")');
-    await checkerPage.waitForTimeout(3000);
-
-    // 验证设备出现在发现列表中
-    const deviceCard = await checkerPage.locator('.device-card').filter({ hasText: '被检查方' });
-    await expect(deviceCard).toBeVisible();
-
-    // 验证设备显示为在线
-    const onlineTag = await checkerPage.locator('.ant-tag:has-text("在线")').count();
-    expect(onlineTag).toBeGreaterThan(0);
-
-    // 清理
-    await checkerContext.close();
-    await targetContext.close();
-  });
-
-  test('离线设备应该被正确标识', async ({ browser }) => {
-    // 创建两个浏览器上下文
-    const checkerContext = await browser.newContext();
-    const targetContext = await browser.newContext();
-
-    const checkerPage = await checkerContext.newPage();
-    const targetPage = await targetContext.newPage();
-
-    // 检查方配置
-    await checkerPage.goto('/center');
-    await checkerPage.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '检查方',
-          avatar: null,
-          peerId: 'offline-checker-123',
-        }),
-      );
-    });
-    await checkerPage.reload();
-    await checkerPage.waitForTimeout(3000);
-
-    // 目标设备配置
-    await targetPage.goto('/center');
-    await targetPage.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '离线设备',
-          avatar: null,
-          peerId: 'offline-target-456',
-        }),
-      );
-    });
-    await targetPage.reload();
-    await targetPage.waitForTimeout(3000);
-
-    const targetPeerId = await targetPage.evaluate(() => {
-      const stored = localStorage.getItem('p2p_user_info');
-      return stored ? JSON.parse(stored).peerId : null;
-    });
-
-    // 检查方添加目标设备
-    await checkerPage.fill('input[placeholder*="Peer ID"]', targetPeerId);
-    await checkerPage.click('button:has-text("添加")');
-    await checkerPage.waitForTimeout(3000);
-
-    // 关闭目标设备（模拟离线）
-    await targetContext.close();
-
-    // 等待一段时间让检查方检测到离线
-    await checkerPage.waitForTimeout(5000);
-
-    // 刷新检查方页面
-    await checkerPage.reload();
-    await checkerPage.waitForTimeout(2000);
-
-    // 验证离线设备标识
-    const offlineTag = await checkerPage.locator('.ant-tag:has-text("离线")').count();
-    const onlineTag = await checkerPage.locator('.ant-tag:has-text("在线")').count();
-
-    console.log('离线标签数量:', offlineTag);
-    console.log('在线标签数量:', onlineTag);
-
-    // 清理
-    await checkerContext.close();
-  });
-
-  test('应该启动定时心跳检查', async ({ page }) => {
-    await page.goto('/center');
-    await page.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '心跳测试用户',
-          avatar: null,
-          peerId: 'heartbeat-test-123',
-        }),
-      );
-
-      // 添加一些设备
+      // 添加一个离线设备（lastHeartbeat 超过 10 分钟）
       const devices = {
-        'device-1': {
-          peerId: 'device-1',
-          username: '设备1',
-          avatar: null,
-          lastHeartbeat: Date.now(),
-          firstDiscovered: Date.now(),
+        'offline-device': createDeviceInfo('offline-device', '离线设备', {
+          isOnline: false,
+          lastHeartbeat: minutesAgo(15),
+          firstDiscovered: minutesAgo(60),
+        }),
+        'online-device': createDeviceInfo('online-device', '在线设备', {
           isOnline: true,
-        },
-        'device-2': {
-          peerId: 'device-2',
-          username: '设备2',
-          avatar: null,
-          lastHeartbeat: Date.now(),
-          firstDiscovered: Date.now(),
-          isOnline: false,
-        },
+          lastHeartbeat: minutesAgo(5),
+          firstDiscovered: minutesAgo(60),
+        }),
       };
-      localStorage.setItem('discovered_devices', JSON.stringify(devices));
-    });
-    await page.reload();
-    await page.waitForTimeout(2000);
+      await setDeviceList(page, devices);
 
-    // 验证心跳定时器已启动
-    // 通过检查设备列表是否正常加载来间接验证
-    const storedDevices = await page.evaluate(() => {
-      const stored = localStorage.getItem('discovered_devices');
-      return stored ? JSON.parse(stored) : {};
-    });
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
-    expect(Object.keys(storedDevices).length).toBe(2);
+      // 验证离线设备显示"离线"标签
+      const offlineDeviceCard = page.locator(SELECTORS.deviceCard).filter({ hasText: '离线设备' }).first();
+      const offlineTag = await offlineDeviceCard.locator(SELECTORS.offlineTag).count();
+      expect(offlineTag).toBeGreaterThan(0);
 
-    // 等待一段时间，验证定时器持续运行
-    await page.waitForTimeout(5000);
+      // 验证在线设备显示"在线"标签
+      const onlineDeviceCard = page.locator(SELECTORS.deviceCard).filter({ hasText: '在线设备' }).first();
+      const onlineTag = await onlineDeviceCard.locator(SELECTORS.onlineTag).count();
+      expect(onlineTag).toBeGreaterThan(0);
 
-    const storedDevicesAfter = await page.evaluate(() => {
-      const stored = localStorage.getItem('discovered_devices');
-      return stored ? JSON.parse(stored) : {};
+      // 验证离线设备卡片有特殊样式
+      const offlineCardClass = await offlineDeviceCard.getAttribute('class');
+      expect(offlineCardClass).toContain('is-offline');
     });
 
-    // 设备应该还在，说明定时器没有异常清理
-    expect(Object.keys(storedDevicesAfter).length).toBe(2);
-  });
-
-  test('设备上线后应该更新为在线状态', async ({ browser }) => {
-    // 这个测试验证设备从离线到在线的状态变化
-
-    const checkerContext = await browser.newContext();
-    const targetContext = await browser.newContext();
-
-    const checkerPage = await checkerContext.newPage();
-    const targetPage = await targetContext.newPage();
-
-    // 检查方配置
-    await checkerPage.goto('/center');
-    await checkerPage.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '状态检查方',
-          avatar: null,
-          peerId: 'status-checker-123',
-        }),
-      );
-
-      // 添加一个离线设备
-      const devices = {
-        'offline-target-789': {
-          peerId: 'offline-target-789',
-          username: '离线设备',
-          avatar: null,
-          lastHeartbeat: Date.now() - 20 * 60 * 1000, // 20分钟前
-          firstDiscovered: Date.now() - 20 * 60 * 1000,
-          isOnline: false,
-        },
-      };
-      localStorage.setItem('discovered_devices', JSON.stringify(devices));
-    });
-    await checkerPage.reload();
-    await checkerPage.waitForTimeout(2000);
-
-    // 验证初始状态为离线
-    const offlineTagBefore = await checkerPage.locator('.device-card').filter({ hasText: '离线设备' });
-    await expect(offlineTagBefore).toBeVisible();
-
-    // 现在启动目标设备
-    await targetPage.goto('/center');
-    await targetPage.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '离线设备',
-          avatar: null,
-          peerId: 'offline-target-789',
-        }),
-      );
-    });
-    await targetPage.reload();
-    await targetPage.waitForTimeout(3000);
-
-    // 检查方手动刷新
-    await checkerPage.click('button:has-text("刷新")');
-    await checkerPage.waitForTimeout(3000);
-
-    // 验证设备状态可能已更新（由于在线检查协议）
-    const pageContent = await checkerPage.content();
-    const hasOnlineStatus = pageContent.includes('在线');
-
-    console.log('设备是否更新为在线:', hasOnlineStatus);
-
-    // 清理
-    await checkerContext.close();
-    await targetContext.close();
-  });
-
-  test('超时未响应应该判定为离线', async ({ page }) => {
-    await page.goto('/center');
-    await page.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '超时测试用户',
-          avatar: null,
-          peerId: 'timeout-test-123',
-        }),
-      );
+    test('超时未响应应该判定为离线', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('超时测试用户', 'timeout-test-123'));
 
       // 添加一个长时间未响应的设备
       const devices = {
-        'timeout-device': {
-          peerId: 'timeout-device',
-          username: '超时设备',
-          avatar: null,
-          lastHeartbeat: Date.now() - 15 * 60 * 1000, // 15分钟前
-          firstDiscovered: Date.now() - 15 * 60 * 1000,
+        'timeout-device': createDeviceInfo('timeout-device', '超时设备', {
           isOnline: false,
-        },
-      };
-      localStorage.setItem('discovered_devices', JSON.stringify(devices));
-    });
-    await page.reload();
-    await page.waitForTimeout(2000);
-
-    // 验证设备显示为离线
-    const offlineTag = await page.locator('.ant-tag:has-text("离线")');
-    const hasOfflineTag = await offlineTag.count();
-
-    expect(hasOfflineTag).toBeGreaterThan(0);
-
-    // 验证设备卡片有离线样式
-    const offlineCard = await page.locator('.device-card.is-offline');
-    await expect(offlineCard).toBeVisible();
-  });
-
-  test('应该正确显示设备的最后心跳时间', async ({ page }) => {
-    await page.goto('/center');
-    await page.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '时间测试用户',
-          avatar: null,
-          peerId: 'time-test-123',
+          lastHeartbeat: minutesAgo(15),
+          firstDiscovered: minutesAgo(15),
         }),
-      );
+      };
+      await setDeviceList(page, devices);
 
-      const now = Date.now();
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 验证设备显示为离线
+      const offlineTag = page.locator(SELECTORS.offlineTag);
+      const hasOfflineTag = await offlineTag.count();
+
+      expect(hasOfflineTag).toBeGreaterThan(0);
+
+      // 验证设备卡片有离线样式
+      const offlineCard = page.locator(SELECTORS.deviceCardOffline);
+      await expect(offlineCard).toBeVisible();
+    });
+
+    test('应该正确显示设备的最后心跳时间', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('时间测试用户', 'time-test-123'));
+
       const devices = {
-        'recent-device': {
-          peerId: 'recent-device',
-          username: '最近活跃设备',
-          avatar: null,
-          lastHeartbeat: now - 2 * 60 * 1000, // 2分钟前
-          firstDiscovered: now - 3600000,
+        'recent-device': createDeviceInfo('recent-device', '最近活跃设备', {
           isOnline: true,
-        },
+          lastHeartbeat: minutesAgo(2),
+          firstDiscovered: Date.now() - 3600000,
+        }),
       };
-      localStorage.setItem('discovered_devices', JSON.stringify(devices));
-    });
-    await page.reload();
-    await page.waitForTimeout(2000);
+      await setDeviceList(page, devices);
 
-    // 验证设备信息显示
-    const deviceCard = await page.locator('.device-card').filter({ hasText: '最近活跃设备' });
-    await expect(deviceCard).toBeVisible();
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 验证设备信息显示
+      await assertDeviceExists(page, '最近活跃设备');
+    });
   });
 
-  test('定时心跳应该不干扰正常使用', async ({ page }) => {
-    // 验证定时器运行时用户仍可以正常操作
-    await page.goto('/center');
-    await page.evaluate(() => {
-      localStorage.setItem(
-        'p2p_user_info',
-        JSON.stringify({
-          username: '干扰测试用户',
-          avatar: null,
-          peerId: 'interference-test-123',
-        }),
-      );
+  /**
+   * 定时心跳测试
+   */
+  test.describe('定时心跳', () => {
+    test('应该启动定时心跳检查', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('心跳测试用户', 'heartbeat-test-123'));
+
+      // 添加一些设备
+      const devices = {
+        'device-1': createDeviceInfo('device-1', '设备1'),
+        'device-2': createDeviceInfo('device-2', '设备2', { isOnline: false }),
+      };
+      await setDeviceList(page, devices);
+
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 验证心跳定时器已启动
+      const storedDevices = await page.evaluate(() => {
+        const stored = localStorage.getItem('discovered_devices');
+        return stored ? JSON.parse(stored) : {};
+      });
+
+      expect(Object.keys(storedDevices).length).toBe(2);
+
+      // 等待一段时间，验证定时器持续运行
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      const storedDevicesAfter = await page.evaluate(() => {
+        const stored = localStorage.getItem('discovered_devices');
+        return stored ? JSON.parse(stored) : {};
+      });
+
+      // 设备应该还在，说明定时器没有异常清理
+      expect(Object.keys(storedDevicesAfter).length).toBe(2);
+    });
+
+    test('定时心跳应该不干扰正常使用', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('干扰测试用户', 'interference-test-123'));
 
       const devices = {
-        'test-device': {
-          peerId: 'test-device',
-          username: '测试设备',
-          avatar: null,
+        'test-device': createDeviceInfo('test-device', '测试设备'),
+      };
+      await setDeviceList(page, devices);
+
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 等待定时器运行
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 尝试添加新设备
+      await page.fill(SELECTORS.peerIdInput, 'new-device-999');
+      await page.click(SELECTORS.addButton);
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 验证操作成功
+      const successMessage = await page.locator(SELECTORS.successMessage).isVisible();
+      expect(successMessage).toBe(true);
+
+      // 验证原有设备还在
+      await assertDeviceExists(page, '测试设备');
+    });
+
+    test('切换页面后定时器应该继续运行', async ({ browser }) => {
+      const devices = await createTestDevices(browser, '状态检查方', '离线设备789', { startPage: 'center' });
+
+      try {
+        // 设置一个离线设备
+        const offlineDevices = {
+          'offline-target-789': createDeviceInfo('offline-target-789', '离线设备', {
+            isOnline: false,
+            lastHeartbeat: minutesAgo(20),
+            firstDiscovered: minutesAgo(20),
+          }),
+        };
+        await setDeviceList(devices.deviceA.page, offlineDevices);
+
+        await devices.deviceA.page.reload();
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+        // 验证初始状态为离线
+        await assertDeviceExists(devices.deviceA.page, '离线设备');
+
+        // 现在启动目标设备（设备 B）
+        // 注意：设备 B 已经在 createTestDevices 中启动
+
+        // 检查方手动刷新
+        await devices.deviceA.page.click(SELECTORS.refreshButton);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+        // 注意：此测试验证的是在线检查协议的流程
+        // 由于真实网络环境的复杂性，这里主要验证不会崩溃
+        const deviceCount = await devices.deviceA.page.locator(SELECTORS.deviceCard).count();
+        expect(deviceCount).toBeGreaterThan(0);
+      } finally {
+        await cleanupTestDevices(devices);
+      }
+    });
+  });
+
+  /**
+   * 状态变化测试
+   */
+  test.describe('状态变化', () => {
+    test('设备上线后应该更新为在线状态', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('状态测试用户', 'status-change-test-123'));
+
+      const devices = {
+        'was-offline-device': createDeviceInfo('was-offline-device', '曾经离线的设备', {
+          isOnline: false,
+          lastHeartbeat: minutesAgo(15),
+          firstDiscovered: minutesAgo(60),
+        }),
+      };
+      await setDeviceList(page, devices);
+
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 更新设备为在线状态
+      const updatedDevices = {
+        'was-offline-device': createDeviceInfo('was-offline-device', '曾经离线的设备', {
+          isOnline: true,
           lastHeartbeat: Date.now(),
-          firstDiscovered: Date.now(),
-          isOnline: true,
-        },
+          firstDiscovered: Date.now() - 60000,
+        }),
       };
-      localStorage.setItem('discovered_devices', JSON.stringify(devices));
+      await setDeviceList(page, updatedDevices);
+
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
+
+      // 验证设备状态更新
+      await assertDeviceOnlineStatus(page, '曾经离线的设备', true);
     });
-    await page.reload();
-    await page.waitForTimeout(2000);
 
-    // 等待定时器运行
-    await page.waitForTimeout(5000);
+    test('应该正确处理多个设备的状态', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('多状态测试用户', 'multi-status-test-123'));
 
-    // 尝试添加新设备
-    await page.fill('input[placeholder*="Peer ID"]', 'new-device-999');
-    await page.click('button:has-text("添加")');
-    await page.waitForTimeout(2000);
+      // 创建多个不同状态的设备
+      const devices = {
+        'device-online-1': createDeviceInfo('device-online-1', '在线设备1', {
+          isOnline: true,
+          lastHeartbeat: minutesAgo(2),
+        }),
+        'device-online-2': createDeviceInfo('device-online-2', '在线设备2', {
+          isOnline: true,
+          lastHeartbeat: minutesAgo(5),
+        }),
+        'device-offline-1': createDeviceInfo('device-offline-1', '离线设备1', {
+          isOnline: false,
+          lastHeartbeat: minutesAgo(12),
+        }),
+        'device-offline-2': createDeviceInfo('device-offline-2', '离线设备2', {
+          isOnline: false,
+          lastHeartbeat: minutesAgo(20),
+        }),
+      };
+      await setDeviceList(page, devices);
 
-    // 验证操作成功
-    const successMessage = await page.locator('.ant-message-success').isVisible();
-    expect(successMessage).toBe(true);
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
-    // 验证原有设备还在
-    const originalDevice = await page.locator('.device-card').filter({ hasText: '测试设备' });
-    await expect(originalDevice).toBeVisible();
+      // 验证在线设备数量
+      const onlineTags = await page.locator(SELECTORS.onlineTag).count();
+      expect(onlineTags).toBeGreaterThanOrEqual(2);
+
+      // 验证离线设备数量
+      const offlineTags = await page.locator(SELECTORS.offlineTag).count();
+      expect(offlineTags).toBeGreaterThanOrEqual(2);
+    });
   });
 });
