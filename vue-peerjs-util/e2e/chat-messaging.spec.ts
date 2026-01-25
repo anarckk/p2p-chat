@@ -369,7 +369,7 @@ test.describe('聊天消息发送与接收', () => {
 
     // 发送消息
     const messageInput = deviceAPage.locator('input[placeholder*="输入消息"]');
-    await messageInput.fill'自动添加聊天测试');
+    await messageInput.fill('自动添加聊天测试');
     await deviceAPage.click('button.ant-btn-primary');
     await deviceAPage.waitForTimeout(2000);
 

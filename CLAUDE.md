@@ -50,8 +50,8 @@ sx-peerjs-http-util/
         │   └── MainLayout.vue - 主布局（顶部导航菜单：/test 为隐藏路由，不在菜单中显示）
         ├── views/
         │   ├── TestView.vue - 测试页面（原 App.vue 内容迁移）
-        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听、设备持久化、在线/离线状态显示）
-        │   └── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持）
+        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听、设备持久化、在线/离线状态显示、添加设备后查询用户名更新显示）
+        │   └── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持、按钮 aria-label 可访问性）
         ├── stores/
         │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性）
         │   ├── chatStore.ts - 聊天 store（消息状态管理、重试机制、去重、localStorage 持久化）
@@ -67,7 +67,13 @@ sx-peerjs-http-util/
         ├── device-persistence.spec.ts - 设备持久化 E2E 测试（localStorage 持久化、页面切换保持、3天过期删除、在线/离线状态、定时器跨页运行）
         ├── wechat.spec.ts - 聊天功能 E2E 测试
         ├── navigation.spec.ts - 导航测试
-        └── vue.spec.ts - Vue 基础测试
+        ├── vue.spec.ts - Vue 基础测试
+        ├── user-setup.spec.ts - 用户信息设置 E2E 测试（首次进入弹窗、用户名必填、持久化、PeerId 稳定性）
+        ├── chat-messaging.spec.ts - 聊天消息发送与接收 E2E 测试（多浏览器 session 测试、新增聊天、聊天列表、被动添加）
+        ├── message-status.spec.ts - 消息状态展示与送达确认 E2E 测试（发送中/已送达/发送失败、去重、重试、离线消息）
+        ├── three-stage-protocol.spec.ts - 三段式通信协议 E2E 测试（消息ID、重试机制、多消息类型支持）
+        ├── online-check-protocol.spec.ts - 在线检查协议 E2E 测试（checkOnline/respondOnlineCheck、定时心跳、超时判定）
+        └── chat-badge.spec.ts - 聊天中标识 E2E 测试（"已加入聊天"标识、设备可见性、在线状态同时显示）
 
 ---
 
@@ -190,6 +196,9 @@ sx-peerjs-http-util/
   - 消息发送和送达确认
   - 用户信息设置
   - 定时心跳检查
+- **按钮可访问性**: 所有按钮添加 aria-label 属性以便测试定位
+- **测试选择器**: 使用 `.ant-modal .ant-btn-primary` 等精确选择器替代文本匹配
+- **等待时间**: 弹窗相关测试等待 3000ms 确保完全加载
 
 ### 持久化策略
 - **LocalStorage**: 用户信息、设备列表、聊天记录、消息状态

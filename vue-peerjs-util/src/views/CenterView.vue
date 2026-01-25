@@ -201,10 +201,11 @@ async function addDeviceManually() {
     // 更新设备信息
     newDevice.username = userInfo.username;
     newDevice.avatar = userInfo.avatar;
-    deviceStore.addOrUpdateDevice({ ...newDevice });
+    // 同时更新 peerInstance 和 deviceStore
+    addDiscoveredDevice({ ...newDevice });
   }
 
-  message.success(`已添加设备 ${peerId}`);
+  message.success(`已添加设备 ${newDevice.username}`);
   queryPeerIdInput.value = '';
 }
 

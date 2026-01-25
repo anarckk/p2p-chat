@@ -483,12 +483,12 @@ function renderMessageContent(msg: ChatMessage) {
             <span class="username">{{ userStore.userInfo.username }}</span>
           </div>
           <div class="header-actions">
-            <a-button type="text" size="small" @click="showAddChatModal = true">
+            <a-button type="text" size="small" aria-label="plus" @click="showAddChatModal = true">
               <template #icon>
                 <PlusOutlined />
               </template>
             </a-button>
-            <a-button type="text" size="small" @click="showSetupModal = true">
+            <a-button type="text" size="small" aria-label="setting" @click="showSetupModal = true">
               <template #icon>
                 <SettingOutlined />
               </template>
@@ -568,7 +568,7 @@ function renderMessageContent(msg: ChatMessage) {
               </div>
             </div>
             <a-dropdown>
-              <a-button type="text" size="small">
+              <a-button type="text" size="small" aria-label="more">
                 <template #icon>
                   <MoreOutlined />
                 </template>
