@@ -90,6 +90,11 @@ sx-peerjs-http-util/
         │   └── index.ts - TypeScript 类型定义（消息类型、协议类型、三段式通信协议）
         └── util/
             └── PeerHttpUtil.ts - PeerJS 工具类（三段式通信协议、去中心化发现中心）
+    ├── e2e/
+        ├── center.spec.ts - 发现中心 E2E 测试（多浏览器 session 测试、被动发现测试）
+        ├── wechat.spec.ts - 聊天功能 E2E 测试
+        ├── navigation.spec.ts - 导航测试
+        └── vue.spec.ts - Vue 基础测试
 
 ---
 
