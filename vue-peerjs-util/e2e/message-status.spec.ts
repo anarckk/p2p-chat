@@ -68,10 +68,10 @@ test.describe('消息状态展示与送达确认', () => {
       const messageText = page.locator(SELECTORS.messageText).filter({ hasText: '发送中的消息' });
       await expect(messageText).toBeVisible();
 
-      // 验证消息状态图标存在
-      const messageStatus = page.locator(SELECTORS.messageStatus);
-      const hasStatus = await messageStatus.count();
-      expect(hasStatus).toBeGreaterThan(0);
+      // 验证消息状态图标存在 - 发送中应该有 LoadingOutlined
+      const loadingIcon = page.locator('.message-status .anticon-loading');
+      const hasLoadingIcon = await loadingIcon.count();
+      expect(hasLoadingIcon).toBeGreaterThan(0);
     });
 
     test('应该显示消息已送达状态', async ({ page }) => {
@@ -110,10 +110,10 @@ test.describe('消息状态展示与送达确认', () => {
       const messageText = page.locator(SELECTORS.messageText).filter({ hasText: '已送达的消息' });
       await expect(messageText).toBeVisible();
 
-      // 验证消息状态图标存在
-      const messageStatus = page.locator(SELECTORS.messageStatus);
-      const hasStatus = await messageStatus.count();
-      expect(hasStatus).toBeGreaterThan(0);
+      // 验证消息状态图标存在 - 已送达应该有 CheckCircleOutlined
+      const checkIcon = page.locator('.message-status .anticon-check-circle');
+      const hasCheckIcon = await checkIcon.count();
+      expect(hasCheckIcon).toBeGreaterThan(0);
     });
 
     test('应该显示消息发送失败状态', async ({ page }) => {
@@ -152,10 +152,10 @@ test.describe('消息状态展示与送达确认', () => {
       const messageText = page.locator(SELECTORS.messageText).filter({ hasText: '发送失败的消息' });
       await expect(messageText).toBeVisible();
 
-      // 验证消息状态图标存在
-      const messageStatus = page.locator(SELECTORS.messageStatus);
-      const hasStatus = await messageStatus.count();
-      expect(hasStatus).toBeGreaterThan(0);
+      // 验证消息状态图标存在 - 失败应该有 ExclamationCircleOutlined
+      const errorIcon = page.locator('.message-status .anticon-exclamation-circle');
+      const hasErrorIcon = await errorIcon.count();
+      expect(hasErrorIcon).toBeGreaterThan(0);
     });
 
     test('应该显示消息时间戳', async ({ page }) => {
@@ -362,7 +362,7 @@ test.describe('消息状态展示与送达确认', () => {
         // 等待一段时间观察重试
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
-        // 验证消息状态
+        // 验证消息状态 - 检查消息有唯一ID
         const messageStatus = await devices.deviceA.page.evaluate(() => {
           const stored = localStorage.getItem('p2p_messages_contact-1');
           const messages = stored ? JSON.parse(stored) : [];
@@ -396,9 +396,14 @@ test.describe('消息状态展示与送达确认', () => {
         // 等待一段时间
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
 
-        // 注意：由于设备 B 实际上是离线的（没有真实的 P2P 连接），
-        // 这个测试主要验证代码逻辑不会崩溃
-        expect(true).toBe(true);
+        // 验证代码不会崩溃 - 检查消息是否保存
+        const messageExists = await devices.deviceA.page.evaluate(() => {
+          const stored = localStorage.getItem('p2p_messages_' + deviceBPeerId);
+          const messages = stored ? JSON.parse(stored) : [];
+          return messages.length > 0;
+        });
+
+        expect(messageExists).toBe(true);
       } finally {
         await cleanupTestDevices(devices);
       }

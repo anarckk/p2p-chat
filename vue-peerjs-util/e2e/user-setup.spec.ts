@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 /**
  * 用户信息设置测试
@@ -11,17 +11,19 @@ test.describe('用户信息设置', () => {
   test('首次进入应用应该显示用户设置弹窗', async ({ page }) => {
     // 清除 localStorage，模拟首次访问
     await page.goto('/wechat');
-    await page.evaluate(() => {
-      localStorage.clear();
-    });
+    await clearAllStorage(page);
     await page.reload();
 
-    // 等待页面加载
-    await page.waitForTimeout(2000);
+    // 等待弹窗出现
+    await page.waitForSelector('.ant-modal', { timeout: 5000 });
 
-    // 验证弹窗显示
-    const pageContent = await page.content();
-    expect(pageContent).toContain('设置用户信息');
+    // 验证弹窗显示 - 使用更精确的选择器
+    const modal = page.locator('.ant-modal');
+    await expect(modal).toBeVisible();
+
+    // 验证弹窗标题
+    const modalTitle = page.locator('.ant-modal-title');
+    await expect(modalTitle).toContainText('设置用户信息');
 
     // 验证用户名输入框存在
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
@@ -30,35 +32,38 @@ test.describe('用户信息设置', () => {
 
   test('输入用户名后应该成功保存并关闭弹窗', async ({ page }) => {
     await page.goto('/wechat');
-    await page.evaluate(() => {
-      localStorage.clear();
-    });
+    await clearAllStorage(page);
     await page.reload();
-    await page.waitForTimeout(3000);
+
+    // 等待弹窗出现
+    await page.waitForSelector('.ant-modal', { timeout: 5000 });
 
     // 输入用户名
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     await usernameInput.fill('测试用户卡密');
 
-    // 点击完成 - 使用更精确的选择器
+    // 点击完成 - 使用精确的选择器
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
 
     // 等待弹窗关闭
-    await page.waitForTimeout(3000);
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
+      // 弹窗可能已经关闭，继续执行
+    });
 
-    // 验证成功消息
-    const pageContent = await page.content();
-    expect(pageContent).toContain('设置完成');
+    // 验证成功消息 - 使用更精确的选择器
+    const successSelector = '.ant-message .anticon-check-circle';
+    const successMsg = page.locator(successSelector).first();
+    await expect(successMsg).toBeVisible({ timeout: 3000 });
   });
 
   test('用户信息应该保存到 LocalStorage', async ({ page }) => {
     await page.goto('/wechat');
-    await page.evaluate(() => {
-      localStorage.clear();
-    });
+    await clearAllStorage(page);
     await page.reload();
-    await page.waitForTimeout(3000);
+
+    // 等待弹窗出现
+    await page.waitForSelector('.ant-modal', { timeout: 5000 });
 
     // 输入用户名
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
@@ -67,7 +72,9 @@ test.describe('用户信息设置', () => {
     // 点击完成
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
-    await page.waitForTimeout(3000);
+
+    // 等待保存完成
+    await page.waitForTimeout(1000);
 
     // 验证 localStorage 中保存了用户信息
     const userInfo = await page.evaluate(() => {
@@ -78,23 +85,24 @@ test.describe('用户信息设置', () => {
     expect(userInfo).not.toBeNull();
     expect(userInfo.username).toBe('持久化测试用户');
     expect(userInfo).toHaveProperty('peerId');
+    expect(userInfo.peerId).toBeTruthy();
   });
 
   test('刷新页面后用户信息应该保留', async ({ page }) => {
     await page.goto('/wechat');
-    await page.evaluate(() => {
-      localStorage.clear();
-    });
+    await clearAllStorage(page);
     await page.reload();
-    await page.waitForTimeout(3000);
 
-    // 输入用户名并保存
+    // 等待弹窗并设置用户信息
+    await page.waitForSelector('.ant-modal', { timeout: 5000 });
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     await usernameInput.fill('刷新测试用户');
 
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
-    await page.waitForTimeout(3000);
+
+    // 等待保存完成
+    await page.waitForTimeout(1000);
 
     // 获取保存的 PeerId
     const peerIdBeforeReload = await page.evaluate(() => {
@@ -117,15 +125,42 @@ test.describe('用户信息设置', () => {
 
   test('用户名长度限制为 20 个字符', async ({ page }) => {
     await page.goto('/wechat');
-    await page.evaluate(() => {
-      localStorage.clear();
-    });
+    await clearAllStorage(page);
     await page.reload();
-    await page.waitForTimeout(3000);
+
+    // 等待弹窗出现
+    await page.waitForSelector('.ant-modal', { timeout: 5000 });
 
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     const maxLength = await usernameInput.getAttribute('maxlength');
 
     expect(maxLength).toBe('20');
   });
+
+  test('空用户名应该不能提交', async ({ page }) => {
+    await page.goto('/wechat');
+    await clearAllStorage(page);
+    await page.reload();
+
+    // 等待弹窗出现
+    await page.waitForSelector('.ant-modal', { timeout: 5000 });
+
+    // 不输入用户名，直接点击完成
+    const okButton = page.locator('.ant-modal .ant-btn-primary');
+    await okButton.click();
+
+    // 验证弹窗仍然显示（说明提交失败）
+    const modal = page.locator('.ant-modal');
+    await expect(modal).toBeVisible();
+  });
 });
+
+/**
+ * 辅助函数：清理所有存储
+ */
+async function clearAllStorage(page: Page) {
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+}

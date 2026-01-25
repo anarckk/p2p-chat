@@ -53,17 +53,15 @@ test.describe('聊天消息发送与接收', () => {
 
         // 切换到设备 B，等待接收消息
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
-
-        // 刷新设备 B 页面以查看消息
         await devices.deviceB.page.reload();
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 
-        // 检查设备 B 是否收到了消息
-        const pageContent = await devices.deviceB.page.content();
-        const hasMessage = pageContent.includes(testMessage);
+        // 检查设备 B 是否收到了消息 - 使用更精确的选择器
+        const messageInB = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
+        const messageCount = await messageInB.count();
 
-        // 验证消息接收成功
-        expect(hasMessage).toBe(true);
+        // 验证消息接收成功（至少有一条匹配的消息）
+        expect(messageCount).toBeGreaterThan(0);
       } finally {
         await cleanupTestDevices(devices);
       }
@@ -86,17 +84,15 @@ test.describe('聊天消息发送与接收', () => {
 
         // 等待设备 B 接收消息
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
-
-        // 刷新设备 B 页面
         await devices.deviceB.page.reload();
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 
         // 验证设备 B 的聊天列表中自动添加了设备 A
-        const pageContent = await devices.deviceB.page.content();
-        const hasAutoAddedContact = pageContent.includes('主动发起者');
+        const contactInB = devices.deviceB.page.locator(SELECTORS.contactItem).filter({ hasText: '主动发起者' });
+        const contactCount = await contactInB.count();
 
         // 验证被动添加聊天功能
-        expect(hasAutoAddedContact).toBe(true);
+        expect(contactCount).toBeGreaterThan(0);
       } finally {
         await cleanupTestDevices(devices);
       }
@@ -117,6 +113,8 @@ test.describe('聊天消息发送与接收', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证新增聊天弹窗显示
+      const modal = page.locator('.ant-modal');
+      await expect(modal).toBeVisible();
       const modalTitle = page.locator(SELECTORS.modalTitle);
       await expect(modalTitle).toContainText('新增聊天');
 
@@ -127,9 +125,9 @@ test.describe('聊天消息发送与接收', () => {
       await page.click(SELECTORS.modalOkButton);
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
-      // 验证成功消息
-      const successMessage = await page.locator(SELECTORS.successMessage).isVisible();
-      expect(successMessage).toBe(true);
+      // 验证成功消息 - 使用更精确的选择器
+      const successMsg = page.locator('.ant-message .anticon-check-circle');
+      await expect(successMsg).toBeVisible({ timeout: 3000 });
 
       // 验证聊天已添加到列表
       const contactItem = page.locator(SELECTORS.contactItem);
@@ -153,9 +151,10 @@ test.describe('聊天消息发送与接收', () => {
       await page.click(SELECTORS.modalOkButton);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      // 验证警告消息
-      const warningMessage = await page.locator(SELECTORS.warningMessage).isVisible();
-      expect(warningMessage).toBe(true);
+      // 验证警告消息 - 使用更精确的选择器
+      const warningMsg = page.locator('.ant-message .anticon-exclamation-circle');
+      const warningCount = await warningMsg.count();
+      expect(warningCount).toBeGreaterThan(0);
     });
 
     test('应该显示聊天列表', async ({ page }) => {
@@ -199,8 +198,9 @@ test.describe('聊天消息发送与接收', () => {
       // 验证空状态显示
       await assertEmptyState(page);
 
-      const pageContent = await page.content();
-      expect(pageContent).toContain('暂无聊天');
+      const emptyText = page.locator('.empty-contacts, .ant-empty-description');
+      const hasEmptyText = await emptyText.count();
+      expect(hasEmptyText).toBeGreaterThan(0);
     });
 
     test('应该能够删除聊天', async ({ page }) => {
@@ -231,9 +231,9 @@ test.describe('聊天消息发送与接收', () => {
       await page.click('a:has-text("删除聊天")');
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      // 验证成功消息
-      const successMessage = await page.locator(SELECTORS.successMessage).isVisible();
-      expect(successMessage).toBe(true);
+      // 验证成功消息 - 使用更精确的选择器
+      const successMsg = page.locator('.ant-message .anticon-check-circle');
+      await expect(successMsg).toBeVisible({ timeout: 3000 });
     });
 
     test('消息应该显示发送方信息', async ({ page }) => {

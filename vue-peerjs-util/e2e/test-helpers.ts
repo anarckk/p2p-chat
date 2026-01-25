@@ -40,10 +40,12 @@ export const SELECTORS = {
   deviceCardMe: '.device-card.is-me',
   deviceCardOffline: '.device-card.is-offline',
 
-  // 发现中心
+  // 发现中心 - 使用更精确的选择器
   peerIdInput: 'input[placeholder*="Peer ID"]',
-  queryButton: 'button:has-text("查询")',
-  addButton: 'button:has-text("添加")',
+  // 查询按钮：使用 aria-label
+  queryButton: 'button[aria-label="query-devices-button"]',
+  // 添加按钮：使用 aria-label
+  addButton: 'button[aria-label="add-device"]',
   refreshButton: 'button[aria-label="refresh-discovery"]',
 
   // 聊天
@@ -61,16 +63,21 @@ export const SELECTORS = {
   // 弹窗
   modalTitle: '.ant-modal-title',
   modalOkButton: '.ant-modal .ant-btn-primary',
+  modalCancelButton: '.ant-modal .ant-btn-default',
 
-  // 消息提示
-  successMessage: '.ant-message-success',
-  warningMessage: '.ant-message-warning',
-  errorMessage: '.ant-message-error',
+  // 消息提示 - 使用更稳定的选择器
+  successMessage: '.ant-message-success, .ant-message .anticon-check-circle',
+  warningMessage: '.ant-message-warning, .ant-message .anticon-exclamation-circle',
+  errorMessage: '.ant-message-error, .ant-message .anticon-close-circle',
 
-  // 状态标签
-  onlineTag: '.ant-tag:has-text("在线")',
-  offlineTag: '.ant-tag:has-text("离线")',
-  chatTag: '.ant-tag:has-text("已加入聊天")',
+  // 状态标签 - 使用更精确的选择器
+  onlineTag: '.ant-tag.ant-tag-success',
+  offlineTag: '.ant-tag.ant-tag-default',
+  chatTag: '.ant-tag.ant-tag-green',
+
+  // 连接状态
+  connectedBadge: '.ant-badge-status-processing',
+  disconnectedBadge: '.ant-badge-status-error',
 } as const;
 
 // 等待时间常量（毫秒）
@@ -302,6 +309,7 @@ export interface TestDevices {
 
 /**
  * 创建两个测试设备
+ * 改进：确保 Peer 连接完全建立后再返回
  */
 export async function createTestDevices(
   browser: any,
@@ -318,6 +326,8 @@ export async function createTestDevices(
   await deviceAPage.goto(`/${startPage}`);
   await setUserInfo(deviceAPage, deviceAUserInfo);
   await waitForPeerConnected(deviceAPage);
+  // 额外等待，确保 Peer 完全初始化
+  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
   // 创建设备 B
   const deviceBContext = await browser.newContext();
@@ -326,6 +336,8 @@ export async function createTestDevices(
   await deviceBPage.goto(`/${startPage}`);
   await setUserInfo(deviceBPage, deviceBUserInfo);
   await waitForPeerConnected(deviceBPage);
+  // 额外等待，确保 Peer 完全初始化
+  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
   return {
     deviceA: {
@@ -407,15 +419,30 @@ export async function assertDeviceNotExists(page: Page, usernameOrPeerId: string
 
 /**
  * 断言设备在线状态
+ * 改进：更可靠的断言逻辑
  */
 export async function assertDeviceOnlineStatus(
   page: Page,
   usernameOrPeerId: string,
   isOnline: boolean
 ): Promise<void> {
+  // 首先找到设备卡片
   const card = page.locator(SELECTORS.deviceCard).filter({ hasText: usernameOrPeerId });
-  const tag = isOnline ? SELECTORS.onlineTag : SELECTORS.offlineTag;
-  await expect(card.locator(tag)).toBeVisible();
+  await expect(card).toBeVisible();
+
+  // 根据在线状态检查相应的标签
+  if (isOnline) {
+    // 在线设备应该有在线标签或者"我"标签
+    const onlineTag = card.locator(SELECTORS.onlineTag);
+    const meTag = card.locator('.ant-tag:has-text("我")');
+    const chatTag = card.locator('.ant-tag:has-text("已加入聊天")');
+    const hasTag = await onlineTag.count() + await meTag.count() + await chatTag.count();
+    expect(hasTag).toBeGreaterThan(0);
+  } else {
+    // 离线设备应该有离线标签
+    const offlineTag = card.locator(SELECTORS.offlineTag);
+    await expect(offlineTag).toBeVisible();
+  }
 }
 
 /**

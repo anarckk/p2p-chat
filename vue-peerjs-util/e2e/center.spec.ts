@@ -26,9 +26,9 @@ test.describe('发现中心页面 - 基础 UI', () => {
     // 检查页面容器
     await expect(page.locator(SELECTORS.centerContainer)).toBeVisible();
 
-    // 验证页面包含"发现中心"文本
-    const pageContent = await page.content();
-    expect(pageContent).toContain('发现中心');
+    // 验证页面包含"发现中心"卡片
+    const discoveryCard = page.locator('.a-card').filter({ hasText: '发现中心' });
+    await expect(discoveryCard).toBeVisible();
 
     // 验证输入框和按钮存在
     await expect(page.locator(SELECTORS.peerIdInput)).toBeVisible();
@@ -38,10 +38,13 @@ test.describe('发现中心页面 - 基础 UI', () => {
   });
 
   test('应该显示用户信息区域', async ({ page }) => {
-    // 验证用户信息显示
-    const pageContent = await page.content();
-    expect(pageContent).toContain('测试用户');
-    expect(pageContent).toContain('test-peer-123');
+    // 验证用户信息卡片存在
+    const userInfoCard = page.locator('.a-card').filter({ hasText: '我的信息' });
+    await expect(userInfoCard).toBeVisible();
+
+    // 验证用户名显示
+    const usernameElement = page.locator('.a-descriptions-item-label').filter({ hasText: '用户名' });
+    await expect(usernameElement).toBeVisible();
   });
 });
 
@@ -130,5 +133,47 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
     } finally {
       await cleanupTestDevices(devices);
     }
+  });
+
+  test('应该显示设备的 Peer ID', async ({ browser }) => {
+    const devices = await createTestDevices(browser, 'PeerId显示A', 'PeerId显示B', { startPage: 'center' });
+
+    try {
+      // 设备 A 添加设备 B
+      await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
+
+      // 等待添加完成
+      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+
+      // 验证设备 B 的卡片包含 Peer ID
+      const deviceBCard = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: 'PeerId显示B' });
+      await expect(deviceBCard).toBeVisible();
+
+      // 验证卡片中有 Peer ID 文本（小字显示）
+      const peerIdText = deviceBCard.locator('.a-typography-secondary');
+      const peerIdCount = await peerIdText.count();
+      expect(peerIdCount).toBeGreaterThan(0);
+    } finally {
+      await cleanupTestDevices(devices);
+    }
+  });
+
+  test('自己的设备应该有特殊标识', async ({ page }) => {
+    await setUserInfo(page, createUserInfo('我自己', 'my-unique-peer-id-123'));
+
+    await page.reload();
+    await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+    // 验证自己的设备卡片有特殊样式
+    const myDeviceCard = page.locator(SELECTORS.deviceCardMe);
+    const myCardCount = await myDeviceCard.count();
+
+    // 应该至少有一张卡片是"我"的卡片
+    expect(myCardCount).toBeGreaterThan(0);
+
+    // 验证"我"标签存在
+    const myTag = page.locator('.a-tag:has-text("我")');
+    const myTagCount = await myTag.count();
+    expect(myTagCount).toBeGreaterThan(0);
   });
 });

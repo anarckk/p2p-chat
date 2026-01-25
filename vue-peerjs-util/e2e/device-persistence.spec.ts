@@ -13,6 +13,7 @@ import {
   assertDeviceNotExists,
   assertDeviceOnlineStatus,
 } from './test-helpers.js';
+import { daysAgo } from './test-helpers.js';
 
 /**
  * 设备持久化测试
@@ -78,7 +79,7 @@ test.describe('设备持久化功能', () => {
       const deviceCount = await page.locator(SELECTORS.deviceCard).count();
       expect(deviceCount).toBeGreaterThanOrEqual(3);
 
-      // 验证特定设备存在
+      // 验证特定设备存在 - 使用更精确的选择器
       const hasDevice1 = await page.locator(SELECTORS.deviceCard).filter({ hasText: '设备1' }).count();
       const hasDevice2 = await page.locator(SELECTORS.deviceCard).filter({ hasText: '设备2' }).count();
       const hasDevice3 = await page.locator(SELECTORS.deviceCard).filter({ hasText: '设备3' }).count();
@@ -204,6 +205,34 @@ test.describe('设备持久化功能', () => {
       await assertDeviceNotExists(page, '过期设备');
       await assertDeviceExists(page, '有效设备');
     });
+
+    test('刚过3天边界的设备应该被保留', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('边界测试用户', 'boundary-test-peer-123'));
+
+      const now = Date.now();
+      // 3天减1秒，应该被保留
+      const justUnderThreeDays = now - 3 * 24 * 60 * 60 * 1000 + 1000;
+
+      const devices = {
+        'boundary-device': createDeviceInfo('boundary-device', '边界设备', {
+          isOnline: false,
+          lastHeartbeat: justUnderThreeDays,
+          firstDiscovered: justUnderThreeDays,
+        }),
+      };
+      await setDeviceList(page, devices);
+
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 验证设备还在
+      const storedDevices = await page.evaluate(() => {
+        const stored = localStorage.getItem('discovered_devices');
+        return stored ? JSON.parse(stored) : {};
+      });
+
+      expect(storedDevices).toHaveProperty('boundary-device');
+    });
   });
 
   /**
@@ -295,6 +324,72 @@ test.describe('设备持久化功能', () => {
       } finally {
         await cleanupTestDevices(devices);
       }
+    });
+  });
+
+  /**
+   * 设备数据完整性测试
+   */
+  test.describe('数据完整性', () => {
+    test('设备数据应该包含所有必需字段', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('数据完整性测试用户', 'integrity-test-peer-123'));
+
+      const devices = {
+        'complete-device': createDeviceInfo('complete-device', '完整设备'),
+      };
+      await setDeviceList(page, devices);
+
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 验证设备数据完整性
+      const storedDevices = await page.evaluate(() => {
+        const stored = localStorage.getItem('discovered_devices');
+        return stored ? JSON.parse(stored) : {};
+      });
+
+      const device = storedDevices['complete-device'];
+      expect(device).toHaveProperty('peerId');
+      expect(device).toHaveProperty('username');
+      expect(device).toHaveProperty('avatar');
+      expect(device).toHaveProperty('lastHeartbeat');
+      expect(device).toHaveProperty('firstDiscovered');
+      expect(device).toHaveProperty('isOnline');
+    });
+
+    test('设备数据应该在多个页面间保持一致', async ({ page }) => {
+      await setUserInfo(page, createUserInfo('一致性测试用户', 'consistency-test-peer-123'));
+
+      const devices = {
+        'consistency-device': createDeviceInfo('consistency-device', '一致性设备', {
+          username: '一致性设备',
+          isOnline: true,
+        }),
+      };
+      await setDeviceList(page, devices);
+
+      await page.reload();
+
+      // 在发现中心获取设备数据
+      const devicesInCenter = await page.evaluate(() => {
+        const stored = localStorage.getItem('discovered_devices');
+        return stored ? JSON.parse(stored) : {};
+      });
+
+      // 切换到聊天页面
+      await page.click('a:has-text("聊天")');
+      await page.waitForURL(/\/wechat/);
+      await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+      // 在聊天页面获取设备数据
+      const devicesInChat = await page.evaluate(() => {
+        const stored = localStorage.getItem('discovered_devices');
+        return stored ? JSON.parse(stored) : {};
+      });
+
+      // 验证数据一致性
+      expect(devicesInCenter).toEqual(devicesInChat);
+      expect(devicesInChat).toHaveProperty('consistency-device');
     });
   });
 });

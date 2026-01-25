@@ -283,7 +283,7 @@ function refreshDiscovery() {
                 style="width: calc(100% - 130px)"
                 @pressEnter="queryDevices"
               />
-              <a-button type="primary" @click="queryDevices" :loading="isQuerying" aria-label="query-devices">
+              <a-button type="primary" @click="queryDevices" :loading="isQuerying" aria-label="query-devices-button">
                 查询
               </a-button>
               <a-button @click="addDeviceManually" aria-label="add-device">

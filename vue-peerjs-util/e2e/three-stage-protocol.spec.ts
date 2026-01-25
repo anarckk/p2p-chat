@@ -55,12 +55,12 @@ test.describe('三段式通信协议', () => {
         await devices.receiver.page.reload();
         await devices.receiver.page.waitForTimeout(WAIT_TIMES.RELOAD);
 
-        // 验证接收方收到消息
-        const pageContent = await devices.receiver.page.content();
-        const hasMessage = pageContent.includes(testMessage);
+        // 验证接收方收到消息 - 使用更精确的选择器
+        const messageInReceiver = devices.receiver.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
+        const messageCount = await messageInReceiver.count();
 
         // 验证三段式协议成功传输消息
-        expect(hasMessage).toBe(true);
+        expect(messageCount).toBeGreaterThan(0);
       } finally {
         await cleanupTestDevices(devices);
       }
@@ -80,17 +80,19 @@ test.describe('三段式通信协议', () => {
         const testMessage = '重试测试消息';
         await sendTextMessage(devices.sender.page, testMessage);
 
-        // 验证消息状态
+        // 验证消息状态 - 检查消息有唯一ID和messageStage
         const messageStatus = await devices.sender.page.evaluate(() => {
           const stored = localStorage.getItem('p2p_messages_contact-1');
           const messages = stored ? JSON.parse(stored) : [];
           const lastMessage = messages[messages.length - 1];
-          return lastMessage ? { id: lastMessage.id, status: lastMessage.status } : null;
+          return lastMessage ? { id: lastMessage.id, messageStage: lastMessage.messageStage } : null;
         });
 
         // 验证消息有唯一ID
         expect(messageStatus).not.toBeNull();
         expect(messageStatus?.id).toBeTruthy();
+        // 验证消息有 messageStage（三段式协议的阶段标识）
+        expect(messageStatus?.messageStage).toBeTruthy();
       } finally {
         await cleanupTestDevices(devices);
       }
