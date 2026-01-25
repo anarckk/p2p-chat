@@ -97,6 +97,18 @@ export class PeerHttpUtil {
         // 发现中心：响应在线设备列表
         this.handleDiscoveryResponse(protocol as any);
         break;
+      case 'discovery_notification':
+        // 发现中心：收到发现通知
+        this.handleDiscoveryNotification(protocol as any, from);
+        break;
+      case 'username_query':
+        // 查询用户名
+        this.handleUsernameQuery(from);
+        break;
+      case 'username_response':
+        // 响应用户名查询
+        this.handleUsernameResponse(protocol as any, from);
+        break;
     }
   }
 
@@ -231,6 +243,52 @@ export class PeerHttpUtil {
 
     // 触发发现中心事件
     this.emitProtocol('discovery_response', protocol);
+  }
+
+  /**
+   * 处理发现通知：对端通知我它发现了我
+   */
+  private handleDiscoveryNotification(
+    protocol: { fromUsername: string; fromAvatar: string | null },
+    from: string,
+  ) {
+    // 将对端添加到已发现的设备列表
+    this.discoveredDevices.set(from, {
+      peerId: from,
+      username: protocol.fromUsername,
+      avatar: protocol.fromAvatar,
+      lastHeartbeat: Date.now(),
+    });
+
+    // 触发发现通知事件
+    this.emitProtocol('discovery_notification', { ...protocol, from } as any);
+  }
+
+  /**
+   * 处理用户名查询请求
+   */
+  private handleUsernameQuery(from: string) {
+    // 需要获取当前用户信息，这里通过事件传递出去，让外部处理
+    this.emitProtocol('username_query', { from } as any);
+  }
+
+  /**
+   * 处理用户名查询响应
+   */
+  private handleUsernameResponse(
+    protocol: { username: string; avatar: string | null },
+    from: string,
+  ) {
+    // 更新已发现的设备信息
+    const existing = this.discoveredDevices.get(from);
+    if (existing) {
+      existing.username = protocol.username;
+      existing.avatar = protocol.avatar;
+      existing.lastHeartbeat = Date.now();
+    }
+
+    // 触发用户名响应事件
+    this.emitProtocol('username_response', { ...protocol, from } as any);
   }
 
   /**
@@ -391,6 +449,84 @@ export class PeerHttpUtil {
     const device = this.discoveredDevices.get(peerId);
     if (device) {
       device.lastHeartbeat = Date.now();
+    }
+  }
+
+  /**
+   * 发现中心：发送发现通知给对端
+   */
+  async sendDiscoveryNotification(peerId: string, username: string, avatar: string | null) {
+    try {
+      await this.sendProtocol(peerId, {
+        type: 'discovery_notification',
+        from: this.getId()!,
+        to: peerId,
+        timestamp: Date.now(),
+        fromUsername: username,
+        fromAvatar: avatar,
+      });
+    } catch (err) {
+      console.error('[PeerHttp] Failed to send discovery notification:', err);
+    }
+  }
+
+  /**
+   * 发现中心：查询对端用户名
+   */
+  async queryUsername(peerId: string): Promise<{ username: string; avatar: string | null } | null> {
+    return new Promise((resolve) => {
+      // 设置一次性处理器
+      const handler = (protocol: AnyProtocol, from: string) => {
+        if (protocol.type === 'username_response' && from === peerId) {
+          const resp = protocol as any;
+          resolve({ username: resp.username, avatar: resp.avatar });
+
+          // 清理处理器
+          const handlers = this.protocolHandlers.get('username_response') || [];
+          const index = handlers.indexOf(handler as any);
+          if (index > -1) {
+            handlers.splice(index, 1);
+          }
+        }
+      };
+
+      this.onProtocol('username_response', handler as any);
+
+      // 发送查询
+      this.sendProtocol(peerId, {
+        type: 'username_query',
+        from: this.getId()!,
+        to: peerId,
+        timestamp: Date.now(),
+      }).catch(() => resolve(null));
+
+      // 超时处理
+      setTimeout(() => {
+        const handlers = this.protocolHandlers.get('username_response') || [];
+        const index = handlers.indexOf(handler as any);
+        if (index > -1) {
+          handlers.splice(index, 1);
+        }
+        resolve(null);
+      }, 5000);
+    });
+  }
+
+  /**
+   * 发现中心：响应用户名查询
+   */
+  async respondUsernameQuery(peerId: string, username: string, avatar: string | null) {
+    try {
+      await this.sendProtocol(peerId, {
+        type: 'username_response',
+        from: this.getId()!,
+        to: peerId,
+        timestamp: Date.now(),
+        username,
+        avatar,
+      });
+    } catch (err) {
+      console.error('[PeerHttp] Failed to send username response:', err);
     }
   }
 

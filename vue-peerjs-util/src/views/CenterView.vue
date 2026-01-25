@@ -5,7 +5,7 @@ import { useChatStore } from '../stores/chatStore';
 import { usePeerManager } from '../composables/usePeerManager';
 import { message } from 'ant-design-vue';
 import type { OnlineDevice } from '../types';
-import { ReloadOutlined, TeamOutlined, PlusOutlined } from '@ant-design/icons-vue';
+import { ReloadOutlined, TeamOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons-vue';
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
@@ -15,11 +15,20 @@ const {
   queryDiscoveredDevices,
   getDiscoveredDevices,
   addDiscoveredDevice,
+  sendDiscoveryNotification,
+  queryUsername,
 } = usePeerManager();
 
 const onlineDevices = ref<Map<string, OnlineDevice>>(new Map());
 const queryPeerIdInput = ref('');
 const isQuerying = ref(false);
+const showSetupModal = ref(false);
+
+const setupForm = ref({
+  username: '',
+  avatarFile: null as File | null,
+  avatarPreview: null as string | null,
+});
 
 // 我的设备信息
 const myDeviceInfo = computed(() => {
@@ -37,7 +46,20 @@ const sortedDevices = computed(() => {
   return allDevices.sort((a, b) => b.lastHeartbeat - a.lastHeartbeat);
 });
 
+// 检查设备是否已在聊天列表
+function isInChat(peerId: string): boolean {
+  return chatStore.getContact(peerId) !== undefined;
+}
+
 onMounted(async () => {
+  // 加载用户信息
+  const isSetup = userStore.loadUserInfo();
+
+  // 如果用户未设置，显示设置弹窗
+  if (!isSetup) {
+    showSetupModal.value = true;
+  }
+
   // 确保 Peer 已初始化
   if (!isConnected.value) {
     init();
@@ -90,7 +112,7 @@ async function queryDevices() {
 /**
  * 手动添加设备
  */
-function addDeviceManually() {
+async function addDeviceManually() {
   if (!queryPeerIdInput.value.trim()) {
     message.warning('请输入要添加的 Peer ID');
     return;
@@ -104,7 +126,7 @@ function addDeviceManually() {
     return;
   }
 
-  // 添加到在线设备列表
+  // 先添加到在线设备列表（使用临时用户名）
   const newDevice: OnlineDevice = {
     peerId,
     username: peerId,
@@ -114,6 +136,20 @@ function addDeviceManually() {
 
   onlineDevices.value.set(peerId, newDevice);
   addDiscoveredDevice(newDevice);
+
+  // 发送发现通知给对端
+  await sendDiscoveryNotification(peerId);
+
+  // 查询对端的用户名
+  const userInfo = await queryUsername(peerId);
+  if (userInfo) {
+    // 更新设备信息
+    newDevice.username = userInfo.username;
+    newDevice.avatar = userInfo.avatar;
+    onlineDevices.value.set(peerId, { ...newDevice });
+    // 同时更新已发现的设备
+    addDiscoveredDevice({ ...newDevice });
+  }
 
   message.success(`已添加设备 ${peerId}`);
   queryPeerIdInput.value = '';
@@ -154,10 +190,105 @@ function refreshDiscovery() {
 
   message.success(`已刷新，当前发现 ${onlineDevices.value.size} 个设备`);
 }
+
+/**
+ * 提交用户设置
+ */
+async function handleSetupSubmit() {
+  const username = setupForm.value.username.trim();
+  if (!username) {
+    message.warning('请输入用户名');
+    return;
+  }
+
+  let avatarDataUrl: string | null = null;
+
+  if (setupForm.value.avatarFile) {
+    try {
+      avatarDataUrl = await fileToDataUrl(setupForm.value.avatarFile);
+    } catch (e) {
+      message.error('头像处理失败');
+      return;
+    }
+  }
+
+  userStore.saveUserInfo({
+    username,
+    avatar: avatarDataUrl,
+  });
+
+  showSetupModal.value = false;
+  message.success('设置完成');
+}
+
+/**
+ * 文件转 DataURL
+ */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * 头像变更
+ */
+function handleAvatarChange(e: Event) {
+  const target = e.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (file) {
+    if (file.size > 2 * 1024 * 1024) {
+      message.warning('头像大小不能超过 2MB');
+      return;
+    }
+
+    setupForm.value.avatarFile = file;
+    fileToDataUrl(file).then((dataUrl) => {
+      setupForm.value.avatarPreview = dataUrl;
+    });
+  }
+}
 </script>
 
 <template>
   <div class="center-container">
+    <!-- 用户设置弹窗 -->
+    <a-modal
+      v-model:open="showSetupModal"
+      title="设置用户信息"
+      :mask-closable="false"
+      :closable="false"
+      ok-text="完成"
+      @ok="handleSetupSubmit"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="用户名" required>
+          <a-input
+            v-model:value="setupForm.username"
+            placeholder="请输入用户名"
+            :maxlength="20"
+          />
+        </a-form-item>
+        <a-form-item label="头像（可选）">
+          <a-upload
+            :before-upload="() => false"
+            @change="handleAvatarChange"
+            :show-upload-list="false"
+            accept="image/*"
+          >
+            <a-avatar :size="64" :src="setupForm.avatarPreview || undefined" style="cursor: pointer">
+              <template #icon>
+                <UserOutlined />
+              </template>
+            </a-avatar>
+          </a-upload>
+          <div class="avatar-tip">点击上传头像，最大 2MB</div>
+        </a-form-item>
+      </a-form>
+    </a-modal>
     <a-row :gutter="[16, 16]">
       <a-col :xs="24" :md="8">
         <a-card title="我的信息" :bordered="false">
@@ -254,6 +385,7 @@ function refreshDiscovery() {
                     <template #title>
                       {{ item.username }}
                       <a-tag v-if="item.peerId === userStore.myPeerId" color="blue" size="small">我</a-tag>
+                      <a-tag v-else-if="isInChat(item.peerId)" color="green" size="small">已加入聊天</a-tag>
                     </template>
                     <template #description>
                       <a-typography-text type="secondary" style="font-size: 12px">
@@ -314,5 +446,11 @@ function refreshDiscovery() {
   .center-container {
     padding: 16px;
   }
+}
+
+.avatar-tip {
+  font-size: 12px;
+  color: #999;
+  margin-top: 8px;
 }
 </style>

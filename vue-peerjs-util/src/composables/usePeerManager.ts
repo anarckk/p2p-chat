@@ -9,6 +9,9 @@ let peerInstance: PeerHttpUtil | null = null;
 let messageHandler: ((data: { from: string; data: any }) => void) | null = null;
 let deliveryAckHandler: ((protocol: any, from: string) => void) | null = null;
 let discoveryResponseHandler: ((protocol: any, from: string) => void) | null = null;
+let discoveryNotificationHandler: ((protocol: any, from: string) => void) | null = null;
+let usernameQueryHandler: ((protocol: any, from: string) => void) | null = null;
+let usernameResponseHandler: ((protocol: any, from: string) => void) | null = null;
 
 export function usePeerManager() {
   const chatStore = useChatStore();
@@ -70,6 +73,61 @@ export function usePeerManager() {
     };
 
     peerInstance.onProtocol('discovery_response', discoveryResponseHandler);
+
+    // 处理发现通知
+    discoveryNotificationHandler = (protocol: any, from: string) => {
+      if (protocol.type === 'discovery_notification') {
+        const { fromUsername, fromAvatar } = protocol;
+        // 对端发现了我，自动添加到聊天列表
+        if (!chatStore.getContact(from)) {
+          chatStore.createChat(from, fromUsername);
+          // 更新用户信息
+          chatStore.addOrUpdateContact({
+            peerId: from,
+            username: fromUsername,
+            avatar: fromAvatar,
+            online: true,
+            lastSeen: Date.now(),
+            unreadCount: 0,
+          });
+          message.info(`${fromUsername} 发现了你`);
+        }
+      }
+    };
+
+    peerInstance.onProtocol('discovery_notification', discoveryNotificationHandler);
+
+    // 处理用户名查询
+    usernameQueryHandler = (_protocol: any, from: string) => {
+      if (_protocol.type === 'username_query') {
+        // 响应我的用户信息
+        peerInstance?.respondUsernameQuery(
+          from,
+          userStore.userInfo.username || '',
+          userStore.userInfo.avatar,
+        );
+      }
+    };
+
+    peerInstance.onProtocol('username_query', usernameQueryHandler);
+
+    // 处理用户名响应
+    usernameResponseHandler = (protocol: any, _from: string) => {
+      if (protocol.type === 'username_response') {
+        const { username, avatar } = protocol;
+        // 更新联系人信息
+        const contact = chatStore.getContact(_from);
+        if (contact) {
+          chatStore.addOrUpdateContact({
+            ...contact,
+            username,
+            avatar,
+          });
+        }
+      }
+    };
+
+    peerInstance.onProtocol('username_response', usernameResponseHandler);
 
     messageHandler = (data: { from: string; data: any }) => {
       handleIncomingMessage(data);
@@ -281,6 +339,39 @@ export function usePeerManager() {
     }
   }
 
+  /**
+   * 发现中心：发送发现通知给对端
+   */
+  async function sendDiscoveryNotification(peerId: string) {
+    if (!peerInstance) return;
+
+    try {
+      await peerInstance.sendDiscoveryNotification(
+        peerId,
+        userStore.userInfo.username || '',
+        userStore.userInfo.avatar,
+      );
+    } catch (error) {
+      console.error('[Peer] Send discovery notification error:', error);
+    }
+  }
+
+  /**
+   * 发现中心：查询对端用户名
+   */
+  async queryUsername(peerId: string): Promise<{ username: string; avatar: string | null } | null> {
+    if (!peerInstance) {
+      return null;
+    }
+
+    try {
+      return await peerInstance.queryUsername(peerId);
+    } catch (error) {
+      console.error('[Peer] Query username error:', error);
+      return null;
+    }
+  }
+
   function destroy() {
     if (peerInstance) {
       if (messageHandler) {
@@ -313,6 +404,8 @@ export function usePeerManager() {
     queryDiscoveredDevices,
     getDiscoveredDevices,
     addDiscoveredDevice,
+    sendDiscoveryNotification,
+    queryUsername,
     destroy,
   };
 }

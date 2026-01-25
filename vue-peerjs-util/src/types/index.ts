@@ -6,12 +6,15 @@ export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'failed';
 
 // 协议消息类型
 export type ProtocolMessageType =
-  | 'message_id'      // 一段：发送消息ID
-  | 'request_content' // 二段：请求消息内容
-  | 'message_content' // 三段：返回消息内容
-  | 'delivery_ack'    // 送达确认
-  | 'discovery_query' // 发现中心：询问在线设备
-  | 'discovery_response'; // 发现中心：响应在线设备列表
+  | 'message_id'           // 一段：发送消息ID
+  | 'request_content'      // 二段：请求消息内容
+  | 'message_content'      // 三段：返回消息内容
+  | 'delivery_ack'         // 送达确认
+  | 'discovery_query'      // 发现中心：询问在线设备
+  | 'discovery_response'   // 发现中心：响应在线设备列表
+  | 'discovery_notification' // 发现中心：通知对端我发现了你
+  | 'username_query'       // 查询用户名
+  | 'username_response';   // 响应用户名查询
 
 export interface UserInfo {
   username: string;
@@ -133,6 +136,25 @@ export interface DiscoveryResponseProtocol extends ProtocolMessage {
   devices: OnlineDevice[];
 }
 
+// 发现中心：通知对端我发现了你
+export interface DiscoveryNotificationProtocol extends ProtocolMessage {
+  type: 'discovery_notification';
+  fromUsername: string;
+  fromAvatar: string | null;
+}
+
+// 查询用户名
+export interface UsernameQueryProtocol extends ProtocolMessage {
+  type: 'username_query';
+}
+
+// 响应用户名查询
+export interface UsernameResponseProtocol extends ProtocolMessage {
+  type: 'username_response';
+  username: string;
+  avatar: string | null;
+}
+
 // 联合类型
 export type AnyProtocol =
   | MessageIdProtocol
@@ -140,7 +162,10 @@ export type AnyProtocol =
   | MessageContentProtocol
   | DeliveryAckProtocol
   | DiscoveryQueryProtocol
-  | DiscoveryResponseProtocol;
+  | DiscoveryResponseProtocol
+  | DiscoveryNotificationProtocol
+  | UsernameQueryProtocol
+  | UsernameResponseProtocol;
 
 // 已处理消息ID存储（用于去重）
 export interface ProcessedMessageIds {
