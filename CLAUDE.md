@@ -79,7 +79,7 @@ sx-peerjs-http-util/
         │   └── MainLayout.vue - 主布局（顶部导航菜单：/test 为隐藏路由，不在菜单中显示）
         ├── views/
         │   ├── TestView.vue - 测试页面（原 App.vue 内容迁移）
-        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备）
+        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听）
         │   └── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持）
         ├── stores/
         │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性）
