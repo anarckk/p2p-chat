@@ -1,3 +1,37 @@
+# 用户的要求和喜好
+
+## 编码风格
+- **JavaScript 表达式末尾必须加分号**
+- 代码规范检查使用 ESLint
+
+## 项目组织偏好
+- 工具类放入 `util/` 目录
+- 改造成 Vue 组件
+- 删除无用业务代码
+
+## 测试要求
+- 编写 E2E 测试验证功能
+- 使用 Playwright
+- 多浏览器 session 测试
+- 仅需 Chrome 测试，无需 webkit
+- 删除不重要的测试用例
+
+## UI/UX 要求
+- 使用 ant-design-vue 组件
+- 美观现代风格
+- 支持移动端
+
+## 功能架构偏好
+- 去中心化架构
+- 持久化到 LocalStorage
+- 自动刷新
+- 定时任务/心跳检查
+
+## 构建测试
+- 调用 `npm run build` 测试
+
+---
+
 # 记忆
 
 sx-peerjs-http-util/
