@@ -4,7 +4,6 @@ import { useRouter, useRoute } from 'vue-router';
 import {
   MessageOutlined,
   RadarChartOutlined,
-  ExperimentOutlined,
 } from '@ant-design/icons-vue';
 
 const router = useRouter();
@@ -26,11 +25,6 @@ const menuItems = [
     key: 'Center',
     label: '发现中心',
     icon: RadarChartOutlined,
-  },
-  {
-    key: 'Test',
-    label: '测试',
-    icon: ExperimentOutlined,
   },
 ];
 </script>
