@@ -359,7 +359,7 @@ export function usePeerManager() {
   /**
    * 发现中心：查询对端用户名
    */
-  async queryUsername(peerId: string): Promise<{ username: string; avatar: string | null } | null> {
+  async function queryUsername(peerId: string): Promise<{ username: string; avatar: string | null } | null> {
     if (!peerInstance) {
       return null;
     }

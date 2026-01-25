@@ -88,3 +88,9 @@ sx-peerjs-http-util/
         │   └── index.ts - TypeScript 类型定义（消息类型、协议类型、三段式通信协议）
         └── util/
             └── PeerHttpUtil.ts - PeerJS 工具类（三段式通信协议、去中心化发现中心）
+
+---
+
+# 编译测试要求
+
+你禁止运行 npm run build-only ，必须运行 npm run build 并解决遇到的问题。
