@@ -1,32 +1,40 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick, onUnmounted } from 'vue';
+import { ref, computed, onMounted, watch, nextTick, onUnmounted, h } from 'vue';
 import { useUserStore } from '../stores/userStore';
 import { useChatStore } from '../stores/chatStore';
 import { usePeerManager } from '../composables/usePeerManager';
 import { message } from 'ant-design-vue';
-import type { ChatMessage, Contact } from '../types';
+import type { ChatMessage, Contact, MessageType, MessageContent } from '../types';
+import type { FileContent, ImageContent, VideoContent } from '../types';
 import {
   UserOutlined,
   SettingOutlined,
   LeftOutlined,
   MoreOutlined,
-  ReloadOutlined,
   CloseOutlined,
   MessageOutlined,
-  CheckOutlined,
+  CheckCircleOutlined,
   ExclamationCircleOutlined,
   LoadingOutlined,
   SendOutlined,
+  PlusOutlined,
+  PictureOutlined,
+  FileOutlined,
+  VideoCameraOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons-vue';
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
-const { myPeerId, init, sendMessage } = usePeerManager();
+const { init, sendMessageWithRetry } = usePeerManager();
 
 const showSetupModal = ref(false);
+const showAddChatModal = ref(false);
 const messageInput = ref('');
+const addChatPeerIdInput = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 const isMobile = ref(false);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const currentContact = computed(() => {
   if (!chatStore.currentChatPeerId) return null;
@@ -50,7 +58,7 @@ onMounted(() => {
   chatStore.loadFromStorage();
 
   // 初始化 Peer
-  if (!myPeerId.value) {
+  if (!userStore.myPeerId) {
     init();
   }
 
@@ -150,58 +158,168 @@ function backToList() {
   chatStore.setCurrentChat(null);
 }
 
-async function sendChatMessage() {
-  const content = messageInput.value.trim();
-  if (!content || !chatStore.currentChatPeerId || !myPeerId.value) {
+/**
+ * 新增聊天
+ */
+async function handleAddChat() {
+  const peerId = addChatPeerIdInput.value.trim();
+  if (!peerId) {
+    message.warning('请输入对方 Peer ID');
     return;
   }
 
-  const contact = currentContact.value;
-  if (!contact) return;
-
-  const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const chatMessage: ChatMessage = {
-    id: msgId,
-    from: myPeerId.value,
-    to: contact.peerId,
-    content,
-    timestamp: Date.now(),
-    status: 'sending',
-    type: 'text',
-  };
-
-  // 先显示在界面上
-  chatStore.addMessage(contact.peerId, chatMessage);
-  messageInput.value = '';
-
-  // 尝试发送
-  const success = await sendMessage(contact.peerId, {
-    type: 'chat',
-    data: {
-      content,
-      timestamp: chatMessage.timestamp,
-    },
-  });
-
-  if (success) {
-    chatStore.updateMessageStatus(contact.peerId, msgId, 'sent');
-  } else {
-    chatStore.updateMessageStatus(contact.peerId, msgId, 'failed');
-    // 添加到待发送队列
-    chatStore.addPendingMessage({
-      id: msgId,
-      to: contact.peerId,
-      content,
-      timestamp: chatMessage.timestamp,
-      retryCount: 0,
-    });
-    message.warning('发送失败，消息已保存，对方上线后将自动发送');
+  if (peerId === userStore.myPeerId) {
+    message.warning('不能与自己聊天');
+    return;
   }
+
+  // 创建聊天
+  chatStore.createChat(peerId, peerId);
+  chatStore.setCurrentChat(peerId);
+
+  showAddChatModal.value = false;
+  addChatPeerIdInput.value = '';
+  message.success('已创建聊天');
+}
+
+/**
+ * 删除聊天
+ */
+function handleDeleteChat() {
+  if (!chatStore.currentChatPeerId) return;
+
+  const contact = currentContact.value;
+  const contactName = contact?.username || chatStore.currentChatPeerId;
+
+  chatStore.deleteChat(chatStore.currentChatPeerId);
+  message.success(`已删除与 ${contactName} 的聊天`);
+}
+
+/**
+ * 发送文本消息
+ */
+async function sendTextMessage() {
+  const content = messageInput.value.trim();
+  if (!content || !chatStore.currentChatPeerId) {
+    return;
+  }
+
+  await sendMessageWithRetry(chatStore.currentChatPeerId, content, 'text');
+  messageInput.value = '';
+}
+
+/**
+ * 选择文件
+ */
+function selectFile() {
+  fileInputRef.value?.click();
+}
+
+/**
+ * 处理文件选择
+ */
+async function handleFileSelect(e: Event) {
+  const target = e.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file || !chatStore.currentChatPeerId) return;
+
+  // 限制文件大小 50MB
+  if (file.size > 50 * 1024 * 1024) {
+    message.warning('文件大小不能超过 50MB');
+    return;
+  }
+
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    let content: MessageContent;
+    let type: MessageType;
+
+    if (file.type.startsWith('image/')) {
+      // 图片
+      const img = await loadImageDimensions(file);
+      content = {
+        name: file.name,
+        size: file.size,
+        width: img.width,
+        height: img.height,
+        data: dataUrl,
+      } as ImageContent;
+      type = 'image';
+    } else if (file.type.startsWith('video/')) {
+      // 视频
+      content = {
+        name: file.name,
+        size: file.size,
+        data: dataUrl,
+      } as VideoContent;
+      type = 'video';
+    } else {
+      // 普通文件
+      content = {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        data: dataUrl,
+      } as FileContent;
+      type = 'file';
+    }
+
+    await sendMessageWithRetry(chatStore.currentChatPeerId, content, type);
+    message.success('文件发送成功');
+  } catch (error) {
+    console.error('[Chat] File send error:', error);
+    message.error('文件发送失败');
+  }
+
+  // 清空 input
+  if (target) {
+    target.value = '';
+  }
+}
+
+/**
+ * 加载图片尺寸
+ */
+function loadImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.width, height: img.height });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to load image'));
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * 下载文件
+ */
+function downloadFile(msg: ChatMessage) {
+  const content = msg.content as FileContent | ImageContent | VideoContent;
+  if (typeof content === 'string') return;
+
+  const link = document.createElement('a');
+  link.href = content.data;
+  link.download = content.name;
+  link.click();
+}
+
+/**
+ * 格式化文件大小
+ */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 function getAvatarUrl(avatar: string | null, username: string): string {
   if (avatar) return avatar;
-  // 使用 ant-design-vue 默认头像
   return '';
 }
 
@@ -222,31 +340,77 @@ function formatTime(timestamp: number): string {
   });
 }
 
-function retrySendFailedMessages() {
-  if (!chatStore.currentChatPeerId) return;
+/**
+ * 获取消息状态图标
+ */
+function getMessageStatusIcon(msg: ChatMessage) {
+  if (msg.status === 'delivered') {
+    return h(CheckCircleOutlined, { style: { color: '#52c41a', fontSize: '12px' } });
+  } else if (msg.status === 'failed') {
+    return h(ExclamationCircleOutlined, { style: { color: '#ff4d4f', fontSize: '12px' } });
+  } else if (msg.status === 'sending') {
+    return h(LoadingOutlined, { style: { fontSize: '12px' } });
+  }
+  return null;
+}
 
-  const pending = chatStore.getPendingMessagesForPeer(chatStore.currentChatPeerId);
-  if (pending.length === 0) {
-    message.info('没有待发送的消息');
-    return;
+/**
+ * 渲染消息内容
+ */
+function renderMessageContent(msg: ChatMessage) {
+  const { content, type } = msg;
+
+  if (typeof content === 'string') {
+    // 文本消息
+    return h('div', { class: 'message-text' }, content);
   }
 
-  message.info(`尝试发送 ${pending.length} 条待发送消息...`);
-
-  pending.forEach((pendingMsg) => {
-    sendMessage(pendingMsg.to, {
-      type: 'chat',
-      data: {
-        content: pendingMsg.content,
-        timestamp: pendingMsg.timestamp,
-      },
-    }).then((success) => {
-      if (success) {
-        chatStore.removePendingMessage(pendingMsg.id);
-        message.success('消息发送成功');
-      }
-    });
-  });
+  switch (type) {
+    case 'image': {
+      const imgContent = content as ImageContent;
+      return h('div', { class: 'message-image' }, [
+        h('img', {
+          src: imgContent.data,
+          alt: imgContent.name,
+          style: { maxWidth: '100%', maxHeight: '300px', borderRadius: '8px' },
+        }),
+        h('div', { class: 'file-info' }, [
+          h('span', { class: 'file-name' }, imgContent.name),
+          h('span', { class: 'file-size' }, formatFileSize(imgContent.size)),
+        ]),
+      ]);
+    }
+    case 'video': {
+      const videoContent = content as VideoContent;
+      return h('div', { class: 'message-video' }, [
+        h('video', {
+          src: videoContent.data,
+          controls: true,
+          style: { maxWidth: '100%', maxHeight: '300px', borderRadius: '8px' },
+        }),
+        h('div', { class: 'file-info' }, [
+          h('span', { class: 'file-name' }, videoContent.name),
+          h('span', { class: 'file-size' }, formatFileSize(videoContent.size)),
+        ]),
+      ]);
+    }
+    case 'file': {
+      const fileContent = content as FileContent;
+      return h('div', { class: 'message-file' }, [
+        h(FileOutlined, { style: { fontSize: '48px', color: '#1890ff' } }),
+        h('div', { class: 'file-details' }, [
+          h('div', { class: 'file-name' }, fileContent.name),
+          h('div', { class: 'file-size' }, formatFileSize(fileContent.size)),
+        ]),
+        h('a', {
+          class: 'download-link',
+          onClick: () => downloadFile(msg),
+        }, '下载'),
+      ]);
+    }
+    default:
+      return h('div', { class: 'message-text' }, '[不支持的消息类型]');
+  }
 }
 </script>
 
@@ -287,6 +451,26 @@ function retrySendFailedMessages() {
       </a-form>
     </a-modal>
 
+    <!-- 新增聊天弹窗 -->
+    <a-modal
+      v-model:open="showAddChatModal"
+      title="新增聊天"
+      ok-text="创建"
+      @ok="handleAddChat"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="对方 Peer ID">
+          <a-input
+            v-model:value="addChatPeerIdInput"
+            placeholder="请输入对方的 Peer ID"
+          />
+        </a-form-item>
+        <a-typography-text type="secondary">
+          提示：在发现中心可以查看和复制其他设备的 Peer ID
+        </a-typography-text>
+      </a-form>
+    </a-modal>
+
     <!-- 主界面 -->
     <div class="wechat-layout">
       <!-- 左侧联系人列表 -->
@@ -298,18 +482,25 @@ function retrySendFailedMessages() {
             </a-avatar>
             <span class="username">{{ userStore.userInfo.username }}</span>
           </div>
-          <a-button type="text" size="small" @click="showSetupModal = true">
-            <template #icon>
-              <SettingOutlined />
-            </template>
-          </a-button>
+          <div class="header-actions">
+            <a-button type="text" size="small" @click="showAddChatModal = true">
+              <template #icon>
+                <PlusOutlined />
+              </template>
+            </a-button>
+            <a-button type="text" size="small" @click="showSetupModal = true">
+              <template #icon>
+                <SettingOutlined />
+              </template>
+            </a-button>
+          </div>
         </div>
 
         <div class="contacts-list">
           <div v-if="chatStore.sortedContacts.length === 0" class="empty-contacts">
             <a-empty description="暂无聊天">
               <template #description>
-                <span style="color: #999">暂无聊天</span>
+                <span style="color: #999">点击 + 号添加新聊天</span>
               </template>
             </a-empty>
           </div>
@@ -384,13 +575,9 @@ function retrySendFailedMessages() {
               </a-button>
               <template #overlay>
                 <a-menu>
-                  <a-menu-item @click="retrySendFailedMessages">
-                    <ReloadOutlined />
-                    重发失败消息
-                  </a-menu-item>
-                  <a-menu-item @click="chatStore.setCurrentChat(null)">
-                    <CloseOutlined />
-                    关闭聊天
+                  <a-menu-item @click="handleDeleteChat" style="color: #ff4d4f">
+                    <DeleteOutlined />
+                    删除聊天
                   </a-menu-item>
                 </a-menu>
               </template>
@@ -410,59 +597,72 @@ function retrySendFailedMessages() {
                 v-for="msg in chatStore.currentMessages"
                 :key="msg.id"
                 class="message-item"
-                :class="{
-                  'is-self': msg.from === myPeerId,
-                  'is-system': msg.type === 'system',
-                }"
+                :class="{ 'is-self': msg.from === userStore.myPeerId }"
               >
-                <template v-if="msg.type === 'system'">
-                  <a-tag color="blue">{{ msg.content }}</a-tag>
-                </template>
-                <template v-else>
-                  <div class="message-content">
-                    <div class="message-bubble">
-                      {{ msg.content }}
-                    </div>
-                    <div class="message-meta">
-                      <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
-                      <span v-if="msg.from === myPeerId" class="message-status">
-                        <CheckOutlined
-                          v-if="msg.status === 'sent'"
-                          style="color: #52c41a"
-                        />
-                        <ExclamationCircleOutlined
-                          v-else-if="msg.status === 'failed'"
-                          style="color: #ff4d4f"
-                        />
-                        <LoadingOutlined v-else />
-                      </span>
-                    </div>
+                <div class="message-content">
+                  <component :is="renderMessageContent(msg)" />
+                  <div class="message-meta">
+                    <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
+                    <span v-if="msg.from === userStore.myPeerId" class="message-status">
+                      <component :is="getMessageStatusIcon(msg)" />
+                    </span>
                   </div>
-                </template>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- 输入区域 -->
           <div class="input-area">
-            <a-input
-              v-model:value="messageInput"
-              placeholder="输入消息..."
-              size="large"
-              @press-enter="sendChatMessage"
-            >
-              <template #suffix>
-                <a-button
-                  type="primary"
-                  :disabled="!messageInput.trim()"
-                  @click="sendChatMessage"
-                >
-                  <template #icon>
-                    <SendOutlined />
-                  </template>
-                </a-button>
-              </template>
-            </a-input>
+            <div class="input-toolbar">
+              <a-button type="text" size="small" @click="selectFile">
+                <template #icon>
+                  <PlusOutlined />
+                </template>
+              </a-button>
+              <a-button type="text" size="small">
+                <template #icon>
+                  <PictureOutlined />
+                </template>
+              </a-button>
+              <a-button type="text" size="small">
+                <template #icon>
+                  <FileOutlined />
+                </template>
+              </a-button>
+              <a-button type="text" size="small">
+                <template #icon>
+                  <VideoCameraOutlined />
+                </template>
+              </a-button>
+              <input
+                ref="fileInputRef"
+                type="file"
+                style="display: none"
+                @change="handleFileSelect"
+                accept="image/*,video/*,*"
+              />
+            </div>
+            <div class="input-row">
+              <a-input
+                v-model:value="messageInput"
+                placeholder="输入消息..."
+                size="large"
+                @press-enter="sendTextMessage"
+              >
+                <template #suffix>
+                  <a-button
+                    type="primary"
+                    :disabled="!messageInput.trim()"
+                    @click="sendTextMessage"
+                  >
+                    <template #icon>
+                      <SendOutlined />
+                    </template>
+                  </a-button>
+                </template>
+              </a-input>
+            </div>
           </div>
         </template>
 
@@ -522,6 +722,11 @@ function retrySendFailedMessages() {
 .username {
   font-weight: 500;
   color: #333;
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
 }
 
 .contacts-list {
@@ -657,23 +862,73 @@ function retrySendFailedMessages() {
   justify-content: flex-end;
 }
 
-.message-item.is-system {
-  justify-content: center;
-}
-
 .message-content {
   max-width: 70%;
 }
 
-.message-bubble {
+.message-bubble,
+.message-text,
+.message-image,
+.message-video,
+.message-file {
   padding: 10px 14px;
   border-radius: 8px;
   background: #fff;
   word-break: break-word;
 }
 
-.message-item.is-self .message-bubble {
+.message-item.is-self > .message-content > * {
   background: #1890ff;
+  color: #fff;
+}
+
+.message-image img,
+.message-video video {
+  border-radius: 8px;
+}
+
+.file-info {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.file-name {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.file-size {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.message-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  min-width: 200px;
+}
+
+.file-details {
+  flex: 1;
+}
+
+.message-item.is-self .file-details * {
+  color: #fff;
+}
+
+.download-link {
+  color: #1890ff;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.message-item.is-self .download-link {
   color: #fff;
 }
 
@@ -702,6 +957,17 @@ function retrySendFailedMessages() {
   padding: 12px 16px;
   background: #fff;
   border-top: 1px solid #eee;
+}
+
+.input-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
 }
 
 .no-chat-selected {

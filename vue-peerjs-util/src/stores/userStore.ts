@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import type { UserInfo } from '../types';
 
 const USER_INFO_KEY = 'p2p_user_info';
+const MY_PEER_ID_KEY = 'p2p_my_peer_id';
 
 export const useUserStore = defineStore('user', () => {
   const userInfo = ref<UserInfo>({
@@ -12,6 +13,9 @@ export const useUserStore = defineStore('user', () => {
   });
 
   const isSetup = ref(false);
+
+  // 独立的 myPeerId，用于发现中心展示
+  const myPeerId = computed(() => userInfo.value.peerId);
 
   function loadUserInfo() {
     const saved = localStorage.getItem(USER_INFO_KEY);
@@ -53,6 +57,7 @@ export const useUserStore = defineStore('user', () => {
   return {
     userInfo,
     isSetup,
+    myPeerId,
     loadUserInfo,
     saveUserInfo,
     setPeerId,

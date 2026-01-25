@@ -16,14 +16,14 @@ sx-peerjs-http-util/
         │   └── MainLayout.vue - 主布局（顶部导航菜单：/test 为隐藏路由，不在菜单中显示）
         ├── views/
         │   ├── TestView.vue - 测试页面（原 App.vue 内容迁移）
-        │   ├── CenterView.vue - 发现中心页面（显示在线设备、连接发现中心）
-        │   └── WeChatView.vue - 聊天应用页面（两栏布局、用户设置、移动端支持）
+        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备）
+        │   └── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持）
         ├── stores/
-        │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId、localStorage 持久化）
-        │   └── chatStore.ts - 聊天 store（联系人、消息、离线消息队列、localStorage 持久化）
+        │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性）
+        │   └── chatStore.ts - 聊天 store（消息状态管理、重试机制、去重、localStorage 持久化）
         ├── composables/
-        │   └── usePeerManager.ts - Peer 管理逻辑（初始化、消息处理、离线消息重发、被动连接）
+        │   └── usePeerManager.ts - Peer 管理逻辑（三段式通信、送达确认、发现中心、消息重试）
         ├── types/
-        │   └── index.ts - TypeScript 类型定义
+        │   └── index.ts - TypeScript 类型定义（消息类型、协议类型、三段式通信协议）
         └── util/
-            └── PeerHttpUtil.ts - PeerJS HTTP 工具类（第 20-21 行：根据 peerId 是否存在选择不同的 Peer 构造方式）
+            └── PeerHttpUtil.ts - PeerJS 工具类（三段式通信协议、去中心化发现中心）
