@@ -13,7 +13,7 @@ sx-peerjs-http-util/
         │   ├── index.ts - 路由配置（/test、/center、/wechat）
         │   └── RouterView.vue - 路由视图组件
         ├── layouts/
-        │   └── MainLayout.vue - 主布局（顶部导航菜单）
+        │   └── MainLayout.vue - 主布局（顶部导航菜单：/test 为隐藏路由，不在菜单中显示）
         ├── views/
         │   ├── TestView.vue - 测试页面（原 App.vue 内容迁移）
         │   ├── CenterView.vue - 发现中心页面（显示在线设备、连接发现中心）
