@@ -78,7 +78,18 @@ export function usePeerManager() {
     discoveryNotificationHandler = (protocol: any, from: string) => {
       if (protocol.type === 'discovery_notification') {
         const { fromUsername, fromAvatar } = protocol;
-        // 对端发现了我，自动添加到聊天列表
+        // 对端发现了我，添加到发现中心的设备列表
+        peerInstance?.addDiscoveredDevice({
+          peerId: from,
+          username: fromUsername,
+          avatar: fromAvatar,
+          lastHeartbeat: Date.now(),
+        });
+
+        // 触发自定义事件，通知 UI 自动刷新
+        window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+
+        // 如果不在聊天列表中，自动添加到聊天列表
         if (!chatStore.getContact(from)) {
           chatStore.createChat(from, fromUsername);
           // 更新用户信息

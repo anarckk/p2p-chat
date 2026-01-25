@@ -69,6 +69,26 @@ onMounted(async () => {
   if (myDeviceInfo.value) {
     onlineDevices.value.set(myDeviceInfo.value.peerId, myDeviceInfo.value);
   }
+
+  // 监听发现设备更新事件，自动刷新
+  const handleDiscoveryUpdate = () => {
+    console.log('[Center] Discovery devices updated, refreshing...');
+    const devices = getDiscoveredDevices();
+    devices.forEach((device) => {
+      onlineDevices.value.set(device.peerId, device);
+    });
+    // 确保自己在列表中
+    if (myDeviceInfo.value) {
+      onlineDevices.value.set(myDeviceInfo.value.peerId, myDeviceInfo.value);
+    }
+  };
+
+  window.addEventListener('discovery-devices-updated', handleDiscoveryUpdate);
+
+  // 清理事件监听器
+  onUnmounted(() => {
+    window.removeEventListener('discovery-devices-updated', handleDiscoveryUpdate);
+  });
 });
 
 onUnmounted(() => {

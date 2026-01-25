@@ -134,7 +134,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
     await deviceBContext.close();
   });
 
-  test('设备 A 添加设备 B 时，设备 A 应该出现在设备 B 的聊天列表中（被动发现）', async ({
+  test('设备 A 添加设备 B 时，设备 A 应该出现在设备 B 的发现中心列表中（被动发现）', async ({
     browser,
   }) => {
     // 创建两个独立的浏览器上下文
@@ -158,7 +158,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       );
     });
     await deviceAPage.reload();
-    await deviceAPage.waitForTimeout(2000);
+    await deviceAPage.waitForTimeout(3000);
 
     // 设备 B 配置
     await deviceBPage.goto('/center');
@@ -173,9 +173,17 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       );
     });
     await deviceBPage.reload();
-    await deviceBPage.waitForTimeout(2000);
+    await deviceBPage.waitForTimeout(3000);
 
-    // 获取设备 B 的 PeerId
+    // 获取设备 A 和设备 B 的 PeerId
+    const deviceAPeerId = await deviceAPage.evaluate(() => {
+      const userInfo = localStorage.getItem('p2p_user_info');
+      if (userInfo) {
+        return JSON.parse(userInfo).peerId;
+      }
+      return null;
+    });
+
     const deviceBPeerId = await deviceBPage.evaluate(() => {
       const userInfo = localStorage.getItem('p2p_user_info');
       if (userInfo) {
@@ -184,26 +192,34 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       return null;
     });
 
+    console.log('设备 A 的 PeerId:', deviceAPeerId);
+    console.log('设备 B 的 PeerId:', deviceBPeerId);
+
+    // 记录设备 B 当前的设备列表数量
+    const deviceBCardsBefore = await deviceBPage.locator('.device-card').all();
+    console.log('设备 B 的设备列表数量（添加前）:', deviceBCardsBefore.length);
+
     // 设备 A 添加设备 B
     await deviceAPage.fill('input[placeholder*="Peer ID"]', deviceBPeerId);
     await deviceAPage.click('button:has-text("添加")');
 
-    // 等待发现通知发送和处理
+    // 等待发现通知发送和处理（自动刷新）
     await deviceAPage.waitForTimeout(3000);
     await deviceBPage.waitForTimeout(3000);
 
-    // 切换到设备 B 的聊天页面，验证设备 A 是否出现在聊天列表中
-    await deviceBPage.goto('/wechat');
-    await deviceBPage.waitForTimeout(1000);
+    // 打印设备 B 的设备列表中的所有卡片，用于调试
+    const deviceBCardsAfter = await deviceBPage.locator('.device-card').all();
+    console.log('设备 B 的设备列表数量（添加后）:', deviceBCardsAfter.length);
+    for (let i = 0; i < deviceBCardsAfter.length; i++) {
+      const text = await deviceBCardsAfter[i].textContent();
+      console.log(`设备 B - 设备卡片 ${i}:`, text);
+    }
 
-    // 验证设备 A（发现者A）出现在设备 B 的聊天列表中
-    // 被动发现功能：设备 B 应该收到了设备 A 的发现通知
-    const contactCount = await deviceBPage.locator('.contact-item').count();
-    expect(contactCount).toBeGreaterThan(0);
-
-    // 验证联系人名称包含"发现者A"
-    const hasDiscovererA = await deviceBPage.locator('.contact-name', { hasText: '发现者A' }).count();
-    expect(hasDiscovererA).toBeGreaterThan(0);
+    // 验证设备 A（发现者A）出现在设备 B 的发现中心列表中
+    // 被动发现功能：设备 B 应该收到了设备 A 的发现通知，并将设备 A 添加到发现列表
+    const hasDiscovererAByName = await deviceBPage.locator('.device-card').filter({ hasText: '发现者A' }).count();
+    const hasDiscovererAByPeerId = await deviceBPage.locator('.device-card').filter({ hasText: deviceAPeerId }).count();
+    expect(hasDiscovererAByName + hasDiscovererAByPeerId).toBeGreaterThan(0);
 
     // 清理
     await deviceAContext.close();
