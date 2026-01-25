@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useUserStore } from '../stores/userStore';
 import { useChatStore } from '../stores/chatStore';
+import { useDeviceStore } from '../stores/deviceStore';
 import { usePeerManager } from '../composables/usePeerManager';
 import { message } from 'ant-design-vue';
 import type { OnlineDevice } from '../types';
@@ -9,17 +10,16 @@ import { ReloadOutlined, TeamOutlined, PlusOutlined, UserOutlined } from '@ant-d
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
+const deviceStore = useDeviceStore();
 const {
   isConnected,
   init,
   queryDiscoveredDevices,
-  getDiscoveredDevices,
   addDiscoveredDevice,
   sendDiscoveryNotification,
   queryUsername,
 } = usePeerManager();
 
-const onlineDevices = ref<Map<string, OnlineDevice>>(new Map());
 const queryPeerIdInput = ref('');
 const isQuerying = ref(false);
 const showSetupModal = ref(false);
@@ -30,6 +30,9 @@ const setupForm = ref({
   avatarPreview: null as string | null,
 });
 
+// 使用 deviceStore 中的设备列表
+const storedDevices = computed(() => deviceStore.allDevices);
+
 // 我的设备信息
 const myDeviceInfo = computed(() => {
   if (!userStore.myPeerId) return null;
@@ -38,17 +41,44 @@ const myDeviceInfo = computed(() => {
     username: userStore.userInfo.username || userStore.myPeerId,
     avatar: userStore.userInfo.avatar,
     lastHeartbeat: Date.now(),
+    firstDiscovered: Date.now(),
+    isOnline: true,
   };
 });
 
+// 排序后的设备列表（按最后心跳时间降序）
 const sortedDevices = computed(() => {
-  const allDevices = Array.from(onlineDevices.value.values());
+  const allDevices = [...storedDevices.value];
+  if (myDeviceInfo.value) {
+    // 确保自己在列表中
+    const myId = myDeviceInfo.value.peerId;
+    const hasMe = allDevices.some((d) => d.peerId === myId);
+    if (!hasMe) {
+      allDevices.push(myDeviceInfo.value);
+    }
+  }
   return allDevices.sort((a, b) => b.lastHeartbeat - a.lastHeartbeat);
 });
 
 // 检查设备是否已在聊天列表
 function isInChat(peerId: string): boolean {
   return chatStore.getContact(peerId) !== undefined;
+}
+
+// 在线检查函数：检查指定设备是否在线
+async function checkDeviceOnline(device: OnlineDevice): Promise<boolean> {
+  if (!isConnected.value) {
+    return false;
+  }
+
+  try {
+    // 发送在线检查请求
+    const result = await queryUsername(device.peerId);
+    return result !== null;
+  } catch (error) {
+    console.error('[Center] Check online error:', error);
+    return false;
+  }
 }
 
 onMounted(async () => {
@@ -60,27 +90,36 @@ onMounted(async () => {
     showSetupModal.value = true;
   }
 
+  // 从 localStorage 加载已保存的设备列表
+  deviceStore.loadDevices();
+
   // 确保 Peer 已初始化
   if (!isConnected.value) {
     init();
   }
 
-  // 将自己添加到在线设备列表
-  if (myDeviceInfo.value) {
-    onlineDevices.value.set(myDeviceInfo.value.peerId, myDeviceInfo.value);
-  }
+  // 启动心跳定时器
+  deviceStore.startHeartbeatTimer(async (device: OnlineDevice) => {
+    // 定时检查设备在线状态的回调函数
+    if (!isConnected.value) {
+      return false;
+    }
+
+    try {
+      // 发送在线检查请求
+      const result = await queryUsername(device.peerId);
+      return result !== null;
+    } catch (error) {
+      console.error('[Center] Heartbeat check error:', error);
+      return false;
+    }
+  });
 
   // 监听发现设备更新事件，自动刷新
   const handleDiscoveryUpdate = () => {
     console.log('[Center] Discovery devices updated, refreshing...');
-    const devices = getDiscoveredDevices();
-    devices.forEach((device) => {
-      onlineDevices.value.set(device.peerId, device);
-    });
-    // 确保自己在列表中
-    if (myDeviceInfo.value) {
-      onlineDevices.value.set(myDeviceInfo.value.peerId, myDeviceInfo.value);
-    }
+    // 触发重新渲染
+    deviceStore.updateOnlineStatus();
   };
 
   window.addEventListener('discovery-devices-updated', handleDiscoveryUpdate);
@@ -92,7 +131,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  // 清理
+  // 停止心跳定时器（注意：不在这里停止，让它在全局运行）
+  // deviceStore.stopHeartbeatTimer();
 });
 
 /**
@@ -109,12 +149,6 @@ async function queryDevices() {
     const devices = await queryDiscoveredDevices(queryPeerIdInput.value.trim());
 
     if (devices.length > 0) {
-      // 合并到在线设备列表
-      devices.forEach((device) => {
-        onlineDevices.value.set(device.peerId, device);
-        // 同时添加到 peerManager 的发现列表
-        addDiscoveredDevice(device);
-      });
       message.success(`从 ${queryPeerIdInput.value} 发现了 ${devices.length} 个设备`);
     } else {
       message.info('未发现任何设备');
@@ -141,7 +175,7 @@ async function addDeviceManually() {
   const peerId = queryPeerIdInput.value.trim();
 
   // 检查是否已存在
-  if (onlineDevices.value.has(peerId)) {
+  if (storedDevices.value.some((d) => d.peerId === peerId)) {
     message.info('该设备已存在');
     return;
   }
@@ -152,9 +186,10 @@ async function addDeviceManually() {
     username: peerId,
     avatar: null,
     lastHeartbeat: Date.now(),
+    firstDiscovered: Date.now(),
+    isOnline: true,
   };
 
-  onlineDevices.value.set(peerId, newDevice);
   addDiscoveredDevice(newDevice);
 
   // 发送发现通知给对端
@@ -166,9 +201,7 @@ async function addDeviceManually() {
     // 更新设备信息
     newDevice.username = userInfo.username;
     newDevice.avatar = userInfo.avatar;
-    onlineDevices.value.set(peerId, { ...newDevice });
-    // 同时更新已发现的设备
-    addDiscoveredDevice({ ...newDevice });
+    deviceStore.addOrUpdateDevice({ ...newDevice });
   }
 
   message.success(`已添加设备 ${peerId}`);
@@ -197,18 +230,9 @@ function copyPeerId(id: string) {
  * 刷新发现列表
  */
 function refreshDiscovery() {
-  // 重新从 peerManager 获取已发现的设备
-  const devices = getDiscoveredDevices();
-  devices.forEach((device) => {
-    onlineDevices.value.set(device.peerId, device);
-  });
-
-  // 确保自己在列表中
-  if (myDeviceInfo.value) {
-    onlineDevices.value.set(myDeviceInfo.value.peerId, myDeviceInfo.value);
-  }
-
-  message.success(`已刷新，当前发现 ${onlineDevices.value.size} 个设备`);
+  // 重新加载设备状态
+  deviceStore.updateOnlineStatus();
+  message.success(`已刷新，当前发现 ${storedDevices.value.length} 个设备`);
 }
 
 /**
@@ -381,7 +405,9 @@ function handleAvatarChange(e: Event) {
               <a-typography-paragraph type="secondary" style="font-size: 12px">
                 1. 输入已知设备的 Peer ID 点击"查询"，向该设备询问它已发现的设备<br />
                 2. 输入新的 Peer ID 点击"添加"，直接将该设备添加到发现列表<br />
-                3. 每个节点都是发现中心，可以互相询问已发现的设备
+                3. 每个节点都是发现中心，可以互相询问已发现的设备<br />
+                4. 设备列表会自动保存，刷新页面后依然保留<br />
+                5. 超过3天未在线的设备会自动删除
               </a-typography-paragraph>
             </a-empty>
           </div>
@@ -393,7 +419,7 @@ function handleAvatarChange(e: Event) {
                   hoverable
                   size="small"
                   class="device-card"
-                  :class="{ 'is-me': item.peerId === userStore.myPeerId }"
+                  :class="{ 'is-me': item.peerId === userStore.myPeerId, 'is-offline': !item.isOnline }"
                   @click="item.peerId !== userStore.myPeerId && handleDeviceClick(item)"
                 >
                   <a-card-meta>
@@ -406,6 +432,8 @@ function handleAvatarChange(e: Event) {
                       {{ item.username }}
                       <a-tag v-if="item.peerId === userStore.myPeerId" color="blue" size="small">我</a-tag>
                       <a-tag v-else-if="isInChat(item.peerId)" color="green" size="small">已加入聊天</a-tag>
+                      <a-tag v-else-if="item.isOnline" color="success" size="small">在线</a-tag>
+                      <a-tag v-else color="default" size="small">离线</a-tag>
                     </template>
                     <template #description>
                       <a-typography-text type="secondary" style="font-size: 12px">
@@ -414,7 +442,7 @@ function handleAvatarChange(e: Event) {
                     </template>
                   </a-card-meta>
                   <template #actions>
-                    <a-badge status="processing" text="在线" />
+                    <a-badge :status="item.isOnline ? 'processing' : 'default'" :text="item.isOnline ? '在线' : '离线'" />
                   </template>
                 </a-card>
               </a-list-item>
@@ -460,6 +488,10 @@ function handleAvatarChange(e: Event) {
 .device-card.is-me:hover {
   transform: none;
   box-shadow: none;
+}
+
+.device-card.is-offline {
+  opacity: 0.7;
 }
 
 @media (max-width: 768px) {

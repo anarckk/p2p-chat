@@ -109,6 +109,14 @@ export class PeerHttpUtil {
         // 响应用户名查询
         this.handleUsernameResponse(protocol as any, from);
         break;
+      case 'online_check_query':
+        // 在线检查：询问是否在线
+        this.handleOnlineCheckQuery(from);
+        break;
+      case 'online_check_response':
+        // 在线检查：响应在线状态
+        this.handleOnlineCheckResponse(protocol as any, from);
+        break;
     }
   }
 
@@ -258,6 +266,8 @@ export class PeerHttpUtil {
       username: protocol.fromUsername,
       avatar: protocol.fromAvatar,
       lastHeartbeat: Date.now(),
+      firstDiscovered: Date.now(),
+      isOnline: true,
     });
 
     // 触发发现通知事件
@@ -527,6 +537,112 @@ export class PeerHttpUtil {
       });
     } catch (err) {
       console.error('[PeerHttp] Failed to send username response:', err);
+    }
+  }
+
+  /**
+   * 处理在线检查查询
+   */
+  private handleOnlineCheckQuery(from: string) {
+    // 需要获取当前用户信息来响应，通过事件传递出去
+    this.emitProtocol('online_check_query', { from } as any);
+  }
+
+  /**
+   * 处理在线检查响应
+   */
+  private handleOnlineCheckResponse(
+    protocol: { isOnline: boolean; username: string; avatar: string | null },
+    from: string,
+  ) {
+    // 更新设备的在线状态和心跳时间
+    const existing = this.discoveredDevices.get(from);
+    if (existing) {
+      existing.lastHeartbeat = Date.now();
+      existing.isOnline = protocol.isOnline;
+      existing.username = protocol.username;
+      existing.avatar = protocol.avatar;
+    }
+
+    // 触发在线检查响应事件
+    this.emitProtocol('online_check_response', {
+      ...protocol,
+      from,
+    } as any);
+  }
+
+  /**
+   * 在线检查：查询指定设备是否在线
+   * @param peerId - 目标节点的 ID
+   * @param username - 当前用户名（用于响应）
+   * @param avatar - 当前头像（用于响应）
+   */
+  async checkOnline(
+    peerId: string,
+    username: string,
+    avatar: string | null,
+  ): Promise<{ isOnline: boolean; username: string; avatar: string | null } | null> {
+    return new Promise((resolve) => {
+      // 设置一次性处理器
+      const handler = (protocol: AnyProtocol, from: string) => {
+        if (protocol.type === 'online_check_response' && from === peerId) {
+          const resp = protocol as any;
+          resolve({
+            isOnline: resp.isOnline,
+            username: resp.username,
+            avatar: resp.avatar,
+          });
+
+          // 清理处理器
+          const handlers = this.protocolHandlers.get('online_check_response') || [];
+          const index = handlers.indexOf(handler as any);
+          if (index > -1) {
+            handlers.splice(index, 1);
+          }
+        }
+      };
+
+      this.onProtocol('online_check_response', handler as any);
+
+      // 发送查询
+      this.sendProtocol(peerId, {
+        type: 'online_check_query',
+        from: this.getId()!,
+        to: peerId,
+        timestamp: Date.now(),
+      }).catch(() => resolve(null));
+
+      // 超时处理
+      setTimeout(() => {
+        const handlers = this.protocolHandlers.get('online_check_response') || [];
+        const index = handlers.indexOf(handler as any);
+        if (index > -1) {
+          handlers.splice(index, 1);
+        }
+        resolve(null);
+      }, 5000);
+    });
+  }
+
+  /**
+   * 在线检查：响应在线检查查询
+   * @param peerId - 查询者的节点 ID
+   * @param username - 当前用户名
+   * @param avatar - 当前头像
+   */
+  async respondOnlineCheck(peerId: string, username: string, avatar: string | null) {
+    try {
+      await this.sendProtocol(peerId, {
+        type: 'online_check_response',
+        from: this.getId()!,
+        to: peerId,
+        timestamp: Date.now(),
+        isOnline: true,
+        username,
+        avatar,
+      });
+    } catch (err) {
+      console.error('[PeerHttp] Failed to send online check response:', err);
     }
   }
 

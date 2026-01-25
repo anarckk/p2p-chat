@@ -56,7 +56,7 @@ describe('PeerHttpUtil', () => {
 
       try {
         const util = new PeerHttpUtil();
-        const result = util.send('test-peer', 'test message');
+        const result = util.send('test-peer', 'test-message-id', 'test message', 'text');
 
         expect(result).toBeInstanceOf(Promise);
 

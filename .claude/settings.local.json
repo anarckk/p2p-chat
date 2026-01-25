@@ -10,7 +10,7 @@
       "mcp__playwright__browser_console_messages",
       "mcp__playwright__browser_evaluate",
       "mcp__playwright__browser_wait_for",
-      "Bash(npx playwright test:*)",
+      "Bash(npx playwright test:*)"
     ]
   }
 }

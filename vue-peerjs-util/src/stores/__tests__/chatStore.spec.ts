@@ -146,6 +146,7 @@ describe('chatStore', () => {
         content: 'Hello',
         timestamp: 1000,
         status: 'sent',
+        type: 'text',
       };
 
       const msg2: ChatMessage = {
@@ -155,6 +156,7 @@ describe('chatStore', () => {
         content: 'World',
         timestamp: 2000,
         status: 'sent',
+        type: 'text',
       };
 
       store.addMessage('peer-1', msg1);
@@ -175,6 +177,7 @@ describe('chatStore', () => {
         content: 'Hello',
         timestamp: Date.now(),
         status: 'sending',
+        type: 'text',
       };
 
       store.addMessage('peer-1', message);
@@ -195,6 +198,7 @@ describe('chatStore', () => {
         content: 'Hello',
         timestamp: Date.now(),
         retryCount: 0,
+        type: 'text',
       };
 
       store.addPendingMessage(pending);
@@ -211,6 +215,7 @@ describe('chatStore', () => {
         content: 'Hello',
         timestamp: Date.now(),
         retryCount: 0,
+        type: 'text',
       };
 
       store.addPendingMessage(pending);
@@ -228,6 +233,7 @@ describe('chatStore', () => {
         content: 'Hello 1',
         timestamp: Date.now(),
         retryCount: 0,
+        type: 'text',
       };
 
       const pending2: PendingMessage = {
@@ -236,6 +242,7 @@ describe('chatStore', () => {
         content: 'Hello 2',
         timestamp: Date.now(),
         retryCount: 0,
+        type: 'text',
       };
 
       store.addPendingMessage(pending1);
@@ -255,6 +262,7 @@ describe('chatStore', () => {
         content: 'Hello 1',
         timestamp: Date.now(),
         retryCount: 0,
+        type: 'text',
       };
 
       const pending2: PendingMessage = {
@@ -263,6 +271,7 @@ describe('chatStore', () => {
         content: 'Hello 2',
         timestamp: Date.now(),
         retryCount: 0,
+        type: 'text',
       };
 
       const pending3: PendingMessage = {
@@ -271,6 +280,7 @@ describe('chatStore', () => {
         content: 'Hello 3',
         timestamp: Date.now(),
         retryCount: 0,
+        type: 'text',
       };
 
       store.addPendingMessage(pending1);

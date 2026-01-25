@@ -2,6 +2,7 @@ import { ref, onUnmounted } from 'vue';
 import { PeerHttpUtil } from '../util/PeerHttpUtil';
 import { useChatStore } from '../stores/chatStore';
 import { useUserStore } from '../stores/userStore';
+import { useDeviceStore } from '../stores/deviceStore';
 import type { ChatMessage, MessageType, MessageContent, OnlineDevice } from '../types';
 import { message } from 'ant-design-vue';
 
@@ -12,10 +13,13 @@ let discoveryResponseHandler: ((protocol: any, from: string) => void) | null = n
 let discoveryNotificationHandler: ((protocol: any, from: string) => void) | null = null;
 let usernameQueryHandler: ((protocol: any, from: string) => void) | null = null;
 let usernameResponseHandler: ((protocol: any, from: string) => void) | null = null;
+let onlineCheckQueryHandler: ((protocol: any, from: string) => void) | null = null;
+let onlineCheckResponseHandler: ((protocol: any, from: string) => void) | null = null;
 
 export function usePeerManager() {
   const chatStore = useChatStore();
   const userStore = useUserStore();
+  const deviceStore = useDeviceStore();
 
   const isConnected = ref(false);
 
@@ -79,12 +83,18 @@ export function usePeerManager() {
       if (protocol.type === 'discovery_notification') {
         const { fromUsername, fromAvatar } = protocol;
         // 对端发现了我，添加到发现中心的设备列表
-        peerInstance?.addDiscoveredDevice({
+        const device: OnlineDevice = {
           peerId: from,
           username: fromUsername,
           avatar: fromAvatar,
           lastHeartbeat: Date.now(),
-        });
+          firstDiscovered: Date.now(),
+          isOnline: true,
+        };
+
+        // 同时添加到 peerInstance 和 deviceStore
+        peerInstance?.addDiscoveredDevice(device);
+        deviceStore.addOrUpdateDevice(device);
 
         // 触发自定义事件，通知 UI 自动刷新
         window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
@@ -139,6 +149,49 @@ export function usePeerManager() {
     };
 
     peerInstance.onProtocol('username_response', usernameResponseHandler);
+
+    // 处理在线检查查询
+    onlineCheckQueryHandler = (_protocol: any, from: string) => {
+      if (_protocol.type === 'online_check_query') {
+        // 响应我的在线状态
+        peerInstance?.respondOnlineCheck(
+          from,
+          userStore.userInfo.username || '',
+          userStore.userInfo.avatar,
+        );
+      }
+    };
+
+    peerInstance.onProtocol('online_check_query', onlineCheckQueryHandler);
+
+    // 处理在线检查响应
+    onlineCheckResponseHandler = (protocol: any, _from: string) => {
+      if (protocol.type === 'online_check_response') {
+        const { isOnline, username, avatar } = protocol;
+        // 更新设备信息
+        deviceStore.addOrUpdateDevice({
+          peerId: _from,
+          username,
+          avatar,
+          lastHeartbeat: Date.now(),
+          firstDiscovered: Date.now(),
+        });
+
+        // 同时更新联系人信息
+        const contact = chatStore.getContact(_from);
+        if (contact) {
+          chatStore.addOrUpdateContact({
+            ...contact,
+            username,
+            avatar,
+            online: isOnline,
+            lastSeen: Date.now(),
+          });
+        }
+      }
+    };
+
+    peerInstance.onProtocol('online_check_response', onlineCheckResponseHandler);
 
     messageHandler = (data: { from: string; data: any }) => {
       handleIncomingMessage(data);
@@ -324,7 +377,12 @@ export function usePeerManager() {
     }
 
     try {
-      return await peerInstance.queryDiscoveredDevices(peerId);
+      const devices = await peerInstance.queryDiscoveredDevices(peerId);
+      // 同时更新到 deviceStore
+      if (devices.length > 0) {
+        deviceStore.addDevices(devices);
+      }
+      return devices;
     } catch (error) {
       console.error('[Peer] Query discovered devices error:', error);
       return [];
@@ -342,11 +400,20 @@ export function usePeerManager() {
   }
 
   /**
+   * 发现中心：获取 deviceStore 中的设备列表
+   */
+  function getStoredDevices(): OnlineDevice[] {
+    return deviceStore.allDevices;
+  }
+
+  /**
    * 发现中心：添加已发现的设备
    */
   function addDiscoveredDevice(device: OnlineDevice) {
     if (peerInstance) {
       peerInstance.addDiscoveredDevice(device);
+      // 同时添加到 deviceStore
+      deviceStore.addOrUpdateDevice(device);
     }
   }
 
@@ -399,8 +466,12 @@ export function usePeerManager() {
       messageHandler = null;
       deliveryAckHandler = null;
       discoveryResponseHandler = null;
+      onlineCheckQueryHandler = null;
+      onlineCheckResponseHandler = null;
       isConnected.value = false;
     }
+    // 停止心跳定时器
+    deviceStore.stopHeartbeatTimer();
   }
 
   onUnmounted(() => {
@@ -414,9 +485,11 @@ export function usePeerManager() {
     sendMessageWithRetry,
     queryDiscoveredDevices,
     getDiscoveredDevices,
+    getStoredDevices,
     addDiscoveredDevice,
     sendDiscoveryNotification,
     queryUsername,
     destroy,
+    deviceStore,
   };
 }

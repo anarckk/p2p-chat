@@ -44,7 +44,7 @@ function sendMessage() {
   }
 
   peerHttp!
-    .send(tid, msg)
+    .send(tid, `msg_${Date.now()}`, msg, 'text')
     .then(() => {
       addMessage('我', msg);
       messageContent.value = '';

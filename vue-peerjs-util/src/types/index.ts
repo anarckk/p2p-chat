@@ -6,15 +6,17 @@ export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'failed';
 
 // 协议消息类型
 export type ProtocolMessageType =
-  | 'message_id'           // 一段：发送消息ID
-  | 'request_content'      // 二段：请求消息内容
-  | 'message_content'      // 三段：返回消息内容
-  | 'delivery_ack'         // 送达确认
-  | 'discovery_query'      // 发现中心：询问在线设备
-  | 'discovery_response'   // 发现中心：响应在线设备列表
-  | 'discovery_notification' // 发现中心：通知对端我发现了你
-  | 'username_query'       // 查询用户名
-  | 'username_response';   // 响应用户名查询
+  | 'message_id'               // 一段：发送消息ID
+  | 'request_content'          // 二段：请求消息内容
+  | 'message_content'          // 三段：返回消息内容
+  | 'delivery_ack'             // 送达确认
+  | 'discovery_query'          // 发现中心：询问在线设备
+  | 'discovery_response'       // 发现中心：响应在线设备列表
+  | 'discovery_notification'   // 发现中心：通知对端我发现了你
+  | 'username_query'           // 查询用户名
+  | 'username_response'        // 响应用户名查询
+  | 'online_check_query'       // 在线检查：询问设备是否在线
+  | 'online_check_response';   // 在线检查：响应在线状态
 
 export interface UserInfo {
   username: string;
@@ -88,6 +90,8 @@ export interface OnlineDevice {
   username: string;
   avatar: string | null;
   lastHeartbeat: number;
+  isOnline?: boolean; // 设备当前是否在线
+  firstDiscovered: number; // 首次发现时间
 }
 
 // 协议消息基础接口
@@ -155,6 +159,19 @@ export interface UsernameResponseProtocol extends ProtocolMessage {
   avatar: string | null;
 }
 
+// 在线检查：询问设备是否在线
+export interface OnlineCheckQueryProtocol extends ProtocolMessage {
+  type: 'online_check_query';
+}
+
+// 在线检查：响应在线状态
+export interface OnlineCheckResponseProtocol extends ProtocolMessage {
+  type: 'online_check_response';
+  isOnline: boolean;
+  username: string;
+  avatar: string | null;
+}
+
 // 联合类型
 export type AnyProtocol =
   | MessageIdProtocol
@@ -165,7 +182,9 @@ export type AnyProtocol =
   | DiscoveryResponseProtocol
   | DiscoveryNotificationProtocol
   | UsernameQueryProtocol
-  | UsernameResponseProtocol;
+  | UsernameResponseProtocol
+  | OnlineCheckQueryProtocol
+  | OnlineCheckResponseProtocol;
 
 // 已处理消息ID存储（用于去重）
 export interface ProcessedMessageIds {
