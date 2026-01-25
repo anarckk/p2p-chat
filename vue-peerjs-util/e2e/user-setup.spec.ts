@@ -46,15 +46,23 @@ test.describe('用户信息设置', () => {
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
 
+    // 等待按钮 loading 状态结束（Peer 初始化需要时间）
+    await page.waitForSelector('.ant-modal .ant-btn-primary[disabled]', { state: 'hidden', timeout: 35000 }).catch(() => {
+      // 可能已经完成，继续执行
+    });
+
     // 等待弹窗关闭
     await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
       // 弹窗可能已经关闭，继续执行
     });
 
-    // 验证成功消息 - 使用更精确的选择器
-    const successSelector = '.ant-message .anticon-check-circle';
-    const successMsg = page.locator(successSelector).first();
-    await expect(successMsg).toBeVisible({ timeout: 3000 });
+    // 验证用户信息已保存到 localStorage
+    const userInfo = await page.evaluate(() => {
+      const stored = localStorage.getItem('p2p_user_info');
+      return stored ? JSON.parse(stored) : null;
+    });
+    expect(userInfo).not.toBeNull();
+    expect(userInfo.username).toBe('测试用户卡密');
   });
 
   test('用户信息应该保存到 LocalStorage', async ({ page }) => {

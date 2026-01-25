@@ -43,40 +43,56 @@ export function usePeerManager() {
       console.log('[Peer] Initializing with PeerId:', peerId);
       peerInstance = new PeerHttpUtil(peerId);
 
+      // 用于跟踪是否已经 resolve/reject
+      let settled = false;
+
       // 设置连接超时
       const timeout = setTimeout(() => {
-        console.error('[Peer] Connection timeout');
-        isConnected.value = false;
-        reject(new Error('Peer connection timeout'));
+        if (!settled) {
+          settled = true;
+          console.error('[Peer] Connection timeout');
+          isConnected.value = false;
+          reject(new Error('Peer connection timeout'));
+        }
       }, 30000); // 30秒超时
 
       peerInstance.on('open', (id: string) => {
-        clearTimeout(timeout);
-        isConnected.value = true;
-        userStore.setPeerId(id);
-        console.log('[Peer] Connected with ID:', id);
+        if (!settled) {
+          settled = true;
+          clearTimeout(timeout);
+          isConnected.value = true;
+          userStore.setPeerId(id);
+          console.log('[Peer] Connected with ID:', id);
 
-        // 注册所有协议处理器
-        registerProtocolHandlers();
+          // 注册所有协议处理器
+          registerProtocolHandlers();
 
-        resolve(peerInstance!);
+          resolve(peerInstance!);
+        }
       });
 
       // 如果已经连接，直接设置状态（用于恢复已存在的连接）
       if (peerInstance.getId()) {
-        clearTimeout(timeout);
-        isConnected.value = true;
-        console.log('[Peer] Already connected with ID:', peerInstance.getId());
-        registerProtocolHandlers();
-        resolve(peerInstance);
+        if (!settled) {
+          settled = true;
+          clearTimeout(timeout);
+          isConnected.value = true;
+          console.log('[Peer] Already connected with ID:', peerInstance.getId());
+          registerProtocolHandlers();
+          resolve(peerInstance);
+        }
       }
-
-      // 监听连接错误（不使用，因为 PeerHttpUtil 不暴露 error 事件）
-      // 错误会在连接建立时自然超时
 
       // 监听底层 PeerJS 错误
       peerInstance.on('error', (error: any) => {
         console.error('[Peer] PeerJS error:', error);
+        // 如果是严重的连接错误，reject Promise
+        if (!settled && (error?.type === 'peer-unavailable' || error?.type === 'network' || error?.type === 'server-error' || error?.type === 'socket-error' || error?.type === 'socket-closed')) {
+          settled = true;
+          clearTimeout(timeout);
+          isConnected.value = false;
+          reject(new Error(`Peer connection failed: ${error?.type || 'unknown error'}`));
+        }
         // 某些错误可以忽略，如 peer-unavailable（对端离线）
         if (error?.type === 'peer-unavailable') {
           console.log('[Peer] Target peer unavailable:', error);
