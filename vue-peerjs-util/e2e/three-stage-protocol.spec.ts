@@ -5,7 +5,6 @@ import {
   createUserInfo,
   clearAllStorage,
   setContactList,
-  setCurrentChat,
   createTestDevices,
   cleanupTestDevices,
   createChat,
@@ -36,27 +35,27 @@ test.describe('版本号消息同步协议', () => {
       const devices = await createTestDevices(browser, '发送方', '接收方', { startPage: 'wechat' });
 
       try {
-        // 发送方创建聊天
-        await createChat(devices.sender.page, devices.receiver.userInfo.peerId);
+        // 设备 A 创建与设备 B 的聊天
+        await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
         // 选择聊天
-        await devices.sender.page.click(SELECTORS.contactItem);
-        await devices.sender.page.waitForTimeout(WAIT_TIMES.SHORT);
+        await devices.deviceA.page.click(SELECTORS.contactItem);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
-        // 发送方发送消息
+        // 设备 A 发送消息
         const testMessage = '版本号协议测试消息';
-        await sendTextMessage(devices.sender.page, testMessage);
+        await sendTextMessage(devices.deviceA.page, testMessage);
 
         // 验证发送方显示了消息
-        await assertMessageExists(devices.sender.page, testMessage);
+        await assertMessageExists(devices.deviceA.page, testMessage);
 
         // 等待接收方接收
-        await devices.receiver.page.waitForTimeout(WAIT_TIMES.MESSAGE);
-        await devices.receiver.page.reload();
-        await devices.receiver.page.waitForTimeout(WAIT_TIMES.RELOAD);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+        await devices.deviceB.page.reload();
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 
         // 验证接收方收到消息 - 使用更精确的选择器
-        const messageInReceiver = devices.receiver.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
+        const messageInReceiver = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
         const messageCount = await messageInReceiver.count();
 
         // 验证版本号协议成功传输消息
@@ -70,23 +69,24 @@ test.describe('版本号消息同步协议', () => {
       const devices = await createTestDevices(browser, '重试发送方', '重试接收方', { startPage: 'wechat' });
 
       try {
-        // 发送方创建聊天
-        await createChat(devices.sender.page, devices.receiver.userInfo.peerId);
+        // 设备 A 创建聊天
+        await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-        await devices.sender.page.click(SELECTORS.contactItem);
-        await devices.sender.page.waitForTimeout(WAIT_TIMES.SHORT);
+        await devices.deviceA.page.click(SELECTORS.contactItem);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 发送消息
         const testMessage = '重试测试消息';
-        await sendTextMessage(devices.sender.page, testMessage);
+        await sendTextMessage(devices.deviceA.page, testMessage);
 
         // 验证消息状态 - 检查消息有唯一ID和messageStage
-        const messageStatus = await devices.sender.page.evaluate(() => {
-          const stored = localStorage.getItem('p2p_messages_contact-1');
+        const deviceBPeerId = devices.deviceB.userInfo.peerId;
+        const messageStatus = await devices.deviceA.page.evaluate((peerId) => {
+          const stored = localStorage.getItem('p2p_messages_' + peerId);
           const messages = stored ? JSON.parse(stored) : [];
           const lastMessage = messages[messages.length - 1];
           return lastMessage ? { id: lastMessage.id, messageStage: lastMessage.messageStage } : null;
-        });
+        }, deviceBPeerId);
 
         // 验证消息有唯一ID
         expect(messageStatus).not.toBeNull();
@@ -120,7 +120,6 @@ test.describe('版本号消息同步协议', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
 
       const messages = [
         {
@@ -159,11 +158,11 @@ test.describe('版本号消息同步协议', () => {
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 验证每条消息都有唯一ID
-      const messageIds = await page.evaluate(() => {
-        const stored = localStorage.getItem('p2p_messages_contact-1');
+      const messageIds = await page.evaluate((peerId) => {
+        const stored = localStorage.getItem('p2p_messages_' + peerId);
         const messages = stored ? JSON.parse(stored) : [];
         return messages.map((m: any) => m.id);
-      });
+      }, 'contact-1');
 
       const uniqueIds = new Set(messageIds);
       expect(uniqueIds.size).toBe(3);
@@ -185,7 +184,10 @@ test.describe('版本号消息同步协议', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 模拟有重复ID的消息
       const messages = [
@@ -237,7 +239,10 @@ test.describe('版本号消息同步协议', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 模拟不同类型的消息
       const messages = [

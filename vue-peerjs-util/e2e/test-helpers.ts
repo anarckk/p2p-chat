@@ -434,10 +434,10 @@ export async function assertDeviceOnlineStatus(
 
   // 根据在线状态检查相应的标签
   if (isOnline) {
-    // 在线设备应该有在线标签或者"我"标签
+    // 在线设备应该有在线标签或者"我"标签或者"聊天中"标签
     const onlineTag = card.locator(SELECTORS.onlineTag);
     const meTag = card.locator('.ant-tag:has-text("我")');
-    const chatTag = card.locator('.ant-tag:has-text("已加入聊天")');
+    const chatTag = card.locator('.ant-tag:has-text("聊天中")');
     const hasTag = await onlineTag.count() + await meTag.count() + await chatTag.count();
     expect(hasTag).toBeGreaterThan(0);
   } else {

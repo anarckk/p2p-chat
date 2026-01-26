@@ -27,7 +27,7 @@ test.describe('发现中心页面 - 基础 UI', () => {
     await expect(page.locator(SELECTORS.centerContainer)).toBeVisible();
 
     // 验证页面包含"发现中心"卡片
-    const discoveryCard = page.locator('.a-card').filter({ hasText: '发现中心' });
+    const discoveryCard = page.locator('.ant-card').filter({ hasText: '发现中心' });
     await expect(discoveryCard).toBeVisible();
 
     // 验证输入框和按钮存在
@@ -39,11 +39,11 @@ test.describe('发现中心页面 - 基础 UI', () => {
 
   test('应该显示用户信息区域', async ({ page }) => {
     // 验证用户信息卡片存在
-    const userInfoCard = page.locator('.a-card').filter({ hasText: '我的信息' });
+    const userInfoCard = page.locator('.ant-card').filter({ hasText: '我的信息' });
     await expect(userInfoCard).toBeVisible();
 
     // 验证用户名显示
-    const usernameElement = page.locator('.a-descriptions-item-label').filter({ hasText: '用户名' });
+    const usernameElement = page.locator('.ant-descriptions-item-label').filter({ hasText: '用户名' });
     await expect(usernameElement).toBeVisible();
   });
 });
@@ -150,7 +150,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       await expect(deviceBCard).toBeVisible();
 
       // 验证卡片中有 Peer ID 文本（小字显示）
-      const peerIdText = deviceBCard.locator('.a-typography-secondary');
+      const peerIdText = deviceBCard.locator('.ant-typography-secondary');
       const peerIdCount = await peerIdText.count();
       expect(peerIdCount).toBeGreaterThan(0);
     } finally {
@@ -172,7 +172,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
     expect(myCardCount).toBeGreaterThan(0);
 
     // 验证"我"标签存在
-    const myTag = page.locator('.a-tag:has-text("我")');
+    const myTag = page.locator('.ant-tag:has-text("我")');
     const myTagCount = await myTag.count();
     expect(myTagCount).toBeGreaterThan(0);
   });

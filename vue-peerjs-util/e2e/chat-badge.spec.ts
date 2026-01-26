@@ -15,7 +15,7 @@ test.describe('聊天中标识', () => {
     });
   });
 
-  test('已在聊天列表中的设备应该显示"已加入聊天"标识', async ({ page }) => {
+  test('已在聊天列表中的设备应该显示"聊天中"标识', async ({ page }) => {
     // 设置用户信息和聊天记录
     await page.goto('/center');
     await page.evaluate(() => {
@@ -69,9 +69,9 @@ test.describe('聊天中标识', () => {
     const deviceCards = await page.locator('.device-card').count();
     expect(deviceCards).toBeGreaterThan(0);
 
-    // 验证页面包含"已加入聊天"文本
+    // 验证页面包含"聊天中"文本
     const pageContent = await page.content();
-    const hasChatBadgeText = pageContent.includes('已加入聊天');
+    const hasChatBadgeText = pageContent.includes('聊天中');
     expect(hasChatBadgeText).toBe(true);
   });
 
@@ -120,12 +120,12 @@ test.describe('聊天中标识', () => {
     const deviceCard = await page.locator('.device-card').filter({ hasText: '聊天中设备' });
     await expect(deviceCard).toBeVisible();
 
-    // 验证页面包含"已加入聊天"文本
+    // 验证页面包含"聊天中"文本
     const pageContent = await page.content();
-    expect(pageContent).toContain('已加入聊天');
+    expect(pageContent).toContain('聊天中');
   });
 
-  test('非聊天设备不应该显示"已加入聊天"标识', async ({ page }) => {
+  test('非聊天设备不应该显示"聊天中"标识', async ({ page }) => {
     await page.goto('/center');
     await page.evaluate(() => {
       localStorage.setItem(
@@ -157,7 +157,7 @@ test.describe('聊天中标识', () => {
     const deviceCard = await page.locator('.device-card').filter({ hasText: '非聊天设备' });
     await expect(deviceCard).toBeVisible();
 
-    // 验证没有"已加入聊天"标识（应该显示"在线"标识）
+    // 验证没有"聊天中"标识（应该显示"在线"标识）
     const pageContent = await page.content();
     expect(pageContent).toContain('在线');
   });

@@ -6,7 +6,6 @@ import {
   clearAllStorage,
   setUserInfo,
   setContactList,
-  setCurrentChat,
   createTestDevices,
   cleanupTestDevices,
   createChat,
@@ -47,7 +46,10 @@ test.describe('消息状态展示与送达确认', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 模拟发送中的消息
       const messages = [
@@ -90,7 +92,10 @@ test.describe('消息状态展示与送达确认', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 模拟已送达的消息
       const messages = [
@@ -133,7 +138,10 @@ test.describe('消息状态展示与送达确认', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 模拟发送失败的消息
       const messages = [
@@ -176,7 +184,10 @@ test.describe('消息状态展示与送达确认', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       const messages = [
         {
@@ -220,7 +231,10 @@ test.describe('消息状态展示与送达确认', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       const messages = [
         {
@@ -247,11 +261,11 @@ test.describe('消息状态展示与送达确认', () => {
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 验证每条消息都有唯一 ID
-      const messageIds = await page.evaluate(() => {
-        const stored = localStorage.getItem('p2p_messages_contact-1');
+      const messageIds = await page.evaluate((peerId) => {
+        const stored = localStorage.getItem('p2p_messages_' + peerId);
         const messages = stored ? JSON.parse(stored) : [];
         return messages.map((m: any) => m.id);
-      });
+      }, 'contact-1');
 
       const uniqueIds = new Set(messageIds);
       expect(uniqueIds.size).toBe(messageIds.length);
@@ -272,7 +286,10 @@ test.describe('消息状态展示与送达确认', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 模拟重复 ID 的消息
       const messages = [
@@ -317,7 +334,10 @@ test.describe('消息状态展示与送达确认', () => {
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       const messages = [
         {
@@ -370,12 +390,13 @@ test.describe('消息状态展示与送达确认', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
         // 验证消息状态 - 检查消息有唯一ID
-        const messageStatus = await devices.deviceA.page.evaluate(() => {
-          const stored = localStorage.getItem('p2p_messages_contact-1');
+        const deviceBPeerId = devices.deviceB.userInfo.peerId;
+        const messageStatus = await devices.deviceA.page.evaluate((peerId) => {
+          const stored = localStorage.getItem('p2p_messages_' + peerId);
           const messages = stored ? JSON.parse(stored) : [];
           const lastMessage = messages[messages.length - 1];
           return lastMessage ? { id: lastMessage.id, status: lastMessage.status } : null;
-        });
+        }, deviceBPeerId);
 
         // 验证消息有唯一ID
         expect(messageStatus).not.toBeNull();

@@ -4,8 +4,8 @@ import {
   WAIT_TIMES,
   createUserInfo,
   clearAllStorage,
+  setUserInfo,
   setContactList,
-  setCurrentChat,
   createTestDevices,
   cleanupTestDevices,
   createChat,
@@ -170,6 +170,7 @@ test.describe('聊天消息发送与接收', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
         'contact-2': {
           peerId: 'contact-2',
@@ -178,6 +179,7 @@ test.describe('聊天消息发送与接收', () => {
           online: false,
           lastSeen: Date.now() - 3600000,
           unreadCount: 2,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -215,12 +217,16 @@ test.describe('聊天消息发送与接收', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-to-delete');
 
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 点击更多按钮
       const moreButton = page.locator('button[aria-label="more"]');
@@ -248,10 +254,10 @@ test.describe('聊天消息发送与接收', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
-      await setCurrentChat(page, 'contact-1');
 
       const messages = [
         {
@@ -279,6 +285,10 @@ test.describe('聊天消息发送与接收', () => {
       }, { msgs: messages, peerId: 'contact-1' });
 
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证消息显示
       const messages_count = page.locator(SELECTORS.messageItem);
