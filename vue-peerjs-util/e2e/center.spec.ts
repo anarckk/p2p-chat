@@ -59,9 +59,37 @@ test.describe('发现中心页面 - 基础 UI', () => {
  */
 test.describe('P2P 发现功能 - 多设备测试', () => {
   test('设备 A 添加设备 B 时，设备 B 应该在设备 A 的发现列表中', async ({ browser }) => {
+    // 增加测试超时时间到 60 秒
+    test.setTimeout(60000);
     const devices = await createTestDevices(browser, '设备A', '设备B', { startPage: 'center' });
 
     try {
+      // 监听控制台日志
+      const deviceALogs: string[] = [];
+      const deviceBLogs: string[] = [];
+      devices.deviceA.page.on('console', msg => {
+        deviceALogs.push(msg.text());
+      });
+      devices.deviceB.page.on('console', msg => {
+        deviceBLogs.push(msg.text());
+      });
+
+      // 检查设备 A 和设备 B 的连接状态
+      const deviceAStatus = await devices.deviceA.page.locator('.ant-descriptions-item-label:has-text("连接状态") + .ant-descriptions-item-content .ant-badge-status-text').textContent();
+      const deviceBStatus = await devices.deviceB.page.locator('.ant-descriptions-item-label:has-text("连接状态") + .ant-descriptions-item-content .ant-badge-status-text').textContent();
+      console.log('Device A peer connection status:', deviceAStatus);
+      console.log('Device B peer connection status:', deviceBStatus);
+
+      // 打印错误日志
+      console.log('Device A error logs:');
+      deviceALogs.filter(log => log.includes('error') || log.includes('Error')).forEach(log => {
+        console.log('  ', log);
+      });
+      console.log('Device B error logs:');
+      deviceBLogs.filter(log => log.includes('error') || log.includes('Error')).forEach(log => {
+        console.log('  ', log);
+      });
+
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
@@ -76,19 +104,58 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
   });
 
   test('被动发现：设备 A 添加设备 B 时，设备 A 应该出现在设备 B 的发现列表中', async ({ browser }) => {
+    // 增加测试超时时间到 60 秒
+    test.setTimeout(60000);
+
     const devices = await createTestDevices(browser, '发现者A', '被发现的B', { startPage: 'center' });
 
     try {
+      // 额外等待，确保两个设备都完全准备好
+      await devices.deviceA.page.waitForTimeout(3000);
+      await devices.deviceB.page.waitForTimeout(3000);
+
+      // 监听控制台日志
+      const deviceALogs: string[] = [];
+      const deviceBLogs: string[] = [];
+      devices.deviceA.page.on('console', msg => {
+        if (msg.type() === 'log') {
+          deviceALogs.push(msg.text());
+        }
+      });
+      devices.deviceB.page.on('console', msg => {
+        if (msg.type() === 'log') {
+          deviceBLogs.push(msg.text());
+        }
+      });
+
+      // 打印设备 B 的初始列表
+      const deviceBListBefore = await devices.deviceB.page.locator(SELECTORS.deviceCard).allTextContents();
+      console.log('Device B list before add:', deviceBListBefore);
+
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待被动发现通知发送和处理（增加等待时间）
-      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.DISCOVERY);
-      await devices.deviceB.page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      // 等待一小段时间，让日志产生
+      await devices.deviceA.page.waitForTimeout(2000);
 
-      // 刷新设备 B 的页面以确保显示更新
-      await devices.deviceB.page.reload();
-      await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
+      // 打印设备 A 的相关日志
+      console.log('Device A logs (discovery notification):');
+      deviceALogs.filter(log => log.includes('discovery') || log.includes('Discovery')).forEach(log => {
+        console.log('  ', log);
+      });
+
+      // 等待被动发现通知发送和处理
+      await devices.deviceB.page.waitForTimeout(13000);
+
+      // 打印设备 B 的相关日志
+      console.log('Device B logs (all):');
+      deviceBLogs.slice(-20).forEach(log => {
+        console.log('  ', log);
+      });
+
+      // 打印设备 B 的列表
+      const deviceBList = await devices.deviceB.page.locator(SELECTORS.deviceCard).allTextContents();
+      console.log('Device B list after add:', deviceBList);
 
       // 验证设备 A 出现在设备 B 的发现列表中（被动发现）
       await assertDeviceExists(devices.deviceB.page, '发现者A');

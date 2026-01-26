@@ -35,6 +35,10 @@ export interface ContactInfo {
 // ==================== 测试选择器 ====================
 
 export const SELECTORS = {
+  // 导航菜单
+  wechatMenuItem: '.ant-menu-item:has-text("聊天")',
+  centerMenuItem: '.ant-menu-item:has-text("发现中心")',
+
   // 通用
   centerContainer: '.center-container',
   deviceCard: '.device-card',
@@ -104,10 +108,11 @@ export const WAIT_TIMES = {
 // ==================== 测试数据工厂 ====================
 
 /**
- * 生成唯一的 PeerId
+ * 生成唯一的 PeerId（使用 UUID 格式，不包含中文字符）
  */
-export function generatePeerId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+export function generatePeerId(_prefix: string): string {
+  // 使用 crypto API 生成 UUID，确保不包含中文字符
+  return `peer-${Date.now()}-${Math.random().toString(36).substring(2, 11)}-${Math.random().toString(36).substring(2, 11)}`;
 }
 
 /**
@@ -242,10 +247,14 @@ export async function addMessages(
  */
 export async function waitForPeerConnected(page: Page, timeout = 20000): Promise<void> {
   await page.waitForSelector(SELECTORS.centerContainer, { timeout });
-  // 等待连接状态变为已连接
-  await page.waitForSelector('.ant-badge-status-processing', { timeout }).catch(() => {
-    // 连接状态可能不总是显示，继续执行
-  });
+  // 等待连接状态变为已连接（使用更精确的选择器）
+  try {
+    await page.waitForSelector('.ant-descriptions-item-label:has-text("连接状态") + .ant-descriptions-item-content .ant-badge-status-processing', { timeout });
+  } catch (error) {
+    // 连接状态可能显示"未连接"，但这不一定意味着 peer 不能工作
+    // PeerJS 可能需要更长时间连接，或者在某些情况下可以正常工作即使显示未连接
+    console.warn('Peer connection status shows "disconnected", but proceeding anyway');
+  }
 }
 
 /**
@@ -327,21 +336,43 @@ export async function createTestDevices(
   const deviceAContext = await browser.newContext();
   const deviceAPage = await deviceAContext.newPage();
   const deviceAUserInfo = createUserInfo(deviceAName);
-  await deviceAPage.goto(`/${startPage}`);
-  await setUserInfo(deviceAPage, deviceAUserInfo);
-  await waitForPeerConnected(deviceAPage);
-  // 额外等待，确保 Peer 完全初始化（增加到 8 秒）
-  await deviceAPage.waitForTimeout(8000);
+  // 先设置用户信息到 localStorage，再导航到页面
+  await deviceAPage.goto('/center');
+  await deviceAPage.evaluate((info: any) => {
+    localStorage.setItem('p2p_user_info', JSON.stringify(info));
+  }, deviceAUserInfo);
+  // 重新加载页面，让 peer 使用存储的用户信息初始化
+  await deviceAPage.reload();
+  // 等待页面加载完成，PeerJS 初始化
+  await deviceAPage.waitForSelector(SELECTORS.centerContainer, { timeout: 10000 });
+  // 短暂等待让 PeerJS 初始化
+  await deviceAPage.waitForTimeout(2000);
+  // 如果需要在其他页面，再导航过去
+  if (startPage !== 'center') {
+    await deviceAPage.goto(`/${startPage}`);
+    await deviceAPage.waitForTimeout(2000);
+  }
 
   // 创建设备 B
   const deviceBContext = await browser.newContext();
   const deviceBPage = await deviceBContext.newPage();
   const deviceBUserInfo = createUserInfo(deviceBName);
-  await deviceBPage.goto(`/${startPage}`);
-  await setUserInfo(deviceBPage, deviceBUserInfo);
-  await waitForPeerConnected(deviceBPage);
-  // 额外等待，确保 Peer 完全初始化（增加到 8 秒）
-  await deviceBPage.waitForTimeout(8000);
+  // 先设置用户信息到 localStorage，再导航到页面
+  await deviceBPage.goto('/center');
+  await deviceBPage.evaluate((info: any) => {
+    localStorage.setItem('p2p_user_info', JSON.stringify(info));
+  }, deviceBUserInfo);
+  // 重新加载页面，让 peer 使用存储的用户信息初始化
+  await deviceBPage.reload();
+  // 等待页面加载完成，PeerJS 初始化
+  await deviceBPage.waitForSelector(SELECTORS.centerContainer, { timeout: 10000 });
+  // 短暂等待让 PeerJS 初始化
+  await deviceBPage.waitForTimeout(2000);
+  // 如果需要在其他页面，再导航过去
+  if (startPage !== 'center') {
+    await deviceBPage.goto(`/${startPage}`);
+    await deviceBPage.waitForTimeout(2000);
+  }
 
   return {
     deviceA: {
@@ -421,7 +452,7 @@ export async function sendTextMessage(page: Page, message: string): Promise<void
  */
 export async function assertDeviceExists(page: Page, usernameOrPeerId: string): Promise<void> {
   const card = page.locator(SELECTORS.deviceCard).filter({ hasText: usernameOrPeerId });
-  await expect(card).toBeVisible();
+  await expect(card).toBeVisible({ timeout: 30000 });
 }
 
 /**

@@ -180,6 +180,7 @@ async function addDeviceManually() {
   console.log('[Center] Device added to store:', newDevice);
 
   // 发送发现通知给对端
+  console.log('[Center] Sending discovery notification to:', peerId);
   await sendDiscoveryNotification(peerId);
   console.log('[Center] Discovery notification sent to:', peerId);
 

@@ -106,6 +106,9 @@ export function usePeerManager() {
         }
       }, 30000); // 30秒超时
 
+      // 注册所有协议处理器（在 'open' 事件前注册，避免错过早期消息）
+      registerProtocolHandlers();
+
       peerInstance.on('open', (id: string) => {
         if (!settled) {
           settled = true;
@@ -114,24 +117,12 @@ export function usePeerManager() {
           userStore.setPeerId(id);
           console.log('[Peer] Connected with ID:', id);
 
-          // 注册所有协议处理器
-          registerProtocolHandlers();
-
           resolve(peerInstance!);
         }
       });
 
-      // 如果已经连接，直接设置状态（用于恢复已存在的连接）
-      if (peerInstance.getId()) {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timeout);
-          isConnected.value = true;
-          console.log('[Peer] Already connected with ID:', peerInstance.getId());
-          registerProtocolHandlers();
-          resolve(peerInstance);
-        }
-      }
+      // 不要依赖 getId() 来判断连接状态，因为 getId() 可能立即返回传入的 peerId
+      // 而不是等待连接成功。我们只依赖 'open' 事件。
 
       // 监听底层 PeerJS 错误
       peerInstance.on('error', (error: any) => {
@@ -186,9 +177,11 @@ export function usePeerManager() {
 
     // 处理发现通知
     discoveryNotificationHandler = (protocol: any, from: string) => {
+      console.log('[Peer] discoveryNotificationHandler called:', { type: protocol.type, from });
       if (protocol.type === 'discovery_notification') {
         const { fromUsername, fromAvatar } = protocol;
         commLog.discovery.notified({ from, username: fromUsername });
+        console.log('[Peer] Received discovery notification from:', from, 'username:', fromUsername);
 
         // 对端发现了我，添加到发现中心的设备列表（保留原有的 firstDiscovered）
         const existingDevice = deviceStore.getDevice(from);
@@ -200,6 +193,8 @@ export function usePeerManager() {
           firstDiscovered: existingDevice?.firstDiscovered || Date.now(),
           isOnline: true,
         };
+
+        console.log('[Peer] Adding device to store:', device);
 
         // 同时添加到 peerInstance 和 deviceStore
         peerInstance?.addDiscoveredDevice(device);
@@ -644,15 +639,20 @@ export function usePeerManager() {
    * 发现中心：发送发现通知给对端
    */
   async function sendDiscoveryNotification(peerId: string) {
-    if (!peerInstance) return;
+    if (!peerInstance) {
+      console.warn('[Peer] sendDiscoveryNotification: peerInstance is null');
+      return;
+    }
 
     try {
+      console.log('[Peer] Sending discovery notification to:', peerId, 'username:', userStore.userInfo.username);
       commLog.discovery.notify({ to: peerId, username: userStore.userInfo.username });
       await peerInstance.sendDiscoveryNotification(
         peerId,
         userStore.userInfo.username || '',
         userStore.userInfo.avatar,
       );
+      console.log('[Peer] Discovery notification sent successfully to:', peerId);
     } catch (error) {
       console.error('[Peer] Send discovery notification error:', error);
     }

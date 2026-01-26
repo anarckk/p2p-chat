@@ -1,0 +1,2 @@
+<ide_opened_file>The user opened the file \temp\readonly\Bash tool output (qy661n) in the IDE. This may or may not be related to the current task.</ide_opened_file>
+你用playwright mcp 测一下发现中心，启动之后，我的PeerID这里，看会不会出现

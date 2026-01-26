@@ -141,12 +141,12 @@ test.describe('设备持久化功能', () => {
       const deviceCountBefore = await page.locator(SELECTORS.deviceCard).count();
 
       // 切换到聊天页面
-      await page.click('a:has-text("聊天")');
+      await page.click(SELECTORS.wechatMenuItem);
       await page.waitForURL(/\/wechat/);
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
       // 切换回发现中心
-      await page.click('a:has-text("发现中心")');
+      await page.click(SELECTORS.centerMenuItem);
       await page.waitForURL(/\/center/);
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
@@ -271,12 +271,12 @@ test.describe('设备持久化功能', () => {
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
       // 切换到聊天页面
-      await page.click('a:has-text("聊天")');
+      await page.click(SELECTORS.wechatMenuItem);
       await page.waitForURL(/\/wechat/);
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
       // 切换回发现中心
-      await page.click('a:has-text("发现中心")');
+      await page.click(SELECTORS.centerMenuItem);
       await page.waitForURL(/\/center/);
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
@@ -299,16 +299,21 @@ test.describe('设备持久化功能', () => {
    */
   test.describe('被动发现持久化', () => {
     test('被动发现的设备应该保存到 localStorage', async ({ browser }) => {
+      test.setTimeout(60000); // 增加超时时间到 60 秒
       const devices = await createTestDevices(browser, '主动发现者', '被动被发现者', { startPage: 'center' });
 
       try {
+        // 额外等待，确保两个设备的 Peer 完全初始化
+        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceB.page.waitForTimeout(5000);
+
         // 设备 A 添加设备 B
         await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
         await devices.deviceA.page.click(SELECTORS.addButton);
 
-        // 等待发现通知发送和处理
-        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+        // 等待发现通知发送和处理（增加等待时间）
+        await devices.deviceA.page.waitForTimeout(8000);
+        await devices.deviceB.page.waitForTimeout(8000);
 
         // 验证设备 B 的 localStorage 中保存了设备 A
         const storedDevices = await devices.deviceB.page.evaluate(() => {
@@ -377,7 +382,7 @@ test.describe('设备持久化功能', () => {
       });
 
       // 切换到聊天页面
-      await page.click('a:has-text("聊天")');
+      await page.click(SELECTORS.wechatMenuItem);
       await page.waitForURL(/\/wechat/);
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 

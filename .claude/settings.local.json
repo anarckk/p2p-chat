@@ -13,7 +13,9 @@
       "Bash(npx playwright test:*)",
       "Bash(python:*)",
       "Bash(npm run type-check:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_click"
     ]
   }
 }

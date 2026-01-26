@@ -73,7 +73,9 @@ export class PeerHttpUtil {
     });
 
     this.peer.on('connection', (conn: any) => {
+      console.log('[PeerHttp] Received connection from:', conn.peer);
       conn.on('data', (data: any) => {
+        console.log('[PeerHttp] Received data from:', conn.peer, 'type:', data?.type);
         // 检查是否是协议消息
         if (data && typeof data === 'object' && data.type) {
           this.handleProtocolMessage(data, conn.peer);
@@ -303,6 +305,7 @@ export class PeerHttpUtil {
     protocol: { fromUsername: string; fromAvatar: string | null },
     from: string,
   ) {
+    console.log('[PeerHttp] handleDiscoveryNotification called:', { from, username: protocol.fromUsername });
     commLog.discovery.notified({ from, username: protocol.fromUsername });
 
     // 将对端添加到已发现的设备列表（保留原有的 firstDiscovered）
@@ -315,6 +318,8 @@ export class PeerHttpUtil {
       firstDiscovered: existing?.firstDiscovered || Date.now(),
       isOnline: true,
     });
+
+    console.log('[PeerHttp] Device added to discoveredDevices:', { from, username: protocol.fromUsername });
 
     // 触发发现通知事件
     this.emitProtocol('discovery_notification', { ...protocol, from } as any);

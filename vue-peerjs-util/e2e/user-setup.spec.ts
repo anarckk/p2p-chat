@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import {
   clearAllStorage,
 } from './test-helpers.js';
@@ -163,5 +163,142 @@ test.describe('用户信息设置', () => {
     // 验证弹窗仍然显示（说明提交失败）
     const modal = page.locator('.ant-modal');
     await expect(modal).toBeVisible();
+  });
+
+  /**
+   * 中文用户名 Peer ID 生成测试
+   * 测试场景：
+   * 1. 输入中文用户名
+   * 2. 验证 Peer ID 能正确生成（不是"连接中..."）
+   * 3. 验证连接状态显示为"已连接"
+   * 4. 验证弹窗能正常关闭
+   */
+  test.describe('中文用户名场景', () => {
+    test('中文用户名应该能正常生成 Peer ID', async ({ page }) => {
+      // 增加超时时间，因为 Peer 初始化需要时间
+      test.setTimeout(40000);
+
+      await page.goto('/center');
+      await clearAllStorage(page);
+      await page.reload();
+
+      // 等待弹窗出现
+      await page.waitForSelector('.ant-modal', { timeout: 5000 });
+
+      // 输入中文用户名
+      const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
+      await usernameInput.fill('测试用户');
+
+      // 点击完成
+      const okButton = page.locator('.ant-modal .ant-btn-primary');
+      await okButton.click();
+
+      // 等待按钮 loading 状态结束（最多 35 秒）
+      await page.waitForSelector('.ant-modal .ant-btn-primary:not([disabled])', { timeout: 35000 }).catch(() => {
+        // 如果按钮一直是 disabled 状态，说明 Peer 初始化卡住了
+        throw new Error('Peer initialization timeout with Chinese username - button stuck in loading state');
+      });
+
+      // 等待弹窗关闭
+      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
+        throw new Error('Modal did not close after Peer initialization');
+      });
+
+      // 验证"我的 Peer ID"显示的不是"连接中..."
+      const peerIdElement = page.locator('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content');
+      const peerIdText = await peerIdElement.textContent();
+
+      // Peer ID 不应该是"连接中..."，应该是实际的 ID
+      expect(peerIdText).not.toBe('连接中...');
+      expect(peerIdText).not.toContain('连接中');
+      expect(peerIdText?.trim()).toBeTruthy();
+
+      // 验证连接状态是"已连接"而不是"未连接"
+      const connectionStatusElement = page.locator('.ant-descriptions-item-label:has-text("连接状态") + .ant-descriptions-item-content');
+      const connectionStatus = await connectionStatusElement.textContent();
+
+      expect(connectionStatus).not.toBe('未连接');
+      expect(connectionStatus).toContain('已连接');
+    });
+
+    test('中文用户名在聊天页面也应该正常工作', async ({ page }) => {
+      test.setTimeout(40000);
+
+      await page.goto('/wechat');
+      await clearAllStorage(page);
+      await page.reload();
+
+      // 等待弹窗出现
+      await page.waitForSelector('.ant-modal', { timeout: 5000 });
+
+      // 输入中文用户名
+      const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
+      await usernameInput.fill('卡密先生');
+
+      // 点击完成
+      const okButton = page.locator('.ant-modal .ant-btn-primary');
+      await okButton.click();
+
+      // 等待按钮 loading 状态结束
+      await page.waitForSelector('.ant-modal .ant-btn-primary:not([disabled])', { timeout: 35000 }).catch(() => {
+        throw new Error('Peer initialization timeout in chat page');
+      });
+
+      // 等待弹窗关闭
+      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
+        throw new Error('Modal did not close');
+      });
+
+      // 验证用户信息已保存
+      const userInfo = await page.evaluate(() => {
+        const stored = localStorage.getItem('p2p_user_info');
+        return stored ? JSON.parse(stored) : null;
+      });
+
+      expect(userInfo).not.toBeNull();
+      expect(userInfo.username).toBe('卡密先生');
+      expect(userInfo.peerId).toBeTruthy();
+
+      // Peer ID 不应该包含中文字符（因为 PeerJS 不支持）
+      // 应该是纯字母数字组合
+      const peerId = userInfo.peerId;
+      const hasChinese = /[\u4e00-\u9fa5]/.test(peerId);
+      expect(hasChinese).toBe(false);
+    });
+
+    test('混合中英文用户名也应该正常工作', async ({ page }) => {
+      test.setTimeout(40000);
+
+      await page.goto('/center');
+      await clearAllStorage(page);
+      await page.reload();
+
+      // 等待弹窗出现
+      await page.waitForSelector('.ant-modal', { timeout: 5000 });
+
+      // 输入混合中英文用户名
+      const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
+      await usernameInput.fill('用户User123');
+
+      // 点击完成
+      const okButton = page.locator('.ant-modal .ant-btn-primary');
+      await okButton.click();
+
+      // 等待初始化完成
+      await page.waitForSelector('.ant-modal .ant-btn-primary:not([disabled])', { timeout: 35000 }).catch(() => {
+        throw new Error('Peer initialization timeout with mixed username');
+      });
+
+      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
+        throw new Error('Modal did not close');
+      });
+
+      // 验证 Peer ID 正常显示
+      const peerIdElement = page.locator('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content');
+      const peerIdText = await peerIdElement.textContent();
+
+      expect(peerIdText).not.toBe('连接中...');
+      expect(peerIdText?.trim()).toBeTruthy();
+    });
   });
 });
