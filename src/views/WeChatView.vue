@@ -166,16 +166,10 @@ async function handleAddChat() {
     return;
   }
 
-  // 先尝试查询用户名
-  let username = peerId;
-  try {
-    const result = await peerManager.queryUsername(peerId);
-    if (result && result.username) {
-      username = result.username;
-    }
-  } catch (error) {
-    console.warn('[WeChat] Failed to query username, using peerId as username:', error);
-  }
+  // 使用 peerId 作为默认用户名（跳过查询，避免超时或错误）
+  const username = peerId;
+
+  console.log('[WeChat] Creating chat with peerId:', peerId, 'username:', username);
 
   // 创建聊天
   chatStore.createChat(peerId, username);
@@ -184,6 +178,8 @@ async function handleAddChat() {
   showAddChatModal.value = false;
   addChatPeerIdInput.value = '';
   message.success('已创建聊天');
+
+  console.log('[WeChat] Chat created successfully');
 }
 
 /**

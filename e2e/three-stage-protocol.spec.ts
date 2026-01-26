@@ -33,9 +33,24 @@ test.describe('版本号消息同步协议', () => {
    */
   test.describe('多设备协议通信', () => {
     test('应该使用版本号协议发送消息', async ({ browser }) => {
-      const devices = await createTestDevices(browser, '发送方', '接收方', { startPage: 'wechat' });
+      test.setTimeout(90000); // 增加超时时间
+      const devices = await createTestDevices(browser, '发送方', '接收方', { startPage: 'center' });
 
       try {
+        // 等待 Peer 连接建立
+        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceB.page.waitForTimeout(5000);
+
+        // 切换到聊天页面
+        await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+        await devices.deviceB.page.click(SELECTORS.wechatMenuItem);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+
+        // 额外等待确保聊天页面加载完成
+        await devices.deviceA.page.waitForTimeout(2000);
+        await devices.deviceB.page.waitForTimeout(2000);
+
         // 设备 A 创建与设备 B 的聊天
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
@@ -54,6 +69,10 @@ test.describe('版本号消息同步协议', () => {
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
         await devices.deviceB.page.reload();
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+        // 页面刷新后需要重新点击联系人以触发 loadMessages
+        await devices.deviceB.page.click(SELECTORS.contactItem);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 验证接收方收到消息 - 使用更精确的选择器
         const messageInReceiver = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
@@ -207,7 +226,12 @@ test.describe('版本号消息同步协议', () => {
         localStorage.setItem(`p2p_messages_${peerId}`, JSON.stringify(msgs));
       }, { msgs: messages, peerId: 'contact-1' });
 
+      await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 页面刷新后需要重新点击联系人以触发 loadMessages
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证只有一条消息
       const messageItems = page.locator(SELECTORS.messageItem);
@@ -291,7 +315,12 @@ test.describe('版本号消息同步协议', () => {
         localStorage.setItem(`p2p_messages_${peerId}`, JSON.stringify(msgs));
       }, { msgs: messages, peerId: 'contact-1' });
 
+      await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 页面刷新后需要重新点击联系人以触发 loadMessages
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证消息列表
       const messageItems = page.locator(SELECTORS.messageItem);

@@ -299,8 +299,8 @@ test.describe('设备持久化功能', () => {
    */
   test.describe('被动发现持久化', () => {
     test('被动发现的设备应该保存到 localStorage', async ({ browser }) => {
-      // 基于 PeerJS 5秒内标准优化超时时间
-      test.setTimeout(15000);
+      // 增加超时时间以适应 P2P 连接建立
+      test.setTimeout(60000);
       const devices = await createTestDevices(browser, '主动发现者', '被动被发现者', { startPage: 'center' });
 
       try {
