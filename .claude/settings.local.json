@@ -21,7 +21,9 @@
       "Bash(dir:*)",
       "Bash(cmd.exe:*)",
       "Bash(node:*)",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "mcp__playwright__browser_type",
+      "Bash(git checkout:*)"
     ],
     "deny": [
       "Bash(npm run dev)"

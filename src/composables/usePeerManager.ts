@@ -24,12 +24,13 @@ let reconnectTimer: number | null = null;
 let isReconnecting = false;
 const RECONNECT_INTERVAL = 10000; // 10秒重连间隔
 
+// 连接状态：模块级别的 ref，确保所有调用共享同一个响应式状态
+const isConnected = ref(false);
+
 export function usePeerManager() {
   const chatStore = useChatStore();
   const userStore = useUserStore();
   const deviceStore = useDeviceStore();
-
-  const isConnected = ref(false);
 
   /**
    * 停止自动重连

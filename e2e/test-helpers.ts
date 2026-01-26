@@ -344,13 +344,13 @@ export async function createTestDevices(
   await deviceAPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
   // 等待页面加载完成，PeerJS 初始化
   await deviceAPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 10000 });
-  // 等待 PeerJS 连接成功（检查连接状态变为"已连接"）
-  await deviceAPage.waitForSelector('.ant-badge-status-processing', { timeout: 20000 }).catch(() => {
-    // 如果找不到"已连接"状态，继续测试
-    console.log('[Test] Device A connection status not ready, continuing...');
+  // 等待 PeerJS 初始化（使用 PeerId 出现作为标志，而不是连接状态）
+  await deviceAPage.waitForSelector('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography', { timeout: 15000 }).catch(() => {
+    // 如果找不到 PeerId，继续测试
+    console.log('[Test] Device A PeerId not ready, continuing...');
   });
-  // 额外等待确保 PeerJS 完全初始化
-  await deviceAPage.waitForTimeout(2000);
+  // 额外等待确保 PeerJS 完全初始化（5秒足以连接到 Peer Server）
+  await deviceAPage.waitForTimeout(5000);
 
   // 创建设备 B
   const deviceBUserInfo = createUserInfo(deviceBName);
@@ -364,13 +364,13 @@ export async function createTestDevices(
   await deviceBPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
   // 等待页面加载完成，PeerJS 初始化
   await deviceBPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 10000 });
-  // 等待 PeerJS 连接成功（检查连接状态变为"已连接"）
-  await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 20000 }).catch(() => {
-    // 如果找不到"已连接"状态，继续测试
-    console.log('[Test] Device B connection status not ready, continuing...');
+  // 等待 PeerJS 初始化（使用 PeerId 出现作为标志，而不是连接状态）
+  await deviceBPage.waitForSelector('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography', { timeout: 15000 }).catch(() => {
+    // 如果找不到 PeerId，继续测试
+    console.log('[Test] Device B PeerId not ready, continuing...');
   });
-  // 额外等待确保 PeerJS 完全初始化
-  await deviceBPage.waitForTimeout(2000);
+  // 额外等待确保 PeerJS 完全初始化（5秒足以连接到 Peer Server）
+  await deviceBPage.waitForTimeout(5000);
 
   return {
     deviceA: {
