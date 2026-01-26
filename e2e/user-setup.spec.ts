@@ -84,8 +84,15 @@ test.describe('用户信息设置', () => {
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
 
-    // 等待保存完成
-    await page.waitForTimeout(1000);
+    // 等待 Peer 初始化完成（按钮 loading 状态结束）
+    await page.waitForSelector('.ant-modal .ant-btn-primary:not([disabled])', { timeout: 35000 }).catch(() => {
+      throw new Error('Peer initialization timeout - button stuck in loading state');
+    });
+
+    // 等待弹窗关闭
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
+      throw new Error('Modal did not close after Peer initialization');
+    });
 
     // 验证 localStorage 中保存了用户信息
     const userInfo = await page.evaluate(() => {

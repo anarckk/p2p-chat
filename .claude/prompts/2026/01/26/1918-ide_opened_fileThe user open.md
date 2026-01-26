@@ -1,0 +1,2 @@
+<ide_opened_file>The user opened the file c:\bee\projects\sx-peerjs-http-util\.claude\commands\subagent-e2e-test.md in the IDE. This may or may not be related to the current task.</ide_opened_file>
+这个 claude skill 要放项目目录下

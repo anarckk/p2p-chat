@@ -35,7 +35,6 @@
 # 记忆
 
 sx-peerjs-http-util/
-└── vue-peerjs-util/
     ├── index.html - HTML 入口
     ├── package.json - 项目配置（已安装 ant-design-vue@^4.2.6、vue-router@^4.6.4、pinia@^3.0.4）
     ├── vite.config.ts - Vite 构建配置（端口 36626）
@@ -118,6 +117,7 @@ sx-peerjs-http-util/
 - **头像支持**: 用户可上传头像文件,否则使用 ant-design-vue 默认头像
 - **用户信息持久化**: 用户名、头像、PeerId 存储到 LocalStorage（头像以 Base64 格式存储）
 - **PeerId 稳定性**: 用户在页面间切换时,PeerId 保持不变
+- **PeerId 生成规则**: 使用 UUID 生成，避免出现中文字符导致连接问题
 
 ### 2. 去中心化发现中心 (`/center`)
 
@@ -148,6 +148,10 @@ sx-peerjs-http-util/
   - 对端存储该用户的个人信息版本号
   - 如果版本号不一致，则主动请求该用户的个人信息（用户名和头像）
   - 获取到更新后的个人信息后，在页面上进行展示更新
+
+#### Peer Server 连接管理
+- **连接状态展示**: 发现中心左侧实时显示与 Peer Server 的连接状态（已连接/未连接）
+- **自动重连机制**: 如果意外断网，自动定时 10 秒钟重新连接 Peer Server
 
 ### 3. 聊天应用 (`/wechat`)
 

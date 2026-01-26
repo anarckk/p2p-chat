@@ -229,6 +229,7 @@ async function handleUserSetup() {
             type="primary"
             block
             :loading="isSubmitting"
+            :disabled="isSubmitting"
             @click="handleUserSetup"
             aria-label="complete-user-setup"
           >

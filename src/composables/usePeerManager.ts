@@ -132,8 +132,11 @@ export function usePeerManager() {
 
       // 如果没有存储的 PeerId，生成新的
       if (!peerId) {
-        const username = userStore.userInfo.username || 'user';
-        peerId = `${username}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+        // PeerJS ID 不能包含中文字符，需要使用字母数字组合
+        // 使用时间戳和随机字符串，确保唯一性
+        const timestamp = Date.now().toString(36);
+        const randomStr = Math.random().toString(36).substring(2, 11);
+        peerId = `peer_${timestamp}_${randomStr}`;
       }
 
       console.log('[Peer] Initializing with PeerId:', peerId);

@@ -16,7 +16,12 @@
       "Bash(npx eslint:*)",
       "mcp__playwright__browser_fill_form",
       "mcp__playwright__browser_click",
-      "mcp__web-reader__webReader"
+      "mcp__web-reader__webReader",
+      "Bash(ls:*)",
+      "Bash(dir:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(node:*)",
+      "Bash(powershell.exe:*)"
     ]
   }
 }
