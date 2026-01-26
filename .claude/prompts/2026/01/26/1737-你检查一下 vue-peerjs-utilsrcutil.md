@@ -1,0 +1,1 @@
+你检查一下 vue-peerjs-util/src/util/PeerHttpUtil.ts ，看使用时有没有和文档中不一致的地方
