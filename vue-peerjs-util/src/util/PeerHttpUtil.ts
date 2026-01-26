@@ -18,6 +18,8 @@ export type MessageHandler = (data: { from: string; data: any }) => void;
 export type OpenHandler = (id: string) => void;
 export type ErrorHandler = (error: any) => void;
 export type ProtocolMessageHandler = (protocol: AnyProtocol, from: string) => void;
+export type DisconnectedHandler = () => void;
+export type CloseHandler = () => void;
 
 // 每个聊天记录的版本号和消息存储
 interface ChatVersion {
@@ -30,6 +32,8 @@ export class PeerHttpUtil {
   private messageHandlers: MessageHandler[] = [];
   private openHandlers: OpenHandler[] = [];
   private errorHandlers: ErrorHandler[] = [];
+  private disconnectedHandlers: DisconnectedHandler[] = [];
+  private closeHandlers: CloseHandler[] = [];
   private protocolHandlers: Map<string, ProtocolMessageHandler[]> = new Map();
 
   // 存储每个聊天的版本号和消息（key: peerId, value: version + messages）
@@ -56,6 +60,32 @@ export class PeerHttpUtil {
           handler(id);
         } catch (err) {
           console.error('[PeerHttp] Open handler error:', err);
+        }
+      });
+    });
+
+    // 监听断开连接事件
+    this.peer.on('disconnected', () => {
+      console.warn('[PeerHttp] Peer connection disconnected, will attempt to reconnect...');
+      commLog.connection.disconnected();
+      this.disconnectedHandlers.forEach((handler) => {
+        try {
+          handler();
+        } catch (err) {
+          console.error('[PeerHttp] Disconnected handler error:', err);
+        }
+      });
+    });
+
+    // 监听连接关闭事件
+    this.peer.on('close', () => {
+      console.warn('[PeerHttp] Peer connection closed');
+      commLog.connection.closed();
+      this.closeHandlers.forEach((handler) => {
+        try {
+          handler();
+        } catch (err) {
+          console.error('[PeerHttp] Close handler error:', err);
         }
       });
     });
@@ -869,12 +899,14 @@ export class PeerHttpUtil {
 
   /**
    * 监听消息事件
-   * @param event - 支持 'message' | 'open' | 'error'
+   * @param event - 支持 'message' | 'open' | 'error' | 'disconnected' | 'close'
    * @param handler - 消息处理函数
    */
   on(event: 'message', handler: MessageHandler): void;
   on(event: 'open', handler: OpenHandler): void;
   on(event: 'error', handler: ErrorHandler): void;
+  on(event: 'disconnected', handler: DisconnectedHandler): void;
+  on(event: 'close', handler: CloseHandler): void;
   on(event: string, handler: any): void {
     if (event === 'message') {
       this.messageHandlers.push(handler);
@@ -882,6 +914,10 @@ export class PeerHttpUtil {
       this.openHandlers.push(handler);
     } else if (event === 'error') {
       this.errorHandlers.push(handler);
+    } else if (event === 'disconnected') {
+      this.disconnectedHandlers.push(handler);
+    } else if (event === 'close') {
+      this.closeHandlers.push(handler);
     }
   }
 

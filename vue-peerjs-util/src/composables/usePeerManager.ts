@@ -19,12 +19,58 @@ let onlineCheckResponseHandler: ((protocol: any, from: string) => void) | null =
 let userInfoQueryHandler: ((protocol: any, from: string) => void) | null = null;
 let userInfoResponseHandler: ((protocol: any, from: string) => void) | null = null;
 
+// 自动重连相关
+let reconnectTimer: number | null = null;
+let isReconnecting = false;
+const RECONNECT_INTERVAL = 10000; // 10秒重连间隔
+
 export function usePeerManager() {
   const chatStore = useChatStore();
   const userStore = useUserStore();
   const deviceStore = useDeviceStore();
 
   const isConnected = ref(false);
+
+  /**
+   * 停止自动重连
+   */
+  function stopReconnect() {
+    if (reconnectTimer !== null) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      console.log('[Peer] Auto-reconnect stopped');
+    }
+    isReconnecting = false;
+  }
+
+  /**
+   * 开始自动重连
+   */
+  function startReconnect() {
+    if (isReconnecting) {
+      return; // 已经在重连中
+    }
+
+    isReconnecting = true;
+    console.log('[Peer] Starting auto-reconnect in 10 seconds...');
+
+    reconnectTimer = window.setTimeout(async () => {
+      console.log('[Peer] Attempting to reconnect...');
+      message.warning('与 Peer Server 断开连接，正在尝试重连...');
+
+      try {
+        // 重新初始化连接
+        await init();
+        console.log('[Peer] Reconnected successfully');
+        message.success('已重新连接到 Peer Server');
+        stopReconnect();
+      } catch (error) {
+        console.error('[Peer] Reconnect failed:', error);
+        // 继续下一次重连
+        startReconnect();
+      }
+    }, RECONNECT_INTERVAL);
+  }
 
   /**
    * 请求用户完整信息
@@ -117,8 +163,27 @@ export function usePeerManager() {
           userStore.setPeerId(id);
           console.log('[Peer] Connected with ID:', id);
 
+          // 连接成功，停止自动重连
+          stopReconnect();
+
           resolve(peerInstance!);
         }
+      });
+
+      // 监听断开连接事件
+      peerInstance.on('disconnected', () => {
+        console.warn('[Peer] Disconnected from Peer Server');
+        isConnected.value = false;
+        // 启动自动重连
+        startReconnect();
+      });
+
+      // 监听连接关闭事件
+      peerInstance.on('close', () => {
+        console.warn('[Peer] Peer connection closed');
+        isConnected.value = false;
+        // 启动自动重连
+        startReconnect();
       });
 
       // 不要依赖 getId() 来判断连接状态，因为 getId() 可能立即返回传入的 peerId
@@ -703,6 +768,9 @@ export function usePeerManager() {
   }
 
   function destroy() {
+    // 停止自动重连
+    stopReconnect();
+
     if (peerInstance) {
       if (messageHandler) {
         // peerInstance.off('message', messageHandler);

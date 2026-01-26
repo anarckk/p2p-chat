@@ -1,0 +1,2 @@
+<ide_opened_file>The user opened the file e:\projects\sx-peerjs-http-util\.claude\skills\peerjs-docs\SKILL.md in the IDE. This may or may not be related to the current task.</ide_opened_file>
+你看一下 https://peerjs.com/docs/ 这是 peerjs 官方文档，检查一下 .claude/skills/peerjs-docs/SKILL.md 这个skil写的对不对

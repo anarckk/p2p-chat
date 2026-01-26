@@ -15,7 +15,8 @@
       "Bash(npm run type-check:*)",
       "Bash(npx eslint:*)",
       "mcp__playwright__browser_fill_form",
-      "mcp__playwright__browser_click"
+      "mcp__playwright__browser_click",
+      "mcp__web-reader__webReader"
     ]
   }
 }

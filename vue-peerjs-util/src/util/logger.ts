@@ -185,6 +185,7 @@ export const commLog = {
     connecting: () => log('CONN', LogLevel.INFO, '正在连接'),
     connected: (data?: { peerId?: string }) => log('CONN', LogLevel.SUCCESS, '连接成功', data),
     disconnected: () => log('CONN', LogLevel.WARNING, '连接断开'),
+    closed: () => log('CONN', LogLevel.ERROR, '连接关闭'),
     error: (data?: { error?: string }) => log('CONN', LogLevel.ERROR, '连接错误', data),
   },
 

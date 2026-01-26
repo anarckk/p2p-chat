@@ -50,18 +50,19 @@ sx-peerjs-http-util/
         │   └── MainLayout.vue - 主布局（顶部导航菜单：/test 为隐藏路由，不在菜单中显示）
         ├── views/
         │   ├── TestView.vue - 测试页面（原 App.vue 内容迁移）
-        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听、设备持久化、在线/离线状态显示、添加设备后查询用户名更新显示）
+        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听、设备持久化、在线/离线状态显示、添加设备后查询用户名更新显示、左侧"我的信息"卡片实时显示与 Peer Server 的连接状态）
         │   └── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持、按钮 aria-label 可访问性）
         ├── stores/
         │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性）
         │   ├── chatStore.ts - 聊天 store（消息状态管理、版本号机制、重试机制、localStorage 持久化）
         │   └── deviceStore.ts - 设备持久化 store（设备列表 localStorage 持久化、3天未在线自动删除、10分钟定时心跳检查）
         ├── composables/
-        │   └── usePeerManager.ts - Peer 管理逻辑（基于版本号的三段式通信、送达确认、发现中心、消息重试、被动发现自动刷新、在线检查协议处理、deviceStore 集成）
+        │   └── usePeerManager.ts - Peer 管理逻辑（基于版本号的三段式通信、送达确认、发现中心、消息重试、被动发现自动刷新、在线检查协议处理、deviceStore 集成、连接状态实时监听、10秒自动重连机制）
         ├── types/
         │   └── index.ts - TypeScript 类型定义（消息类型、协议类型、基于版本号的三段式通信协议、在线检查协议、OnlineDevice 扩展 isOnline/firstDiscovered）
         └── util/
-            └── PeerHttpUtil.ts - PeerJS 工具类（基于版本号的三段式通信协议、去中心化发现中心、在线检查协议 checkOnline/respondOnlineCheck）
+            ├── PeerHttpUtil.ts - PeerJS 工具类（基于版本号的三段式通信协议、去中心化发现中心、在线检查协议 checkOnline/respondOnlineCheck、disconnected/close 事件监听）
+            └── logger.ts - 通讯日志工具（支持连接事件日志：connected/disconnected/closed）
     ├── e2e/
         ├── test-helpers.ts - E2E 测试共享辅助函数（类型定义、SELECTORS/WAIT_TIMES 常量、数据工厂函数、页面操作、等待策略、设备管理、断言辅助、时间辅助函数）
         ├── center.spec.ts - 发现中心 E2E 测试（多浏览器 session 测试、被动发现测试）

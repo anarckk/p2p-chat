@@ -1,0 +1,1 @@
+你看一下 https://peerjs.com/docs/ 这是 peerjs 官方文档，了解一下官方api的用法
