@@ -132,9 +132,9 @@ test.describe('用户信息设置', () => {
       return stored ? JSON.parse(stored).peerId : null;
     });
 
-    // 刷新页面
+    // 刷新页面（基于 PeerJS 5秒内标准优化）
     await page.reload();
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(500);
 
     // 验证 PeerId 保持不变
     const peerIdAfterReload = await page.evaluate(() => {
@@ -187,7 +187,8 @@ test.describe('用户信息设置', () => {
   test.describe('中文用户名场景', () => {
     test('中文用户名应该能正常生成 Peer ID', async ({ page }) => {
       // 增加超时时间，因为 Peer 初始化需要时间
-      test.setTimeout(40000);
+      // 基于 PeerJS 5秒内标准优化超时时间
+      test.setTimeout(15000);
 
       await page.goto('/center');
       await clearAllStorage(page);
@@ -227,7 +228,8 @@ test.describe('用户信息设置', () => {
     });
 
     test('中文用户名在聊天页面也应该正常工作', async ({ page }) => {
-      test.setTimeout(40000);
+      // 基于 PeerJS 5秒内标准优化超时时间
+      test.setTimeout(15000);
 
       await page.goto('/wechat');
       await clearAllStorage(page);
@@ -267,7 +269,8 @@ test.describe('用户信息设置', () => {
     });
 
     test('混合中英文用户名也应该正常工作', async ({ page }) => {
-      test.setTimeout(40000);
+      // 基于 PeerJS 5秒内标准优化超时时间
+      test.setTimeout(15000);
 
       await page.goto('/center');
       await clearAllStorage(page);

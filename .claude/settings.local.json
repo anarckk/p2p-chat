@@ -22,6 +22,9 @@
       "Bash(cmd.exe:*)",
       "Bash(node:*)",
       "Bash(powershell.exe:*)"
+    ],
+    "deny": [
+      "Bash(npm run dev)"
     ]
   }
 }

@@ -85,24 +85,24 @@ export const SELECTORS = {
   disconnectedBadge: '.ant-badge-status-error',
 } as const;
 
-// 等待时间常量（毫秒）
+// 等待时间常量（毫秒）- 基于 PeerJS 5秒内连接标准的优化值
 export const WAIT_TIMES = {
-  // PeerJS 连接初始化
-  PEER_INIT: 5000,
+  // PeerJS 连接初始化 - 进一步优化
+  PEER_INIT: 1500,
   // 短暂等待
-  SHORT: 500,
+  SHORT: 200,
   // 中等等待
-  MEDIUM: 1000,
+  MEDIUM: 500,
   // 较长等待
-  LONG: 2000,
-  // 消息发送接收
-  MESSAGE: 3000,
-  // 被动发现通知
-  DISCOVERY: 5000,
+  LONG: 800,
+  // 消息发送接收 - 基于 PeerJS 5秒内标准，进一步优化
+  MESSAGE: 800,
+  // 被动发现通知 - 进一步优化
+  DISCOVERY: 1500,
   // 刷新页面
-  RELOAD: 2000,
+  RELOAD: 500,
   // 弹窗显示
-  MODAL: 3000,
+  MODAL: 800,
 } as const;
 
 // ==================== 测试数据工厂 ====================
@@ -337,42 +337,32 @@ export async function createTestDevices(
   const deviceAPage = await deviceAContext.newPage();
   const deviceAUserInfo = createUserInfo(deviceAName);
   // 先设置用户信息到 localStorage，再导航到页面
-  await deviceAPage.goto('/center');
+  await deviceAPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
   await deviceAPage.evaluate((info: any) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, deviceAUserInfo);
   // 重新加载页面，让 peer 使用存储的用户信息初始化
   await deviceAPage.reload();
   // 等待页面加载完成，PeerJS 初始化
-  await deviceAPage.waitForSelector(SELECTORS.centerContainer, { timeout: 10000 });
-  // 短暂等待让 PeerJS 初始化
-  await deviceAPage.waitForTimeout(2000);
-  // 如果需要在其他页面，再导航过去
-  if (startPage !== 'center') {
-    await deviceAPage.goto(`/${startPage}`);
-    await deviceAPage.waitForTimeout(2000);
-  }
+  await deviceAPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 10000 });
+  // 短暂等待让 PeerJS 初始化（基于 5秒内标准优化）
+  await deviceAPage.waitForTimeout(500);
 
   // 创建设备 B
   const deviceBContext = await browser.newContext();
   const deviceBPage = await deviceBContext.newPage();
   const deviceBUserInfo = createUserInfo(deviceBName);
   // 先设置用户信息到 localStorage，再导航到页面
-  await deviceBPage.goto('/center');
+  await deviceBPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
   await deviceBPage.evaluate((info: any) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, deviceBUserInfo);
   // 重新加载页面，让 peer 使用存储的用户信息初始化
   await deviceBPage.reload();
   // 等待页面加载完成，PeerJS 初始化
-  await deviceBPage.waitForSelector(SELECTORS.centerContainer, { timeout: 10000 });
-  // 短暂等待让 PeerJS 初始化
-  await deviceBPage.waitForTimeout(2000);
-  // 如果需要在其他页面，再导航过去
-  if (startPage !== 'center') {
-    await deviceBPage.goto(`/${startPage}`);
-    await deviceBPage.waitForTimeout(2000);
-  }
+  await deviceBPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 10000 });
+  // 短暂等待让 PeerJS 初始化（基于 5秒内标准优化）
+  await deviceBPage.waitForTimeout(500);
 
   return {
     deviceA: {

@@ -299,21 +299,22 @@ test.describe('设备持久化功能', () => {
    */
   test.describe('被动发现持久化', () => {
     test('被动发现的设备应该保存到 localStorage', async ({ browser }) => {
-      test.setTimeout(60000); // 增加超时时间到 60 秒
+      // 基于 PeerJS 5秒内标准优化超时时间
+      test.setTimeout(15000);
       const devices = await createTestDevices(browser, '主动发现者', '被动被发现者', { startPage: 'center' });
 
       try {
-        // 额外等待，确保两个设备的 Peer 完全初始化
-        await devices.deviceA.page.waitForTimeout(5000);
-        await devices.deviceB.page.waitForTimeout(5000);
+        // 基于 PeerJS 5秒内标准优化等待时间
+        await devices.deviceA.page.waitForTimeout(500);
+        await devices.deviceB.page.waitForTimeout(500);
 
         // 设备 A 添加设备 B
         await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
         await devices.deviceA.page.click(SELECTORS.addButton);
 
-        // 等待发现通知发送和处理（增加等待时间）
-        await devices.deviceA.page.waitForTimeout(8000);
-        await devices.deviceB.page.waitForTimeout(8000);
+        // 基于 PeerJS 5秒内标准优化等待时间
+        await devices.deviceA.page.waitForTimeout(1000);
+        await devices.deviceB.page.waitForTimeout(1000);
 
         // 验证设备 B 的 localStorage 中保存了设备 A
         const storedDevices = await devices.deviceB.page.evaluate(() => {

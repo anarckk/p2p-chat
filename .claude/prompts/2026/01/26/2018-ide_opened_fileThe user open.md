@@ -1,0 +1,2 @@
+<ide_opened_file>The user opened the file c:\bee\projects\sx-peerjs-http-util\.claude\settings.local.json in the IDE. This may or may not be related to the current task.</ide_opened_file>
+.claude\settings.local.json 在这里写一个拒绝 npm run dev 的配置

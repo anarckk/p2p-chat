@@ -1,0 +1,2 @@
+<ide_opened_file>The user opened the file c:\bee\projects\sx-peerjs-http-util\.claude\settings.local.json in the IDE. This may or may not be related to the current task.</ide_opened_file>
+peerjs 的连接建立是很快的，一般来说，预估是5秒以内。你以这个标准，去优化e2e测试

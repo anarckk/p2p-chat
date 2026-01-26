@@ -262,3 +262,7 @@ npx playwright test e2e/center.spec.ts
 
 # 运行特定测试文件中的其中一个测试
 npx playwright test e2e/user-setup.spec.ts -g "中文用户名场景"
+
+# 服务器已经启动了。
+
+npm run dev 已经启动了。

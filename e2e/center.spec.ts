@@ -59,8 +59,8 @@ test.describe('发现中心页面 - 基础 UI', () => {
  */
 test.describe('P2P 发现功能 - 多设备测试', () => {
   test('设备 A 添加设备 B 时，设备 B 应该在设备 A 的发现列表中', async ({ browser }) => {
-    // 增加测试超时时间到 60 秒
-    test.setTimeout(60000);
+    // 基于 PeerJS 5秒内标准优化超时时间
+    test.setTimeout(15000);
     const devices = await createTestDevices(browser, '设备A', '设备B', { startPage: 'center' });
 
     try {
@@ -104,15 +104,15 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
   });
 
   test('被动发现：设备 A 添加设备 B 时，设备 A 应该出现在设备 B 的发现列表中', async ({ browser }) => {
-    // 增加测试超时时间到 60 秒
-    test.setTimeout(60000);
+    // 基于 PeerJS 5秒内标准优化超时时间
+    test.setTimeout(15000);
 
     const devices = await createTestDevices(browser, '发现者A', '被发现的B', { startPage: 'center' });
 
     try {
-      // 额外等待，确保两个设备都完全准备好
-      await devices.deviceA.page.waitForTimeout(3000);
-      await devices.deviceB.page.waitForTimeout(3000);
+      // 基于 PeerJS 5秒内标准优化等待时间
+      await devices.deviceA.page.waitForTimeout(300);
+      await devices.deviceB.page.waitForTimeout(300);
 
       // 监听控制台日志
       const deviceALogs: string[] = [];
@@ -136,7 +136,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
       // 等待一小段时间，让日志产生
-      await devices.deviceA.page.waitForTimeout(2000);
+      await devices.deviceA.page.waitForTimeout(300);
 
       // 打印设备 A 的相关日志
       console.log('Device A logs (discovery notification):');
@@ -144,8 +144,8 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
         console.log('  ', log);
       });
 
-      // 等待被动发现通知发送和处理
-      await devices.deviceB.page.waitForTimeout(13000);
+      // 基于 PeerJS 5秒内标准优化等待时间
+      await devices.deviceB.page.waitForTimeout(1500);
 
       // 打印设备 B 的相关日志
       console.log('Device B logs (all):');

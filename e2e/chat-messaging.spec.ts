@@ -51,8 +51,8 @@ test.describe('聊天消息发送与接收', () => {
         // 验证消息显示在设备 A 的聊天窗口
         await assertMessageExists(devices.deviceA.page, testMessage);
 
-        // 切换到设备 B，等待接收消息（增加等待时间）
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
+        // 切换到设备 B，等待接收消息（优化：减少等待时间）
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
         await devices.deviceB.page.reload();
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 

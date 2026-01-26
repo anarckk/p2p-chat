@@ -1,0 +1,1 @@
+查一下 claude settings.json 的配置可选项，用官方文档
