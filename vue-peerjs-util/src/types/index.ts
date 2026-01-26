@@ -16,12 +16,15 @@ export type ProtocolMessageType =
   | 'username_query'           // 查询用户名
   | 'username_response'        // 响应用户名查询
   | 'online_check_query'       // 在线检查：询问设备是否在线
-  | 'online_check_response';   // 在线检查：响应在线状态
+  | 'online_check_response'    // 在线检查：响应在线状态
+  | 'user_info_query'          // 查询用户完整信息（包含版本号）
+  | 'user_info_response';      // 响应用户完整信息
 
 export interface UserInfo {
   username: string;
   avatar: string | null;
   peerId: string | null;
+  version: number; // 用户信息版本号
 }
 
 // 文件消息内容
@@ -93,6 +96,7 @@ export interface OnlineDevice {
   lastHeartbeat: number;
   isOnline?: boolean; // 设备当前是否在线
   firstDiscovered: number; // 首次发现时间
+  userInfoVersion?: number; // 对方的用户信息版本号
 }
 
 // 协议消息基础接口
@@ -163,6 +167,7 @@ export interface UsernameResponseProtocol extends ProtocolMessage {
 // 在线检查：询问设备是否在线
 export interface OnlineCheckQueryProtocol extends ProtocolMessage {
   type: 'online_check_query';
+  userInfoVersion: number; // 询问者的用户信息版本号
 }
 
 // 在线检查：响应在线状态
@@ -171,6 +176,20 @@ export interface OnlineCheckResponseProtocol extends ProtocolMessage {
   isOnline: boolean;
   username: string;
   avatar: string | null;
+  userInfoVersion: number; // 响应者的用户信息版本号
+}
+
+// 查询用户完整信息
+export interface UserInfoQueryProtocol extends ProtocolMessage {
+  type: 'user_info_query';
+}
+
+// 响应用户完整信息
+export interface UserInfoResponseProtocol extends ProtocolMessage {
+  type: 'user_info_response';
+  username: string;
+  avatar: string | null;
+  version: number;
 }
 
 // 联合类型
@@ -185,7 +204,9 @@ export type AnyProtocol =
   | UsernameQueryProtocol
   | UsernameResponseProtocol
   | OnlineCheckQueryProtocol
-  | OnlineCheckResponseProtocol;
+  | OnlineCheckResponseProtocol
+  | UserInfoQueryProtocol
+  | UserInfoResponseProtocol;
 
 // 已处理消息ID存储（用于去重）
 export interface ProcessedMessageIds {

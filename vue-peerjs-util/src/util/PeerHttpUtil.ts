@@ -12,6 +12,7 @@ import type {
   DeliveryAckProtocol,
   DiscoveryResponseProtocol,
 } from '../types';
+import { commLog } from './logger';
 
 export type MessageHandler = (data: { from: string; data: any }) => void;
 export type OpenHandler = (id: string) => void;
@@ -52,6 +53,7 @@ export class PeerHttpUtil {
     // 监听连接打开事件
     this.peer.on('open', (id: string) => {
       console.log('[PeerHttp] Peer connection opened:', id);
+      commLog.connection.connected({ peerId: id });
       this.openHandlers.forEach((handler) => {
         try {
           handler(id);
@@ -145,11 +147,19 @@ export class PeerHttpUtil {
         break;
       case 'online_check_query':
         // 在线检查：询问是否在线
-        this.handleOnlineCheckQuery(from);
+        this.handleOnlineCheckQuery(protocol as any, from);
         break;
       case 'online_check_response':
         // 在线检查：响应在线状态
         this.handleOnlineCheckResponse(protocol as any, from);
+        break;
+      case 'user_info_query':
+        // 查询用户完整信息
+        this.handleUserInfoQuery(from);
+        break;
+      case 'user_info_response':
+        // 响应用户完整信息
+        this.handleUserInfoResponse(protocol as any, from);
         break;
     }
   }
@@ -217,6 +227,7 @@ export class PeerHttpUtil {
     const { messageId, content, msgType, from: sender } = protocol;
 
     console.log('[PeerHttp] Received message content:', { messageId, sender, msgType });
+    commLog.message.received({ from: sender, msgType, messageId });
 
     // 标记消息已处理
     this.receivedMessageIds.add(messageId);
@@ -298,6 +309,8 @@ export class PeerHttpUtil {
     protocol: { fromUsername: string; fromAvatar: string | null },
     from: string,
   ) {
+    commLog.discovery.notified({ from, username: protocol.fromUsername });
+
     // 将对端添加到已发现的设备列表
     this.discoveredDevices.set(from, {
       peerId: from,
@@ -615,18 +628,26 @@ export class PeerHttpUtil {
   /**
    * 处理在线检查查询
    */
-  private handleOnlineCheckQuery(from: string) {
+  private handleOnlineCheckQuery(protocol: { userInfoVersion: number }, from: string) {
+    commLog.heartbeat.check({ to: from, version: protocol.userInfoVersion });
     // 需要获取当前用户信息来响应，通过事件传递出去
-    this.emitProtocol('online_check_query', { from } as any);
+    // 同时携带对方的版本号，用于检查是否需要更新对方信息
+    this.emitProtocol('online_check_query', { from, userInfoVersion: protocol.userInfoVersion } as any);
   }
 
   /**
    * 处理在线检查响应
    */
   private handleOnlineCheckResponse(
-    protocol: { isOnline: boolean; username: string; avatar: string | null },
+    protocol: { isOnline: boolean; username: string; avatar: string | null; userInfoVersion: number },
     from: string,
   ) {
+    if (protocol.isOnline) {
+      commLog.heartbeat.online({ from });
+    } else {
+      commLog.heartbeat.offline({ peerId: from });
+    }
+
     // 更新设备的在线状态和心跳时间
     const existing = this.discoveredDevices.get(from);
     if (existing) {
@@ -634,6 +655,7 @@ export class PeerHttpUtil {
       existing.isOnline = protocol.isOnline;
       existing.username = protocol.username;
       existing.avatar = protocol.avatar;
+      existing.userInfoVersion = protocol.userInfoVersion;
     }
 
     // 触发在线检查响应事件
@@ -644,16 +666,55 @@ export class PeerHttpUtil {
   }
 
   /**
+   * 处理用户信息查询
+   */
+  private handleUserInfoQuery(from: string) {
+    commLog.sync.respondInfo({ to: from });
+    this.emitProtocol('user_info_query', { from } as any);
+  }
+
+  /**
+   * 处理用户信息响应
+   */
+  private handleUserInfoResponse(
+    protocol: { username: string; avatar: string | null; version: number },
+    from: string,
+  ) {
+    // 更新已发现的设备信息
+    const existing = this.discoveredDevices.get(from);
+
+    if (existing) {
+      existing.username = protocol.username;
+      existing.avatar = protocol.avatar;
+      existing.userInfoVersion = protocol.version;
+    }
+
+    commLog.sync.updateInfo({
+      peerId: from,
+      username: protocol.username,
+      version: protocol.version,
+    });
+
+    // 触发用户信息响应事件
+    this.emitProtocol('user_info_response', {
+      ...protocol,
+      from,
+    } as any);
+  }
+
+  /**
    * 在线检查：查询指定设备是否在线
    * @param peerId - 目标节点的 ID
    * @param username - 当前用户名（用于响应）
    * @param avatar - 当前头像（用于响应）
+   * @param userInfoVersion - 当前用户信息版本号
    */
   async checkOnline(
     peerId: string,
     username: string,
     avatar: string | null,
-  ): Promise<{ isOnline: boolean; username: string; avatar: string | null } | null> {
+    userInfoVersion: number,
+  ): Promise<{ isOnline: boolean; username: string; avatar: string | null; userInfoVersion: number } | null> {
     return new Promise((resolve) => {
       // 设置一次性处理器
       const handler = (protocol: AnyProtocol, from: string) => {
@@ -663,6 +724,7 @@ export class PeerHttpUtil {
             isOnline: resp.isOnline,
             username: resp.username,
             avatar: resp.avatar,
+            userInfoVersion: resp.userInfoVersion,
           });
 
           // 清理处理器
@@ -676,12 +738,13 @@ export class PeerHttpUtil {
 
       this.onProtocol('online_check_response', handler as any);
 
-      // 发送查询
+      // 发送查询（携带我的版本号）
       this.sendProtocol(peerId, {
         type: 'online_check_query',
         from: this.getId()!,
         to: peerId,
         timestamp: Date.now(),
+        userInfoVersion,
       }).catch(() => resolve(null));
 
       // 超时处理
@@ -701,8 +764,9 @@ export class PeerHttpUtil {
    * @param peerId - 查询者的节点 ID
    * @param username - 当前用户名
    * @param avatar - 当前头像
+   * @param userInfoVersion - 当前用户信息版本号
    */
-  async respondOnlineCheck(peerId: string, username: string, avatar: string | null) {
+  async respondOnlineCheck(peerId: string, username: string, avatar: string | null, userInfoVersion: number) {
     try {
       await this.sendProtocol(peerId, {
         type: 'online_check_response',
@@ -712,9 +776,79 @@ export class PeerHttpUtil {
         isOnline: true,
         username,
         avatar,
+        userInfoVersion,
       });
     } catch (err) {
       console.error('[PeerHttp] Failed to send online check response:', err);
+    }
+  }
+
+  /**
+   * 查询用户完整信息
+   * @param peerId - 目标节点的 ID
+   */
+  async queryUserInfo(peerId: string): Promise<{ username: string; avatar: string | null; version: number } | null> {
+    return new Promise((resolve) => {
+      const handler = (protocol: AnyProtocol, from: string) => {
+        if (protocol.type === 'user_info_response' && from === peerId) {
+          const resp = protocol as any;
+          resolve({
+            username: resp.username,
+            avatar: resp.avatar,
+            version: resp.version,
+          });
+
+          // 清理处理器
+          const handlers = this.protocolHandlers.get('user_info_response') || [];
+          const index = handlers.indexOf(handler as any);
+          if (index > -1) {
+            handlers.splice(index, 1);
+          }
+        }
+      };
+
+      this.onProtocol('user_info_response', handler as any);
+
+      // 发送查询
+      this.sendProtocol(peerId, {
+        type: 'user_info_query',
+        from: this.getId()!,
+        to: peerId,
+        timestamp: Date.now(),
+      }).catch(() => resolve(null));
+
+      // 超时处理
+      setTimeout(() => {
+        const handlers = this.protocolHandlers.get('user_info_response') || [];
+        const index = handlers.indexOf(handler as any);
+        if (index > -1) {
+          handlers.splice(index, 1);
+        }
+        resolve(null);
+      }, 5000);
+    });
+  }
+
+  /**
+   * 响应用户信息查询
+   * @param peerId - 查询者的节点 ID
+   * @param username - 当前用户名
+   * @param avatar - 当前头像
+   * @param version - 当前用户信息版本号
+   */
+  async respondUserInfo(peerId: string, username: string, avatar: string | null, version: number) {
+    try {
+      await this.sendProtocol(peerId, {
+        type: 'user_info_response',
+        from: this.getId()!,
+        to: peerId,
+        timestamp: Date.now(),
+        username,
+        avatar,
+        version,
+      });
+    } catch (err) {
+      console.error('[PeerHttp] Failed to send user info response:', err);
     }
   }
 

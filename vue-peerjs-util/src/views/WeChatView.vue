@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch, nextTick, onUnmounted, h } from 'vue';
 import { useUserStore } from '../stores/userStore';
 import { useChatStore } from '../stores/chatStore';
+import { useDeviceStore } from '../stores/deviceStore';
 import { usePeerManager } from '../composables/usePeerManager';
 import { message } from 'ant-design-vue';
 import type { ChatMessage, Contact, MessageType, MessageContent } from '../types';
@@ -24,6 +25,7 @@ import {
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
+const deviceStore = useDeviceStore();
 const peerManager = usePeerManager();
 const { sendMessageWithRetry } = peerManager;
 
@@ -39,9 +41,61 @@ const currentContact = computed(() => {
   return chatStore.getContact(chatStore.currentChatPeerId);
 });
 
+/**
+ * 自动发现的聊天列表
+ * 将发现中心的在线设备自动合并到聊天列表中
+ */
+const autoDiscoveredContacts = computed(() => {
+  // 获取发现中心的在线设备（排除自己）
+  const onlineDevices = deviceStore.onlineDevices.filter(
+    (d) => d.peerId !== userStore.myPeerId
+  );
+
+  // 合并已有联系人和自动发现的设备
+  const contactMap = new Map<string, Contact>();
+
+  // 首先添加已有联系人
+  chatStore.sortedContacts.forEach((contact) => {
+    contactMap.set(contact.peerId, contact);
+  });
+
+  // 然后添加在线设备（如果不在联系人列表中）
+  onlineDevices.forEach((device) => {
+    if (!contactMap.has(device.peerId)) {
+      contactMap.set(device.peerId, {
+        peerId: device.peerId,
+        username: device.username,
+        avatar: device.avatar,
+        online: device.isOnline || true,
+        lastSeen: device.lastHeartbeat,
+        unreadCount: 0,
+      });
+    } else {
+      // 更新现有联系人的在线状态和用户信息
+      const existing = contactMap.get(device.peerId)!;
+      existing.online = device.isOnline || true;
+      existing.lastSeen = device.lastHeartbeat;
+      existing.username = device.username;
+      existing.avatar = device.avatar;
+    }
+  });
+
+  // 转换为数组并排序
+  return Array.from(contactMap.values()).sort((a, b) => {
+    // 在线优先
+    if (a.online !== b.online) {
+      return a.online ? -1 : 1;
+    }
+    // 按最后活跃时间排序
+    return b.lastSeen - a.lastSeen;
+  });
+});
+
 onMounted(() => {
   // 加载聊天数据
   chatStore.loadFromStorage();
+  // 加载设备数据
+  deviceStore.loadDevices();
 
   // 检测移动端
   checkMobile();
@@ -390,16 +444,16 @@ function renderMessageContent(msg: ChatMessage) {
         </div>
 
         <div class="contacts-list">
-          <div v-if="chatStore.sortedContacts.length === 0" class="empty-contacts">
-            <a-empty description="暂无聊天">
+          <div v-if="autoDiscoveredContacts.length === 0" class="empty-contacts">
+            <a-empty description="暂无在线设备">
               <template #description>
-                <span style="color: #999">点击 + 号添加新聊天</span>
+                <span style="color: #999">在发现中心添加设备或点击 + 号手动添加</span>
               </template>
             </a-empty>
           </div>
 
           <div
-            v-for="contact in chatStore.sortedContacts"
+            v-for="contact in autoDiscoveredContacts"
             :key="contact.peerId"
             class="contact-item"
             :class="{ active: chatStore.currentChatPeerId === contact.peerId }"

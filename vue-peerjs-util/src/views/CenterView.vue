@@ -18,6 +18,7 @@ const {
   addDiscoveredDevice,
   sendDiscoveryNotification,
   queryUsername,
+  checkOnline,
 } = peerManager;
 
 const queryPeerIdInput = ref('');
@@ -66,9 +67,8 @@ async function checkDeviceOnline(device: OnlineDevice): Promise<boolean> {
   }
 
   try {
-    // 发送在线检查请求
-    const result = await queryUsername(device.peerId);
-    return result !== null;
+    // 发送在线检查请求（携带版本号，自动触发用户信息同步）
+    return await checkOnline(device.peerId);
   } catch (error) {
     console.error('[Center] Check online error:', error);
     return false;
@@ -90,9 +90,8 @@ onMounted(async () => {
     }
 
     try {
-      // 发送在线检查请求
-      const result = await queryUsername(device.peerId);
-      return result !== null;
+      // 发送在线检查请求（携带版本号，自动触发用户信息同步）
+      return await checkOnline(device.peerId);
     } catch (error) {
       console.error('[Center] Heartbeat check error:', error);
       return false;

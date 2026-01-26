@@ -5,6 +5,7 @@ import { useUserStore } from '../stores/userStore';
 import { useDeviceStore } from '../stores/deviceStore';
 import type { ChatMessage, MessageType, MessageContent, OnlineDevice } from '../types';
 import { message } from 'ant-design-vue';
+import { commLog } from '../util/logger';
 
 let peerInstance: PeerHttpUtil | null = null;
 let messageHandler: ((data: { from: string; data: any }) => void) | null = null;
@@ -15,6 +16,8 @@ let usernameQueryHandler: ((protocol: any, from: string) => void) | null = null;
 let usernameResponseHandler: ((protocol: any, from: string) => void) | null = null;
 let onlineCheckQueryHandler: ((protocol: any, from: string) => void) | null = null;
 let onlineCheckResponseHandler: ((protocol: any, from: string) => void) | null = null;
+let userInfoQueryHandler: ((protocol: any, from: string) => void) | null = null;
+let userInfoResponseHandler: ((protocol: any, from: string) => void) | null = null;
 
 export function usePeerManager() {
   const chatStore = useChatStore();
@@ -22,6 +25,47 @@ export function usePeerManager() {
   const deviceStore = useDeviceStore();
 
   const isConnected = ref(false);
+
+  /**
+   * 请求用户完整信息
+   */
+  async function requestUserInfo(peerId: string) {
+    if (!peerInstance) {
+      return null;
+    }
+
+    try {
+      const userInfo = await peerInstance.queryUserInfo(peerId);
+      if (userInfo) {
+        console.log('[Peer] Got user info for', peerId, ':', userInfo);
+        // 更新设备信息
+        deviceStore.addOrUpdateDevice({
+          peerId,
+          username: userInfo.username,
+          avatar: userInfo.avatar,
+          lastHeartbeat: Date.now(),
+          firstDiscovered: Date.now(),
+          userInfoVersion: userInfo.version,
+        });
+
+        // 同时更新联系人信息
+        const contact = chatStore.getContact(peerId);
+        if (contact) {
+          chatStore.addOrUpdateContact({
+            ...contact,
+            username: userInfo.username,
+            avatar: userInfo.avatar,
+            lastSeen: Date.now(),
+          });
+        }
+
+        return userInfo;
+      }
+    } catch (error) {
+      console.error('[Peer] Request user info error:', error);
+    }
+    return null;
+  }
 
   function init(): Promise<PeerHttpUtil> {
     return new Promise((resolve, reject) => {
@@ -108,6 +152,7 @@ export function usePeerManager() {
     deliveryAckHandler = (protocol: any, _from: string) => {
       if (protocol.type === 'delivery_ack') {
         const { messageId } = protocol;
+        commLog.message.delivered({ from: _from, messageId });
         // 查找消息并更新状态
         const msg = chatStore.getMessageById(messageId);
         if (msg) {
@@ -123,6 +168,7 @@ export function usePeerManager() {
     discoveryResponseHandler = (protocol: any, _from: string) => {
       if (protocol.type === 'discovery_response') {
         const { devices } = protocol;
+        commLog.discovery.found({ peerId: _from });
         // 更新在线设备列表
         devices?.forEach((device: OnlineDevice) => {
           peerInstance?.addDiscoveredDevice(device);
@@ -136,6 +182,8 @@ export function usePeerManager() {
     discoveryNotificationHandler = (protocol: any, from: string) => {
       if (protocol.type === 'discovery_notification') {
         const { fromUsername, fromAvatar } = protocol;
+        commLog.discovery.notified({ from, username: fromUsername });
+
         // 对端发现了我，添加到发现中心的设备列表
         const device: OnlineDevice = {
           peerId: from,
@@ -175,6 +223,7 @@ export function usePeerManager() {
     // 处理用户名查询
     usernameQueryHandler = (_protocol: any, from: string) => {
       if (_protocol.type === 'username_query') {
+        commLog.info('用户名查询', { from });
         // 响应我的用户信息
         peerInstance?.respondUsernameQuery(
           from,
@@ -207,12 +256,25 @@ export function usePeerManager() {
     // 处理在线检查查询
     onlineCheckQueryHandler = (_protocol: any, from: string) => {
       if (_protocol.type === 'online_check_query') {
-        // 响应我的在线状态
+        // 检查对方的版本号，如果不一致则请求用户信息
+        const { userInfoVersion: theirVersion } = _protocol;
+        const device = deviceStore.getDevice(from);
+        const storedVersion = device?.userInfoVersion || 0;
+
+        // 响应我的在线状态（带上我的版本号）
         peerInstance?.respondOnlineCheck(
           from,
           userStore.userInfo.username || '',
           userStore.userInfo.avatar,
+          userStore.userInfo.version,
         );
+
+        // 检查对方版本号，如果不一致则请求用户信息
+        if (theirVersion !== undefined && theirVersion !== storedVersion) {
+          commLog.sync.versionMismatch({ peerId: from, stored: storedVersion, theirs: theirVersion });
+          // 异步请求用户信息
+          requestUserInfo(from);
+        }
       }
     };
 
@@ -221,7 +283,10 @@ export function usePeerManager() {
     // 处理在线检查响应
     onlineCheckResponseHandler = (protocol: any, _from: string) => {
       if (protocol.type === 'online_check_response') {
-        const { isOnline, username, avatar } = protocol;
+        const { isOnline, username, avatar, userInfoVersion } = protocol;
+        const device = deviceStore.getDevice(_from);
+        const storedVersion = device?.userInfoVersion || 0;
+
         // 更新设备信息
         deviceStore.addOrUpdateDevice({
           peerId: _from,
@@ -229,6 +294,7 @@ export function usePeerManager() {
           avatar,
           lastHeartbeat: Date.now(),
           firstDiscovered: Date.now(),
+          userInfoVersion,
         });
 
         // 同时更新联系人信息
@@ -242,10 +308,63 @@ export function usePeerManager() {
             lastSeen: Date.now(),
           });
         }
+
+        // 检查版本号是否不一致，不一致则请求用户信息
+        if (userInfoVersion !== undefined && userInfoVersion !== storedVersion) {
+          commLog.sync.versionMismatch({ peerId: _from, stored: storedVersion, theirs: userInfoVersion });
+          requestUserInfo(_from);
+        }
       }
     };
 
     peerInstance.onProtocol('online_check_response', onlineCheckResponseHandler);
+
+    // 处理用户信息查询
+    const userInfoQueryHandler = (_protocol: any, from: string) => {
+      if (_protocol.type === 'user_info_query') {
+        commLog.sync.respondInfo({ to: from, version: userStore.userInfo.version });
+        // 响应我的用户信息
+        peerInstance?.respondUserInfo(
+          from,
+          userStore.userInfo.username || '',
+          userStore.userInfo.avatar,
+          userStore.userInfo.version,
+        );
+      }
+    };
+
+    peerInstance.onProtocol('user_info_query', userInfoQueryHandler);
+
+    // 处理用户信息响应
+    const userInfoResponseHandler = (protocol: any, from: string) => {
+      if (protocol.type === 'user_info_response') {
+        const { username, avatar, version } = protocol;
+        commLog.sync.updateInfo({ peerId: from, username, version });
+
+        // 更新设备信息
+        deviceStore.addOrUpdateDevice({
+          peerId: from,
+          username,
+          avatar,
+          lastHeartbeat: Date.now(),
+          firstDiscovered: Date.now(),
+          userInfoVersion: version,
+        });
+
+        // 同时更新联系人信息
+        const contact = chatStore.getContact(from);
+        if (contact) {
+          chatStore.addOrUpdateContact({
+            ...contact,
+            username,
+            avatar,
+            lastSeen: Date.now(),
+          });
+        }
+      }
+    };
+
+    peerInstance.onProtocol('user_info_response', userInfoResponseHandler);
 
     messageHandler = (data: { from: string; data: any }) => {
       handleIncomingMessage(data);
@@ -269,7 +388,7 @@ export function usePeerManager() {
   async function handleChatMessage(from: string, chatMessage: ChatMessage) {
     const { id, from: sender, content, type, timestamp } = chatMessage;
 
-    console.log('[Peer] Received chat message:', { from, id, type, content });
+    commLog.message.received({ from, msgType: type, messageId: id });
 
     // 检查消息是否已处理（去重）
     if (chatStore.isMessageProcessed(id)) {
@@ -304,7 +423,6 @@ export function usePeerManager() {
 
     // 保存消息（状态已设置为 delivered）
     chatStore.addMessage(from, chatMessage);
-    console.log('[Peer] Message added to store:', chatMessage);
 
     // 送达确认已在 PeerHttpUtil 的 handleMessageContent 中自动发送
     // 这里不需要再发送
@@ -412,7 +530,7 @@ export function usePeerManager() {
 
     const messageId = generateMessageId();
 
-    console.log('[Peer] Sending message with retry:', { messageId, peerId, type, content });
+    commLog.message.send({ to: peerId, msgType: type, messageId });
 
     // 先保存消息到本地
     const chatMessage: ChatMessage = {
@@ -462,6 +580,7 @@ export function usePeerManager() {
     }
 
     try {
+      commLog.discovery.add({ peerId });
       const devices = await peerInstance.queryDiscoveredDevices(peerId);
       // 同时更新到 deviceStore
       if (devices.length > 0) {
@@ -509,6 +628,7 @@ export function usePeerManager() {
     if (!peerInstance) return;
 
     try {
+      commLog.discovery.notify({ to: peerId, username: userStore.userInfo.username });
       await peerInstance.sendDiscoveryNotification(
         peerId,
         userStore.userInfo.username || '',
@@ -528,10 +648,38 @@ export function usePeerManager() {
     }
 
     try {
+      commLog.info('查询用户名', { peerId });
       return await peerInstance.queryUsername(peerId);
     } catch (error) {
       console.error('[Peer] Query username error:', error);
       return null;
+    }
+  }
+
+  /**
+   * 在线检查：查询指定设备是否在线（带上版本号）
+   */
+  async function checkOnline(peerId: string): Promise<boolean> {
+    if (!peerInstance) {
+      return false;
+    }
+
+    try {
+      commLog.heartbeat.check({ to: peerId, version: userStore.userInfo.version });
+      const result = await peerInstance.checkOnline(
+        peerId,
+        userStore.userInfo.username || '',
+        userStore.userInfo.avatar,
+        userStore.userInfo.version,
+      );
+      if (result !== null) {
+        commLog.heartbeat.online({ from: peerId });
+      }
+      return result !== null;
+    } catch (error) {
+      console.error('[Peer] Check online error:', error);
+      commLog.heartbeat.offline({ peerId });
+      return false;
     }
   }
 
@@ -575,6 +723,8 @@ export function usePeerManager() {
     addDiscoveredDevice,
     sendDiscoveryNotification,
     queryUsername,
+    checkOnline,
+    requestUserInfo,
     destroy,
     deviceStore,
   };

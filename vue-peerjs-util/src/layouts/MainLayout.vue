@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
   MessageOutlined,
   RadarChartOutlined,
+  PlusOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons-vue';
+import type { UploadChangeParam, UploadProps } from 'ant-design-vue';
 import { useUserStore } from '../stores/userStore';
 import { usePeerManager } from '../composables/usePeerManager';
 import { message } from 'ant-design-vue';
@@ -19,6 +22,16 @@ const selectedKeys = ref([route.name as string]);
 const isUserSetupModalVisible = ref(false);
 const usernameInput = ref('');
 const isSubmitting = ref(false);
+
+// 头像上传相关
+const avatarUrl = ref<string>('');
+const isUploading = ref(false);
+const fileList = ref<any[]>([]);
+
+// 当前头像URL（用于显示）
+const currentAvatar = computed(() => {
+  return avatarUrl.value || userStore.userInfo.avatar || '';
+});
 
 router.afterEach((to) => {
   selectedKeys.value = [to.name as string];
@@ -55,6 +68,81 @@ onMounted(async () => {
   }
 });
 
+/**
+ * 将文件转换为 base64
+ */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * 处理头像上传变化
+ */
+const handleAvatarChange: UploadProps['onChange'] = async (info: UploadChangeParam) => {
+  if (info.file.status === 'uploading') {
+    isUploading.value = true;
+    return;
+  }
+
+  if (info.file.status === 'done') {
+    // 已在外部 beforeUpload 处理
+    isUploading.value = false;
+    return;
+  }
+
+  if (info.file.status === 'removed') {
+    // 移除头像
+    avatarUrl.value = '';
+    fileList.value = [];
+  }
+};
+
+/**
+ * 头像上传前处理
+ */
+const beforeUpload = async (file: File) => {
+  const isImage = file.type.startsWith('image/');
+  if (!isImage) {
+    message.error('只能上传图片文件');
+    return false;
+  }
+
+  const isLt2M = file.size / 1024 / 1024 < 2;
+  if (!isLt2M) {
+    message.error('图片大小不能超过 2MB');
+    return false;
+  }
+
+  try {
+    const base64 = await fileToBase64(file);
+    avatarUrl.value = base64;
+    fileList.value = [{
+      uid: '1',
+      name: file.name,
+      status: 'done',
+      url: base64,
+    }];
+    message.success('头像上传成功');
+  } catch (error) {
+    message.error('头像处理失败');
+  }
+
+  return false; // 阻止自动上传
+};
+
+/**
+ * 移除头像
+ */
+const handleRemove = () => {
+  avatarUrl.value = '';
+  fileList.value = [];
+};
+
 async function handleUserSetup() {
   if (!usernameInput.value.trim()) {
     message.warning('请输入用户名');
@@ -64,10 +152,10 @@ async function handleUserSetup() {
   isSubmitting.value = true;
 
   try {
-    // 保存用户信息
+    // 保存用户信息（包含头像）
     userStore.saveUserInfo({
       username: usernameInput.value.trim(),
-      avatar: null,
+      avatar: avatarUrl.value || null,
       peerId: null,
     });
 
@@ -77,6 +165,8 @@ async function handleUserSetup() {
     // 关闭弹窗
     isUserSetupModalVisible.value = false;
     usernameInput.value = '';
+    avatarUrl.value = '';
+    fileList.value = [];
 
     message.success('设置完成');
   } catch (error) {
@@ -99,6 +189,32 @@ async function handleUserSetup() {
       :mask-closable="false"
     >
       <a-form layout="vertical">
+        <a-form-item label="头像">
+          <div class="avatar-upload-container">
+            <a-avatar :src="currentAvatar" :size="80">
+              {{ usernameInput.charAt(0).toUpperCase() || 'U' }}
+            </a-avatar>
+            <a-upload
+              :file-list="fileList"
+              :before-upload="beforeUpload"
+              @change="handleAvatarChange"
+              :max-count="1"
+              list-type="picture"
+              accept="image/*"
+              :disabled="isUploading || isSubmitting"
+            >
+              <a-button v-if="fileList.length === 0" :loading="isUploading" :disabled="isSubmitting" aria-label="upload-avatar">
+                <template #icon>
+                  <PlusOutlined />
+                </template>
+                上传头像
+              </a-button>
+            </a-upload>
+            <a-typography-text type="secondary" style="font-size: 12px">
+              支持 jpg、png 格式，不超过 2MB
+            </a-typography-text>
+          </div>
+        </a-form-item>
         <a-form-item label="用户名" required>
           <a-input
             v-model:value="usernameInput"
@@ -114,6 +230,7 @@ async function handleUserSetup() {
             block
             :loading="isSubmitting"
             @click="handleUserSetup"
+            aria-label="complete-user-setup"
           >
             完成
           </a-button>
@@ -173,6 +290,17 @@ async function handleUserSetup() {
 .content {
   padding: 0;
   background: #f0f2f5;
+}
+
+.avatar-upload-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatar-upload-container :deep(.ant-avatar) {
+  flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
