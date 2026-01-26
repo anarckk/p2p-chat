@@ -18,6 +18,7 @@ import {
 test.describe('发现中心页面 - 基础 UI', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/center');
+    await page.waitForLoadState('domcontentloaded');
     await clearAllStorage(page);
     await setUserInfo(page, createUserInfo('测试用户', 'test-peer-123'));
   });

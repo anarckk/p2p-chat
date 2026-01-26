@@ -184,25 +184,29 @@ async function addDeviceManually() {
   await sendDiscoveryNotification(peerId);
   console.log('[Center] Discovery notification sent to:', peerId);
 
-  // 查询对端的用户名
-  const userInfo = await queryUsername(peerId);
-  if (userInfo) {
-    console.log('[Center] Received user info:', userInfo);
-    // 更新设备信息
-    newDevice.username = userInfo.username;
-    newDevice.avatar = userInfo.avatar;
-    // 同时更新 peerInstance 和 deviceStore
-    addDiscoveredDevice({ ...newDevice });
-    // 触发 UI 更新
-    deviceStore.addOrUpdateDevice({ ...newDevice });
-  } else {
-    console.warn('[Center] Failed to get user info for:', peerId);
-    // 即使查询失败，设备也已添加
-    deviceStore.addOrUpdateDevice({ ...newDevice });
-  }
-
-  message.success(`已添加设备 ${newDevice.username}`);
+  // 显示成功消息（设备已添加，即使查询用户名失败也算成功）
+  message.success(`已添加设备 ${peerId}`);
   queryPeerIdInput.value = '';
+
+  // 异步查询对端的用户名（不阻塞UI）
+  queryUsername(peerId).then((userInfo) => {
+    if (userInfo) {
+      console.log('[Center] Received user info:', userInfo);
+      // 更新设备信息
+      newDevice.username = userInfo.username;
+      newDevice.avatar = userInfo.avatar;
+      // 同时更新 peerInstance 和 deviceStore
+      addDiscoveredDevice({ ...newDevice });
+      // 触发 UI 更新
+      deviceStore.addOrUpdateDevice({ ...newDevice });
+    } else {
+      console.warn('[Center] Failed to get user info for:', peerId);
+      // 即使查询失败，设备也已添加
+      deviceStore.addOrUpdateDevice({ ...newDevice });
+    }
+  }).catch((error) => {
+    console.error('[Center] Error querying username:', error);
+  });
 }
 
 /**

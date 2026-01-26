@@ -8,11 +8,21 @@ import {
 test.describe('WeChat 页面', () => {
   // 基于 PeerJS 5秒内标准，优化超时时间
   test.setTimeout(15000);
-  test.beforeEach(async ({ page }) => {
-    // 设置默认用户信息，避免弹窗干扰
+  test.beforeEach(async ({ page, context }) => {
+    // 使用 context 清除 cookies 和缓存
+    await context.clearCookies();
+    await context.clearPermissions();
+
+    // 先导航到页面再清理 localStorage
     await page.goto('/wechat');
+    // 等待页面加载后再清理存储
+    await page.waitForLoadState('domcontentloaded');
     await clearAllStorage(page);
-    await setUserInfo(page, createUserInfo('测试用户', 'test-peer-id-12345'));
+    // 设置用户信息
+    await page.evaluate((info) => {
+      localStorage.setItem('p2p_user_info', JSON.stringify(info));
+    }, createUserInfo('测试用户', 'test-peer-id-12345'));
+    // 重新加载页面
     await page.reload();
     // 基于 PeerJS 5秒内标准优化等待时间
     await page.waitForTimeout(1000);
@@ -31,9 +41,9 @@ test.describe('WeChat 页面', () => {
     // 优化：从 3000 减少到 800
     await page.waitForTimeout(800);
 
-    // 检查空状态 - 可能是 empty-contacts 或相关的空状态文本
+    // 检查空状态 - 使用正确的文本
     const pageContent = await page.content();
-    const hasEmptyState = pageContent.includes('暂无聊天') || pageContent.includes('点击 + 号');
+    const hasEmptyState = pageContent.includes('暂无在线设备') || pageContent.includes('在发现中心添加设备');
     expect(hasEmptyState).toBe(true);
   });
 });

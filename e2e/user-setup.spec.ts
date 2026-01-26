@@ -14,6 +14,7 @@ test.describe('用户信息设置', () => {
   test('首次进入应用应该显示用户设置弹窗', async ({ page }) => {
     // 清除 localStorage，模拟首次访问
     await page.goto('/wechat');
+    await page.waitForLoadState('domcontentloaded');
     await clearAllStorage(page);
     await page.reload();
 
@@ -35,6 +36,7 @@ test.describe('用户信息设置', () => {
 
   test('输入用户名后应该成功保存并关闭弹窗', async ({ page }) => {
     await page.goto('/wechat');
+    await page.waitForLoadState('domcontentloaded');
     await clearAllStorage(page);
     await page.reload();
 
@@ -70,6 +72,7 @@ test.describe('用户信息设置', () => {
 
   test('用户信息应该保存到 LocalStorage', async ({ page }) => {
     await page.goto('/wechat');
+    await page.waitForLoadState('domcontentloaded');
     await clearAllStorage(page);
     await page.reload();
 
@@ -112,6 +115,7 @@ test.describe('用户信息设置', () => {
 
   test('刷新页面后用户信息应该保留', async ({ page }) => {
     await page.goto('/wechat');
+    await page.waitForLoadState('domcontentloaded');
     await clearAllStorage(page);
     await page.reload();
 
@@ -147,6 +151,7 @@ test.describe('用户信息设置', () => {
 
   test('用户名长度限制为 20 个字符', async ({ page }) => {
     await page.goto('/wechat');
+    await page.waitForLoadState('domcontentloaded');
     await clearAllStorage(page);
     await page.reload();
 
@@ -161,6 +166,7 @@ test.describe('用户信息设置', () => {
 
   test('空用户名应该不能提交', async ({ page }) => {
     await page.goto('/wechat');
+    await page.waitForLoadState('domcontentloaded');
     await clearAllStorage(page);
     await page.reload();
 
@@ -191,6 +197,7 @@ test.describe('用户信息设置', () => {
       test.setTimeout(15000);
 
       await page.goto('/center');
+      await page.waitForLoadState('domcontentloaded');
       await clearAllStorage(page);
       await page.reload();
 
@@ -232,6 +239,7 @@ test.describe('用户信息设置', () => {
       test.setTimeout(15000);
 
       await page.goto('/wechat');
+      await page.waitForLoadState('domcontentloaded');
       await clearAllStorage(page);
       await page.reload();
 

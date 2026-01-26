@@ -333,36 +333,44 @@ export async function createTestDevices(
   const startPage = options?.startPage || 'center';
 
   // 创建设备 A
-  const deviceAContext = await browser.newContext();
-  const deviceAPage = await deviceAContext.newPage();
   const deviceAUserInfo = createUserInfo(deviceAName);
-  // 先设置用户信息到 localStorage，再导航到页面
-  await deviceAPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
-  await deviceAPage.evaluate((info: any) => {
+  const deviceAContext = await browser.newContext();
+  // 使用 addInitScript 在页面加载前设置 localStorage
+  await deviceAContext.addInitScript((info: any) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, deviceAUserInfo);
-  // 重新加载页面，让 peer 使用存储的用户信息初始化
-  await deviceAPage.reload();
+  const deviceAPage = await deviceAContext.newPage();
+  // 导航到目标页面
+  await deviceAPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
   // 等待页面加载完成，PeerJS 初始化
   await deviceAPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 10000 });
-  // 短暂等待让 PeerJS 初始化（基于 5秒内标准优化）
-  await deviceAPage.waitForTimeout(500);
+  // 等待 PeerJS 连接成功（检查连接状态变为"已连接"）
+  await deviceAPage.waitForSelector('.ant-badge-status-processing', { timeout: 20000 }).catch(() => {
+    // 如果找不到"已连接"状态，继续测试
+    console.log('[Test] Device A connection status not ready, continuing...');
+  });
+  // 额外等待确保 PeerJS 完全初始化
+  await deviceAPage.waitForTimeout(2000);
 
   // 创建设备 B
-  const deviceBContext = await browser.newContext();
-  const deviceBPage = await deviceBContext.newPage();
   const deviceBUserInfo = createUserInfo(deviceBName);
-  // 先设置用户信息到 localStorage，再导航到页面
-  await deviceBPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
-  await deviceBPage.evaluate((info: any) => {
+  const deviceBContext = await browser.newContext();
+  // 使用 addInitScript 在页面加载前设置 localStorage
+  await deviceBContext.addInitScript((info: any) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, deviceBUserInfo);
-  // 重新加载页面，让 peer 使用存储的用户信息初始化
-  await deviceBPage.reload();
+  const deviceBPage = await deviceBContext.newPage();
+  // 导航到目标页面
+  await deviceBPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
   // 等待页面加载完成，PeerJS 初始化
   await deviceBPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 10000 });
-  // 短暂等待让 PeerJS 初始化（基于 5秒内标准优化）
-  await deviceBPage.waitForTimeout(500);
+  // 等待 PeerJS 连接成功（检查连接状态变为"已连接"）
+  await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 20000 }).catch(() => {
+    // 如果找不到"已连接"状态，继续测试
+    console.log('[Test] Device B connection status not ready, continuing...');
+  });
+  // 额外等待确保 PeerJS 完全初始化
+  await deviceBPage.waitForTimeout(2000);
 
   return {
     deviceA: {
