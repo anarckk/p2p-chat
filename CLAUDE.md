@@ -54,14 +54,14 @@ sx-peerjs-http-util/
         │   └── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持、按钮 aria-label 可访问性）
         ├── stores/
         │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性）
-        │   ├── chatStore.ts - 聊天 store（消息状态管理、重试机制、去重、localStorage 持久化）
+        │   ├── chatStore.ts - 聊天 store（消息状态管理、版本号机制、重试机制、localStorage 持久化）
         │   └── deviceStore.ts - 设备持久化 store（设备列表 localStorage 持久化、3天未在线自动删除、10分钟定时心跳检查）
         ├── composables/
-        │   └── usePeerManager.ts - Peer 管理逻辑（三段式通信、送达确认、发现中心、消息重试、被动发现自动刷新、在线检查协议处理、deviceStore 集成）
+        │   └── usePeerManager.ts - Peer 管理逻辑（基于版本号的三段式通信、送达确认、发现中心、消息重试、被动发现自动刷新、在线检查协议处理、deviceStore 集成）
         ├── types/
-        │   └── index.ts - TypeScript 类型定义（消息类型、协议类型、三段式通信协议、在线检查协议、OnlineDevice 扩展 isOnline/firstDiscovered）
+        │   └── index.ts - TypeScript 类型定义（消息类型、协议类型、基于版本号的三段式通信协议、在线检查协议、OnlineDevice 扩展 isOnline/firstDiscovered）
         └── util/
-            └── PeerHttpUtil.ts - PeerJS 工具类（三段式通信协议、去中心化发现中心、在线检查协议 checkOnline/respondOnlineCheck）
+            └── PeerHttpUtil.ts - PeerJS 工具类（基于版本号的三段式通信协议、去中心化发现中心、在线检查协议 checkOnline/respondOnlineCheck）
     ├── e2e/
         ├── test-helpers.ts - E2E 测试共享辅助函数（类型定义、SELECTORS/WAIT_TIMES 常量、数据工厂函数、页面操作、等待策略、设备管理、断言辅助、时间辅助函数）
         ├── center.spec.ts - 发现中心 E2E 测试（多浏览器 session 测试、被动发现测试）
@@ -71,8 +71,8 @@ sx-peerjs-http-util/
         ├── vue.spec.ts - Vue 基础测试
         ├── user-setup.spec.ts - 用户信息设置 E2E 测试（首次进入弹窗、用户名必填、持久化、PeerId 稳定性）
         ├── chat-messaging.spec.ts - 聊天消息发送与接收 E2E 测试（多浏览器 session 测试、新增聊天、聊天列表、被动添加）
-        ├── message-status.spec.ts - 消息状态展示与送达确认 E2E 测试（发送中/已送达/发送失败、去重、重试、离线消息）
-        ├── three-stage-protocol.spec.ts - 三段式通信协议 E2E 测试（消息ID、重试机制、多消息类型支持）
+        ├── message-status.spec.ts - 消息状态展示与送达确认 E2E 测试（发送中/已送达/发送失败、版本号对比、重试、离线消息）
+        ├── three-stage-protocol.spec.ts - 三段式通信协议 E2E 测试（版本号机制、拉取机制、多消息类型支持）
         ├── online-check-protocol.spec.ts - 在线检查协议 E2E 测试（checkOnline/respondOnlineCheck、定时心跳、超时判定）
         └── chat-badge.spec.ts - 聊天中标识 E2E 测试（"已加入聊天"标识、设备可见性、在线状态同时显示）
 
@@ -97,12 +97,18 @@ sx-peerjs-http-util/
   - `/center` - 去中心化发现中心
   - `/wechat` - 聊天应用
 
-### 三段式通信协议
-1. **第一段**: 发送方先发送消息唯一标识(轻量级)
-2. **第二段**: 对端检查消息ID不存在时,主动向发送方请求消息内容
-3. **第三段**: 发送方返回完整消息内容
+### 三段式通信协议（基于聊天版本号）
+1. **第一段**: 发送方发送版本号变更通知（不发送消息本体）
+2. **第二段**: 对端对比自身存储的消息版本号，发现有更新时，主动向发送方请求最新消息
+3. **第三段**: 发送方返回真实的消息体内容
 
-**优势**: 重试时只发送ID,消息内容由对端按需拉取,避免频繁发送大文件占用带宽
+**优势**:
+- 发送方永远只发送版本号通知，消息内容可能超大但由对端反向请求
+- 确保双方都在线时才传输实际内容
+- 可以由此知道对方已读
+- 避免对方不离线时大数据量持续发送占用带宽
+
+**去重机制**: 删除基于消息ID的去重逻辑，改用版本号机制
 
 ## 功能需求
 
@@ -157,14 +163,15 @@ sx-peerjs-http-util/
 
 #### 消息功能
 - **消息类型**: 文本、图片、文件、视频
-- **消息标识**: 每条消息有唯一ID,用于去重和送达确认
+- **版本号机制**: 聊天记录设计版本号，不断递增
+- **发送方式**: 发送版本号变更通知，不直接发送消息本体
 - **发送状态**: 展示发送中/已送达/发送失败状态
 - **送达确认**: 对端接收消息后反馈送达状态
 
 #### 消息可靠性
-- **自动重试**: 未送达消息无限次自动重试
-- **去重机制**: 通过消息ID避免重复接收
-- **离线消息**: 对端下线时不删除聊天,上线后自动发送
+- **自动重试**: 未送达消息无限次自动重试（仅重发版本号通知）
+- **拉取机制**: 对端对比版本号发现更新时，主动拉取最新消息
+- **离线消息**: 对端下线时不删除聊天，上线后通过版本号对比自动拉取
 
 ### 4. 发现通知机制
 
@@ -201,6 +208,7 @@ sx-peerjs-http-util/
   - 主动发现和被动发现
   - 设备持久化和自动清理
   - 消息发送和送达确认
+  - 版本号机制和拉取机制
   - 用户信息设置
   - 定时心跳检查
 - **按钮可访问性**: 所有按钮添加 aria-label 属性以便测试定位
@@ -230,7 +238,7 @@ sx-peerjs-http-util/
 1. 在发现中心选择在线设备
 2. 或在聊天页面手动输入 PeerId
 3. 立即可发送消息
-4. 消息通过三段式协议发送
+4. 消息通过基于版本号的三段式协议发送
 5. 展示送达状态
 
 ### 被动发现

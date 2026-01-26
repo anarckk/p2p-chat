@@ -29,6 +29,7 @@ export interface ContactInfo {
   online: boolean;
   lastSeen: number;
   unreadCount: number;
+  chatVersion: number;
 }
 
 // ==================== 测试选择器 ====================
@@ -145,7 +146,7 @@ export function createDeviceInfo(
 export function createContactInfo(
   peerId: string,
   username: string,
-  options?: { online?: boolean; unreadCount?: number }
+  options?: { online?: boolean; unreadCount?: number; chatVersion?: number }
 ): ContactInfo {
   return {
     peerId,
@@ -154,6 +155,7 @@ export function createContactInfo(
     online: options?.online ?? true,
     lastSeen: Date.now(),
     unreadCount: options?.unreadCount || 0,
+    chatVersion: options?.chatVersion ?? 0,
   };
 }
 

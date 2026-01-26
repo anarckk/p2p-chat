@@ -4,7 +4,6 @@ import type {
   ChatMessage,
   Contact,
   PendingMessage,
-  ProcessedMessageIds,
   MessageType,
   MessageContent,
 } from '../types';
@@ -12,20 +11,12 @@ import type {
 const MESSAGES_KEY = 'p2p_messages_';
 const CONTACTS_KEY = 'p2p_contacts';
 const PENDING_KEY = 'p2p_pending_messages';
-const PROCESSED_IDS_KEY = 'p2p_processed_ids';
-
-// 清理过期消息ID的时间间隔（7天）
-const CLEANUP_INTERVAL = 7 * 24 * 60 * 60 * 1000;
 
 export const useChatStore = defineStore('chat', () => {
   const messages = ref<Map<string, ChatMessage[]>>(new Map());
   const contacts = ref<Map<string, Contact>>(new Map());
   const pendingMessages = ref<Map<string, PendingMessage>>(new Map());
   const currentChatPeerId = ref<string | null>(null);
-
-  // 已处理的消息ID集合（用于去重）
-  const processedMessageIds = ref<Set<string>>(new Set());
-  const lastCleanup = ref<number>(Date.now());
 
   const currentMessages = computed(() => {
     if (!currentChatPeerId.value) return [];
@@ -66,18 +57,6 @@ export const useChatStore = defineStore('chat', () => {
         console.error('Failed to load pending messages:', e);
       }
     }
-
-    const processedIdsData = localStorage.getItem(PROCESSED_IDS_KEY);
-    if (processedIdsData) {
-      try {
-        const parsed: ProcessedMessageIds = JSON.parse(processedIdsData);
-        processedMessageIds.value = new Set(parsed.messageIds);
-        lastCleanup.value = parsed.lastCleanup;
-        cleanupProcessedIds();
-      } catch (e) {
-        console.error('Failed to load processed message IDs:', e);
-      }
-    }
   }
 
   function saveContacts() {
@@ -88,24 +67,6 @@ export const useChatStore = defineStore('chat', () => {
   function savePendingMessages() {
     const obj = Object.fromEntries(pendingMessages.value);
     localStorage.setItem(PENDING_KEY, JSON.stringify(obj));
-  }
-
-  function saveProcessedIds() {
-    const data: ProcessedMessageIds = {
-      messageIds: Array.from(processedMessageIds.value),
-      lastCleanup: lastCleanup.value,
-    };
-    localStorage.setItem(PROCESSED_IDS_KEY, JSON.stringify(data));
-  }
-
-  function cleanupProcessedIds() {
-    const now = Date.now();
-    if (now - lastCleanup.value > CLEANUP_INTERVAL) {
-      // 清理超过7天的消息ID（简单实现：全部清空）
-      processedMessageIds.value.clear();
-      lastCleanup.value = now;
-      saveProcessedIds();
-    }
   }
 
   function saveMessages(peerId: string) {
@@ -125,18 +86,6 @@ export const useChatStore = defineStore('chat', () => {
       }
     }
     return [];
-  }
-
-  // 检查消息ID是否已处理
-  function isMessageProcessed(messageId: string): boolean {
-    return processedMessageIds.value.has(messageId);
-  }
-
-  // 标记消息ID为已处理
-  function markMessageProcessed(messageId: string) {
-    processedMessageIds.value.add(messageId);
-    saveProcessedIds();
-    cleanupProcessedIds();
   }
 
   function addOrUpdateContact(contact: Contact) {
@@ -170,7 +119,7 @@ export const useChatStore = defineStore('chat', () => {
     saveMessages(peerId);
 
     const contact = contacts.value.get(peerId);
-    if (contact && message.from !== peerId) {
+    if (contact && message.from === peerId) {
       const lastMsg = messages.value.get(peerId);
       if (lastMsg && lastMsg.length > 0) {
         contact.lastSeen = message.timestamp;
@@ -253,6 +202,7 @@ export const useChatStore = defineStore('chat', () => {
         online: false,
         lastSeen: Date.now(),
         unreadCount: 0,
+        chatVersion: 0,
       });
     }
     loadMessages(peerId);
@@ -305,8 +255,6 @@ export const useChatStore = defineStore('chat', () => {
     sortedContacts,
     loadFromStorage,
     loadMessages,
-    isMessageProcessed,
-    markMessageProcessed,
     addOrUpdateContact,
     getContact,
     setContactOnline,

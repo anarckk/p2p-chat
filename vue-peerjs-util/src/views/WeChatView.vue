@@ -69,6 +69,7 @@ const autoDiscoveredContacts = computed(() => {
         online: device.isOnline || true,
         lastSeen: device.lastHeartbeat,
         unreadCount: 0,
+        chatVersion: 0,
       });
     } else {
       // 更新现有联系人的在线状态和用户信息
@@ -165,8 +166,19 @@ async function handleAddChat() {
     return;
   }
 
+  // 先尝试查询用户名
+  let username = peerId;
+  try {
+    const result = await peerManager.queryUsername(peerId);
+    if (result && result.username) {
+      username = result.username;
+    }
+  } catch (error) {
+    console.warn('[WeChat] Failed to query username, using peerId as username:', error);
+  }
+
   // 创建聊天
-  chatStore.createChat(peerId, peerId);
+  chatStore.createChat(peerId, username);
   chatStore.setCurrentChat(peerId);
 
   showAddChatModal.value = false;

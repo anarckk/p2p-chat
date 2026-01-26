@@ -39,14 +39,18 @@ export function usePeerManager() {
     try {
       const userInfo = await peerInstance.queryUserInfo(peerId);
       if (userInfo) {
-        console.log('[Peer] Got user info for', peerId, ':', userInfo);
-        // 更新设备信息
+        console.log('[Peer] Got user info for ' + peerId + ': ' + JSON.stringify({
+          username: userInfo.username,
+          version: userInfo.version
+        }));
+        // 更新设备信息（保留原有的 firstDiscovered）
+        const existingDevice = deviceStore.getDevice(peerId);
         deviceStore.addOrUpdateDevice({
           peerId,
           username: userInfo.username,
           avatar: userInfo.avatar,
           lastHeartbeat: Date.now(),
-          firstDiscovered: Date.now(),
+          firstDiscovered: existingDevice?.firstDiscovered || Date.now(),
           userInfoVersion: userInfo.version,
         });
 
@@ -186,13 +190,14 @@ export function usePeerManager() {
         const { fromUsername, fromAvatar } = protocol;
         commLog.discovery.notified({ from, username: fromUsername });
 
-        // 对端发现了我，添加到发现中心的设备列表
+        // 对端发现了我，添加到发现中心的设备列表（保留原有的 firstDiscovered）
+        const existingDevice = deviceStore.getDevice(from);
         const device: OnlineDevice = {
           peerId: from,
           username: fromUsername,
           avatar: fromAvatar,
           lastHeartbeat: Date.now(),
-          firstDiscovered: Date.now(),
+          firstDiscovered: existingDevice?.firstDiscovered || Date.now(),
           isOnline: true,
         };
 
@@ -214,6 +219,7 @@ export function usePeerManager() {
             online: true,
             lastSeen: Date.now(),
             unreadCount: 0,
+            chatVersion: 0,
           });
           message.info(`${fromUsername} 发现了你`);
         }
@@ -293,13 +299,13 @@ export function usePeerManager() {
         const device = deviceStore.getDevice(_from);
         const storedVersion = device?.userInfoVersion || 0;
 
-        // 更新设备信息
+        // 更新设备信息（保留原有的 firstDiscovered）
         deviceStore.addOrUpdateDevice({
           peerId: _from,
           username,
           avatar,
           lastHeartbeat: Date.now(),
-          firstDiscovered: Date.now(),
+          firstDiscovered: device?.firstDiscovered || Date.now(),
           userInfoVersion,
         });
 
@@ -345,13 +351,14 @@ export function usePeerManager() {
         const { username, avatar, version } = protocol;
         commLog.sync.updateInfo({ peerId: from, username, version });
 
-        // 更新设备信息
+        // 更新设备信息（保留原有的 firstDiscovered）
+        const existingDevice = deviceStore.getDevice(from);
         deviceStore.addOrUpdateDevice({
           peerId: from,
           username,
           avatar,
           lastHeartbeat: Date.now(),
-          firstDiscovered: Date.now(),
+          firstDiscovered: existingDevice?.firstDiscovered || Date.now(),
           userInfoVersion: version,
         });
 
@@ -395,20 +402,23 @@ export function usePeerManager() {
 
     commLog.message.received({ from, msgType: type, messageId: id });
 
-    // 检查消息是否已处理（去重）
-    if (chatStore.isMessageProcessed(id)) {
-      console.log('[Peer] Message already processed, skipping:', id);
-      // 已处理过，送达确认已在 PeerHttpUtil 中发送
-      return;
-    }
+    const chatMessageLog = JSON.stringify({
+      id,
+      from,
+      to: chatMessage.to,
+      type,
+      timestamp: chatMessage.timestamp
+    });
+    console.log('[Peer] Handling chat message:', chatMessageLog.substring(0, 200));
 
-    // 标记消息已处理
-    chatStore.markMessageProcessed(id);
+    // 去重已在 PeerHttpUtil 的版本号机制中处理，无需再次检查
 
     const contact = chatStore.getContact(from);
 
     // 对方发送消息，说明对方在线了
     chatStore.setContactOnline(from, true);
+
+    console.log('[Peer] Contact online: ' + from);
 
     // 如果是未知联系人，添加到联系人列表
     if (!contact) {
@@ -419,15 +429,19 @@ export function usePeerManager() {
         online: true,
         lastSeen: Date.now(),
         unreadCount: 1,
+        chatVersion: 0,
       });
 
       message.info('新设备加入聊天');
     } else {
       chatStore.incrementUnread(from);
+      console.log('[Peer] Incremented unread for ' + from);
     }
 
     // 保存消息（状态已设置为 delivered）
     chatStore.addMessage(from, chatMessage);
+
+    console.log('[Peer] Message saved to store: ' + chatMessage.id);
 
     // 送达确认已在 PeerHttpUtil 的 handleMessageContent 中自动发送
     // 这里不需要再发送
@@ -436,17 +450,11 @@ export function usePeerManager() {
     await retryPendingMessages(from);
   }
 
-  // 注意：送达确认已在 PeerHttpUtil 的 handleMessageContent 中自动发送
-  // 这里保留空函数以兼容现有代码（虽然未被使用，但保留接口完整性）
-  // async function sendDeliveryAck(_peerId: string, _messageId: string) {
-  //   // 送达确认由 PeerHttpUtil 内部处理，无需手动发送
-  // }
-
   async function retryPendingMessages(peerId: string) {
     const pending = chatStore.getPendingMessagesForPeer(peerId);
     if (pending.length === 0) return;
 
-    console.log(`[Peer] Retrying ${pending.length} pending messages for ${peerId}`);
+    console.log('[Peer] Retrying ' + pending.length + ' pending messages for ' + peerId);
 
     for (const pendingMsg of pending) {
       // 重试时使用 isRetry=true，只发送消息ID
@@ -489,11 +497,17 @@ export function usePeerManager() {
       return false;
     }
 
-    console.log('[Peer] Sending chat message via PeerHttpUtil:', { peerId, messageId, type, isRetry });
+    console.log('[Peer] Sending chat message: peerId=' + peerId + ', messageId=' + messageId + ', type=' + type + ', isRetry=' + isRetry);
 
     try {
       const result = await peerInstance.send(peerId, messageId, content, type, isRetry);
-      console.log('[Peer] PeerHttpUtil.send result:', result);
+      const resultLog = JSON.stringify({
+        peerId: result.peerId,
+        messageId: result.messageId,
+        sent: result.sent,
+        stage: result.stage
+      });
+      console.log('[Peer] Send result: ' + resultLog.substring(0, 200));
 
       // 更新消息的 messageStage
       if (result.sent && result.stage) {
@@ -506,7 +520,7 @@ export function usePeerManager() {
 
       return result.sent;
     } catch (error) {
-      console.error('[Peer] Send error:', error);
+      console.error('[Peer] Send error: ' + String(error));
       return false;
     }
   }
@@ -549,12 +563,12 @@ export function usePeerManager() {
     };
 
     chatStore.addMessage(peerId, chatMessage);
-    console.log('[Peer] Message added to local store:', chatMessage);
+    console.log('[Peer] Message added to local store: ' + chatMessage.id);
 
     // 尝试发送
     const success = await sendChatMessage(peerId, messageId, content, type);
 
-    console.log('[Peer] Send result:', { messageId, success });
+    console.log('[Peer] Send result: messageId=' + messageId + ', success=' + success);
 
     if (success) {
       // 发送成功，等待送达确认（状态保持为 sending）
@@ -656,7 +670,7 @@ export function usePeerManager() {
       commLog.discovery.query({ from: peerId });
       return await peerInstance.queryUsername(peerId);
     } catch (error) {
-      console.error('[Peer] Query username error:', error);
+      console.error('[Peer] Query username error: ' + String(error));
       return null;
     }
   }
@@ -682,7 +696,7 @@ export function usePeerManager() {
       }
       return result !== null;
     } catch (error) {
-      console.error('[Peer] Check online error:', error);
+      console.error('[Peer] Check online error: ' + String(error));
       commLog.heartbeat.offline({ peerId });
       return false;
     }

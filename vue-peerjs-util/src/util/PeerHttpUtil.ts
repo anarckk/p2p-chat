@@ -1,5 +1,5 @@
 /**
- * PeerJS HTTP 封装库 - 三段式通信协议 + 去中心化发现中心
+ * PeerJS HTTP 封装库 - 版本号消息同步协议 + 去中心化发现中心
  * 对外仅暴露 send() 和 on('message')
  */
 import Peer from 'peerjs';
@@ -19,10 +19,10 @@ export type OpenHandler = (id: string) => void;
 export type ErrorHandler = (error: any) => void;
 export type ProtocolMessageHandler = (protocol: AnyProtocol, from: string) => void;
 
-// 临时存储待发送的消息内容（用于三段式通信的第三段）
-interface PendingMessageContent {
-  content: MessageContent;
-  type: MessageType;
+// 每个聊天记录的版本号和消息存储
+interface ChatVersion {
+  version: number;
+  messages: ChatMessage[];
 }
 
 export class PeerHttpUtil {
@@ -32,11 +32,8 @@ export class PeerHttpUtil {
   private errorHandlers: ErrorHandler[] = [];
   private protocolHandlers: Map<string, ProtocolMessageHandler[]> = new Map();
 
-  // 存储待发送的消息内容（key: messageId, value: content + type）
-  private pendingMessageContents: Map<string, PendingMessageContent> = new Map();
-
-  // 存储已收到的消息ID（用于去重）
-  private receivedMessageIds: Set<string> = new Set();
+  // 存储每个聊天的版本号和消息（key: peerId, value: version + messages）
+  private chatVersions: Map<string, ChatVersion> = new Map();
 
   // 发现中心：存储已发现的设备
   private discoveredDevices: Map<string, OnlineDevice> = new Map();
@@ -109,17 +106,17 @@ export class PeerHttpUtil {
     const { type } = protocol;
 
     switch (type) {
-      case 'message_id':
-        // 一段：收到消息ID，检查是否已处理
-        this.handleMessageId(protocol as any, from);
+      case 'version_notify':
+        // 接收到版本号通知，对端有新消息
+        this.handleVersionNotify(protocol as any, from);
         break;
-      case 'request_content':
-        // 二段：对端请求消息内容
-        this.handleRequestContent(protocol as any);
+      case 'version_request':
+        // 对端请求指定版本的消息
+        this.handleVersionRequest(protocol as any, from);
         break;
-      case 'message_content':
-        // 三段：收到消息内容
-        this.handleMessageContent(protocol as any);
+      case 'version_response':
+        // 接收到消息内容
+        this.handleVersionResponse(protocol as any, from);
         break;
       case 'delivery_ack':
         // 送达确认
@@ -165,91 +162,93 @@ export class PeerHttpUtil {
   }
 
   /**
-   * 一段：处理消息ID
+   * 获取或创建聊天版本记录
    */
-  private handleMessageId(
-    protocol: { messageId: string; msgType: MessageType; to: string },
-    from: string,
-  ) {
-    const { messageId } = protocol;
+  private getOrCreateChatVersion(peerId: string): ChatVersion {
+    if (!this.chatVersions.has(peerId)) {
+      this.chatVersions.set(peerId, { version: 0, messages: [] });
+    }
+    return this.chatVersions.get(peerId)!;
+  }
 
-    // 检查是否已处理过此消息
-    if (this.receivedMessageIds.has(messageId)) {
-      // 已处理过，直接发送送达确认
-      this.sendDeliveryAck(from, messageId);
+  /**
+   * 处理版本号通知：对端有新消息
+   */
+  private handleVersionNotify(protocol: { version: number; msgType: MessageType }, from: string) {
+    const { version } = protocol;
+    const myChat = this.getOrCreateChatVersion(from);
+
+    console.log('[PeerHttp] Received version notify: from=' + from + ', theirVersion=' + version + ', myVersion=' + myChat.version);
+
+    // 如果对端版本更新，请求消息内容
+    if (version > myChat.version) {
+      this.sendProtocol(from, {
+        type: 'version_request',
+        from: this.getId()!,
+        to: from,
+        timestamp: Date.now(),
+        version,
+      });
+    }
+  }
+
+  /**
+   * 处理版本请求：对端请求指定版本的消息
+   */
+  private handleVersionRequest(protocol: { version: number }, from: string) {
+    const { version } = protocol;
+    const myChat = this.getOrCreateChatVersion(from);
+
+    console.log('[PeerHttp] Received version request: from=' + from + ', requestedVersion=' + version + ', myVersion=' + myChat.version);
+
+    // 查找对应版本的消息（版本号从 1 开始，对应数组索引 version - 1）
+    const message = myChat.messages[version - 1];
+
+    if (message) {
+      // 发送消息内容给对端
+      this.sendProtocol(from, {
+        type: 'version_response',
+        from: this.getId()!,
+        to: from,
+        timestamp: Date.now(),
+        version,
+        message,
+      });
+    } else {
+      console.warn('[PeerHttp] Message not found for version:', version);
+    }
+  }
+
+  /**
+   * 处理版本响应：接收到消息内容
+   */
+  private handleVersionResponse(protocol: { version: number; message: ChatMessage }, from: string) {
+    const { version, message } = protocol;
+    const myChat = this.getOrCreateChatVersion(from);
+
+    console.log('[PeerHttp] Received version response: from=' + from + ', version=' + version);
+
+    // 检查版本是否已处理
+    if (version <= myChat.version) {
+      console.log('[PeerHttp] Version already processed, ignoring');
       return;
     }
 
-    // 未处理过，向发送方请求消息内容
-    this.sendProtocol(from, {
-      type: 'request_content',
-      from: this.getId()!,
-      to: from,
-      timestamp: Date.now(),
-      messageId,
-    });
-  }
+    // 更新版本号并存储消息
+    myChat.version = version;
+    myChat.messages.push(message);
 
-  /**
-   * 二段：处理消息内容请求
-   */
-  private handleRequestContent(
-    protocol: { messageId: string; from: string },
-  ) {
-    const { messageId, from: requestFrom } = protocol;
-
-    // 查找待发送的消息内容
-    const pending = this.pendingMessageContents.get(messageId);
-    if (pending) {
-      // 发送消息内容给对端
-      this.sendProtocol(requestFrom, {
-        type: 'message_content',
-        from: this.getId()!,
-        to: requestFrom,
-        timestamp: Date.now(),
-        messageId,
-        content: pending.content,
-        msgType: pending.type,
-      });
-    } else {
-      console.warn('[PeerHttp] Message content not found for:', messageId);
-    }
-  }
-
-  /**
-   * 三段：处理消息内容
-   */
-  private handleMessageContent(
-    protocol: { messageId: string; content: MessageContent; msgType: MessageType; from: string },
-  ) {
-    const { messageId, content, msgType, from: sender } = protocol;
-
-    console.log('[PeerHttp] Received message content:', { messageId, sender, msgType });
-    commLog.message.received({ from: sender, msgType, messageId });
-
-    // 标记消息已处理
-    this.receivedMessageIds.add(messageId);
+    commLog.message.received({ from, msgType: message.type, messageId: message.id });
 
     // 发送送达确认
-    this.sendDeliveryAck(sender, messageId);
+    this.sendDeliveryAck(from, message.id);
 
     // 触发消息处理器
-    const chatMessage: ChatMessage = {
-      id: messageId,
-      from: sender,
-      to: this.getId()!,
-      content,
-      timestamp: Date.now(),
-      status: 'delivered',
-      type: msgType,
-      deliveredAt: Date.now(),
-    };
-
-    console.log('[PeerHttp] Triggering message handlers with chatMessage:', chatMessage);
+    console.log('[PeerHttp] Triggering message handlers: messageId=' + message.id);
 
     this.messageHandlers.forEach((handler) => {
       try {
-        handler({ from: sender, data: chatMessage });
+        handler({ from, data: message });
       } catch (err) {
         console.error('[PeerHttp] Handler error:', err);
       }
@@ -261,9 +260,6 @@ export class PeerHttpUtil {
    */
   private handleDeliveryAck(protocol: DeliveryAckProtocol) {
     const { messageId } = protocol;
-
-    // 清理已送达的消息内容
-    this.pendingMessageContents.delete(messageId);
 
     // 触发送达确认事件
     this.emitProtocol('delivery_ack', protocol);
@@ -309,13 +305,14 @@ export class PeerHttpUtil {
   ) {
     commLog.discovery.notified({ from, username: protocol.fromUsername });
 
-    // 将对端添加到已发现的设备列表
+    // 将对端添加到已发现的设备列表（保留原有的 firstDiscovered）
+    const existing = this.discoveredDevices.get(from);
     this.discoveredDevices.set(from, {
       peerId: from,
       username: protocol.fromUsername,
       avatar: protocol.fromAvatar,
       lastHeartbeat: Date.now(),
-      firstDiscovered: Date.now(),
+      firstDiscovered: existing?.firstDiscovered || Date.now(),
       isOnline: true,
     });
 
@@ -430,12 +427,12 @@ export class PeerHttpUtil {
   }
 
   /**
-   * 三段式发送消息
+   * 发送消息（版本号机制）
    * @param peerId - 目标节点的 ID
    * @param messageId - 消息唯一标识
    * @param content - 消息内容
    * @param type - 消息类型
-   * @param isRetry - 是否为重试（重试时只发送消息ID，不重新存储内容）
+   * @param isRetry - 是否为重试（重试时重新发送版本号通知）
    */
   send(
     peerId: string,
@@ -443,35 +440,50 @@ export class PeerHttpUtil {
     content: MessageContent,
     type: MessageType = 'text',
     isRetry: boolean = false,
-  ): Promise<{ peerId: string; messageId: string; sent: boolean; stage: 'id_sent' | 'content_requested' | 'delivered' }> {
-    console.log('[PeerHttp] Starting three-stage send:', { peerId, messageId, type, isRetry });
+  ): Promise<{ peerId: string; messageId: string; sent: boolean; stage: 'notified' | 'requested' | 'delivered' }> {
+    console.log('[PeerHttp] Starting version-based send: peerId=' + peerId + ', messageId=' + messageId + ', type=' + type + ', isRetry=' + isRetry);
 
-    // 只有非重试时才存储消息内容
+    // 获取或创建聊天版本记录
+    const myChat = this.getOrCreateChatVersion(peerId);
+
+    // 只有非重试时才增加版本号并存储消息
     if (!isRetry) {
-      this.pendingMessageContents.set(messageId, { content, type });
-      console.log('[PeerHttp] Stored message content for:', messageId);
+      myChat.version++;
+      const chatMessage: ChatMessage = {
+        id: messageId,
+        from: this.getId()!,
+        to: peerId,
+        content,
+        timestamp: Date.now(),
+        status: 'sent',
+        type,
+      };
+      myChat.messages.push(chatMessage);
+      console.log('[PeerHttp] Stored message with version: ' + myChat.version);
     } else {
-      console.log('[PeerHttp] Retry mode: resending messageId only (content already stored)');
+      console.log('[PeerHttp] Retry mode: resending version notify');
     }
 
-    // 一段：发送消息ID给对端
+    // 发送版本号通知给对端
     return new Promise((resolve, reject) => {
       this.sendProtocol(peerId, {
-        type: 'message_id',
+        type: 'version_notify',
         from: this.getId()!,
         to: peerId,
         timestamp: Date.now(),
-        messageId,
+        version: myChat.version,
         msgType: type,
       })
         .then(() => {
-          console.log('[PeerHttp] Stage 1 complete: messageId sent');
-          resolve({ peerId, messageId, sent: true, stage: 'id_sent' });
+          console.log('[PeerHttp] Version notify sent: version=' + myChat.version);
+          resolve({ peerId, messageId, sent: true, stage: 'notified' });
         })
         .catch((err) => {
-          console.error('[PeerHttp] Stage 1 failed:', err);
+          console.error('[PeerHttp] Version notify failed:', err);
           if (!isRetry) {
-            this.pendingMessageContents.delete(messageId);
+            // 回退版本号
+            myChat.version--;
+            myChat.messages.pop();
           }
           reject(err);
         });

@@ -34,6 +34,7 @@ describe('chatStore', () => {
         online: true,
         lastSeen: Date.now(),
         unreadCount: 0,
+        chatVersion: 0,
       };
 
       store.addOrUpdateContact(contact);
@@ -51,6 +52,7 @@ describe('chatStore', () => {
         online: false,
         lastSeen: 1000,
         unreadCount: 0,
+        chatVersion: 0,
       };
 
       store.addOrUpdateContact(contact1);
@@ -62,6 +64,7 @@ describe('chatStore', () => {
         online: true,
         lastSeen: 2000,
         unreadCount: 5,
+        chatVersion: 0,
       };
 
       store.addOrUpdateContact(contact2);
@@ -83,6 +86,7 @@ describe('chatStore', () => {
         online: true,
         lastSeen: Date.now(),
         unreadCount: 0,
+        chatVersion: 0,
       };
 
       store.addOrUpdateContact(contact);
@@ -315,6 +319,7 @@ describe('chatStore', () => {
         online: true,
         lastSeen: Date.now(),
         unreadCount: 5,
+        chatVersion: 0,
       };
 
       store.addOrUpdateContact(contact);
@@ -344,6 +349,7 @@ describe('chatStore', () => {
         online: true,
         lastSeen: Date.now(),
         unreadCount: 2,
+        chatVersion: 0,
       };
 
       store.addOrUpdateContact(contact);
@@ -362,6 +368,7 @@ describe('chatStore', () => {
         online: true,
         lastSeen: Date.now(),
         unreadCount: 2,
+        chatVersion: 0,
       };
 
       store.addOrUpdateContact(contact);
@@ -385,6 +392,7 @@ describe('chatStore', () => {
         online: false,
         lastSeen: now - 10000,
         unreadCount: 0,
+        chatVersion: 0,
       });
 
       store.addOrUpdateContact({
@@ -394,6 +402,7 @@ describe('chatStore', () => {
         online: true,
         lastSeen: now - 5000,
         unreadCount: 0,
+        chatVersion: 0,
       });
 
       store.addOrUpdateContact({
@@ -403,6 +412,7 @@ describe('chatStore', () => {
         online: true,
         lastSeen: now - 2000,
         unreadCount: 0,
+        chatVersion: 0,
       });
 
       const sorted = store.sortedContacts;

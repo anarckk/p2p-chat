@@ -43,6 +43,7 @@ test.describe('消息状态展示与送达确认', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -85,6 +86,7 @@ test.describe('消息状态展示与送达确认', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -127,6 +129,7 @@ test.describe('消息状态展示与送达确认', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -169,6 +172,7 @@ test.describe('消息状态展示与送达确认', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -212,6 +216,7 @@ test.describe('消息状态展示与送达确认', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -263,6 +268,7 @@ test.describe('消息状态展示与送达确认', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -307,6 +313,7 @@ test.describe('消息状态展示与送达确认', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);

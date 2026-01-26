@@ -6,9 +6,9 @@ export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'failed';
 
 // 协议消息类型
 export type ProtocolMessageType =
-  | 'message_id'               // 一段：发送消息ID
-  | 'request_content'          // 二段：请求消息内容
-  | 'message_content'          // 三段：返回消息内容
+  | 'version_notify'           // 版本号通知：发送方通知接收方有新消息版本
+  | 'version_request'          // 版本请求：接收方请求指定版本的消息内容
+  | 'version_response'         // 版本响应：发送方返回消息内容
   | 'delivery_ack'             // 送达确认
   | 'discovery_query'          // 发现中心：询问在线设备
   | 'discovery_response'       // 发现中心：响应在线设备列表
@@ -66,7 +66,7 @@ export interface ChatMessage {
   status: MessageStatus;
   type: MessageType;
   deliveredAt?: number; // 送达时间
-  messageStage?: 'id_sent' | 'content_requested' | 'delivered'; // 三段式协议阶段
+  messageStage?: 'notified' | 'requested' | 'delivered'; // 版本号协议阶段
 }
 
 export interface Contact {
@@ -76,6 +76,7 @@ export interface Contact {
   online: boolean;
   lastSeen: number;
   unreadCount: number;
+  chatVersion: number; // 聊天版本号（用于消息同步）
 }
 
 // 待发送消息（包含重试信息）
@@ -107,25 +108,27 @@ export interface ProtocolMessage {
   timestamp: number;
 }
 
-// 一段：发送消息ID
-export interface MessageIdProtocol extends ProtocolMessage {
-  type: 'message_id';
-  messageId: string;
-  msgType: MessageType;
+// 版本号通知：发送方通知接收方有新消息版本
+export interface VersionNotifyProtocol extends ProtocolMessage {
+  type: 'version_notify';
+  from: string;
+  version: number; // 发送方最新的聊天版本号
+  msgType: MessageType; // 消息类型
 }
 
-// 二段：请求消息内容
-export interface RequestContentProtocol extends ProtocolMessage {
-  type: 'request_content';
-  messageId: string;
+// 版本请求：接收方请求指定版本的消息内容
+export interface VersionRequestProtocol extends ProtocolMessage {
+  type: 'version_request';
+  to: string;
+  version: number; // 请求的版本号
 }
 
-// 三段：返回消息内容
-export interface MessageContentProtocol extends ProtocolMessage {
-  type: 'message_content';
-  messageId: string;
-  content: MessageContent;
-  msgType: MessageType;
+// 版本响应：发送方返回消息内容
+export interface VersionResponseProtocol extends ProtocolMessage {
+  type: 'version_response';
+  from: string;
+  version: number;
+  message: ChatMessage; // 完整的消息对象
 }
 
 // 送达确认
@@ -194,9 +197,9 @@ export interface UserInfoResponseProtocol extends ProtocolMessage {
 
 // 联合类型
 export type AnyProtocol =
-  | MessageIdProtocol
-  | RequestContentProtocol
-  | MessageContentProtocol
+  | VersionNotifyProtocol
+  | VersionRequestProtocol
+  | VersionResponseProtocol
   | DeliveryAckProtocol
   | DiscoveryQueryProtocol
   | DiscoveryResponseProtocol
@@ -207,9 +210,3 @@ export type AnyProtocol =
   | OnlineCheckResponseProtocol
   | UserInfoQueryProtocol
   | UserInfoResponseProtocol;
-
-// 已处理消息ID存储（用于去重）
-export interface ProcessedMessageIds {
-  messageIds: string[];
-  lastCleanup: number;
-}

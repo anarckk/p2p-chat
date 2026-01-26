@@ -14,15 +14,15 @@ import {
 } from './test-helpers.js';
 
 /**
- * 三段式通信协议测试
+ * 版本号消息同步协议测试
  * 测试场景：
- * 1. 第一段：发送消息ID
- * 2. 第二段：对端请求消息内容
+ * 1. 第一段：发送方发送版本号通知
+ * 2. 第二段：接收方请求消息内容（版本号不一致时）
  * 3. 第三段：发送方返回完整消息内容
- * 4. 重试时只发送ID的测试
+ * 4. 重试时重新发送版本号通知的测试
  * 5. 支持多种消息类型
  */
-test.describe('三段式通信协议', () => {
+test.describe('版本号消息同步协议', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/wechat');
     await clearAllStorage(page);
@@ -32,7 +32,7 @@ test.describe('三段式通信协议', () => {
    * 多设备协议测试
    */
   test.describe('多设备协议通信', () => {
-    test('应该使用三段式协议发送消息', async ({ browser }) => {
+    test('应该使用版本号协议发送消息', async ({ browser }) => {
       const devices = await createTestDevices(browser, '发送方', '接收方', { startPage: 'wechat' });
 
       try {
@@ -44,7 +44,7 @@ test.describe('三段式通信协议', () => {
         await devices.sender.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 发送方发送消息
-        const testMessage = '三段式协议测试消息';
+        const testMessage = '版本号协议测试消息';
         await sendTextMessage(devices.sender.page, testMessage);
 
         // 验证发送方显示了消息
@@ -59,14 +59,14 @@ test.describe('三段式通信协议', () => {
         const messageInReceiver = devices.receiver.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
         const messageCount = await messageInReceiver.count();
 
-        // 验证三段式协议成功传输消息
+        // 验证版本号协议成功传输消息
         expect(messageCount).toBeGreaterThan(0);
       } finally {
         await cleanupTestDevices(devices);
       }
     });
 
-    test('重试消息时应该只发送消息ID', async ({ browser }) => {
+    test('重试消息时应该重新发送版本号通知', async ({ browser }) => {
       const devices = await createTestDevices(browser, '重试发送方', '重试接收方', { startPage: 'wechat' });
 
       try {
@@ -91,8 +91,10 @@ test.describe('三段式通信协议', () => {
         // 验证消息有唯一ID
         expect(messageStatus).not.toBeNull();
         expect(messageStatus?.id).toBeTruthy();
-        // 验证消息有 messageStage（三段式协议的阶段标识）
+        // 验证消息有 messageStage（版本号协议的阶段标识）
         expect(messageStatus?.messageStage).toBeTruthy();
+        // messageStage 应该是 'notified' | 'requested' | 'delivered' 之一
+        expect(['notified', 'requested', 'delivered']).toContain(messageStatus?.messageStage);
       } finally {
         await cleanupTestDevices(devices);
       }
@@ -114,6 +116,7 @@ test.describe('三段式通信协议', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -178,6 +181,7 @@ test.describe('三段式通信协议', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -218,7 +222,7 @@ test.describe('三段式通信协议', () => {
    * 多消息类型支持测试
    */
   test.describe('多消息类型支持', () => {
-    test('三段式协议应该支持多种消息类型', async ({ page }) => {
+    test('版本号协议应该支持多种消息类型', async ({ page }) => {
       await setUserInfo(page, createUserInfo('测试用户', 'my-peer-123'), { navigateTo: '/wechat' });
 
       const contacts = {
@@ -229,6 +233,7 @@ test.describe('三段式通信协议', () => {
           online: true,
           lastSeen: Date.now(),
           unreadCount: 0,
+          chatVersion: 0,
         },
       };
       await setContactList(page, contacts);
@@ -303,7 +308,7 @@ test.describe('三段式通信协议', () => {
    * 文件消息上传测试
    */
   test.describe('文件消息上传', () => {
-    test('应该支持大文件消息的三段式传输', async ({ browser }) => {
+    test('应该支持大文件消息的版本号传输', async ({ browser }) => {
       const devices = await createTestDevices(browser, '文件发送方', '文件接收方', { startPage: 'wechat' });
 
       try {
