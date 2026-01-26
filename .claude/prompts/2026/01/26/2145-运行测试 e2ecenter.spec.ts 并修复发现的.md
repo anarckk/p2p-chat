@@ -1,0 +1,1 @@
+运行测试 e2e\center.spec.ts 并修复发现的问题

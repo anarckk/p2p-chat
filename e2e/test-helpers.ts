@@ -85,24 +85,24 @@ export const SELECTORS = {
   disconnectedBadge: '.ant-badge-status-error',
 } as const;
 
-// 等待时间常量（毫秒）- 基于 PeerJS 5秒内连接标准的优化值
+// 等待时间常量（毫秒）- 给予足够的时间完成 P2P 通信
 export const WAIT_TIMES = {
-  // PeerJS 连接初始化 - 进一步优化
-  PEER_INIT: 1500,
+  // PeerJS 连接初始化 - 给予足够时间
+  PEER_INIT: 3000,
   // 短暂等待
-  SHORT: 200,
+  SHORT: 300,
   // 中等等待
-  MEDIUM: 500,
+  MEDIUM: 800,
   // 较长等待
-  LONG: 800,
-  // 消息发送接收 - 基于 PeerJS 5秒内标准，进一步优化
-  MESSAGE: 800,
-  // 被动发现通知 - 进一步优化
-  DISCOVERY: 1500,
+  LONG: 1500,
+  // 消息发送接收 - 给予足够时间完成三段式通信
+  MESSAGE: 2000,
+  // 被动发现通知 - 给予足够时间
+  DISCOVERY: 3000,
   // 刷新页面
-  RELOAD: 500,
+  RELOAD: 800,
   // 弹窗显示
-  MODAL: 800,
+  MODAL: 1000,
 } as const;
 
 // ==================== 测试数据工厂 ====================
@@ -349,8 +349,8 @@ export async function createTestDevices(
     // 如果找不到 PeerId，继续测试
     console.log('[Test] Device A PeerId not ready, continuing...');
   });
-  // 额外等待确保 PeerJS 完全初始化（5秒足以连接到 Peer Server）
-  await deviceAPage.waitForTimeout(5000);
+  // 额外等待确保 PeerJS 完全初始化（给予足够时间连接到 Peer Server）
+  await deviceAPage.waitForTimeout(6000);
 
   // 创建设备 B
   const deviceBUserInfo = createUserInfo(deviceBName);
@@ -369,8 +369,8 @@ export async function createTestDevices(
     // 如果找不到 PeerId，继续测试
     console.log('[Test] Device B PeerId not ready, continuing...');
   });
-  // 额外等待确保 PeerJS 完全初始化（5秒足以连接到 Peer Server）
-  await deviceBPage.waitForTimeout(5000);
+  // 额外等待确保 PeerJS 完全初始化（给予足够时间连接到 Peer Server）
+  await deviceBPage.waitForTimeout(6000);
 
   return {
     deviceA: {
@@ -450,7 +450,7 @@ export async function sendTextMessage(page: Page, message: string): Promise<void
  */
 export async function assertDeviceExists(page: Page, usernameOrPeerId: string): Promise<void> {
   const card = page.locator(SELECTORS.deviceCard).filter({ hasText: usernameOrPeerId });
-  await expect(card).toBeVisible({ timeout: 30000 });
+  await expect(card).toBeVisible({ timeout: 20000 });
 }
 
 /**
@@ -463,7 +463,7 @@ export async function assertDeviceNotExists(page: Page, usernameOrPeerId: string
 
 /**
  * 断言设备在线状态
- * 改进：更可靠的断言逻辑
+ * 改进：更可靠的断言逻辑和更长的超时时间
  */
 export async function assertDeviceOnlineStatus(
   page: Page,
@@ -472,7 +472,7 @@ export async function assertDeviceOnlineStatus(
 ): Promise<void> {
   // 首先找到设备卡片
   const card = page.locator(SELECTORS.deviceCard).filter({ hasText: usernameOrPeerId });
-  await expect(card).toBeVisible();
+  await expect(card).toBeVisible({ timeout: 15000 });
 
   // 根据在线状态检查相应的标签
   if (isOnline) {

@@ -1,0 +1,1 @@
+运行一下命令  npx playwright test e2e/center.spec.ts -g "设备 A 添加设备 B 时"

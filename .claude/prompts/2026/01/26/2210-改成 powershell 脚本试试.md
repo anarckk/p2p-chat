@@ -1,0 +1,1 @@
+改成 powershell 脚本试试

@@ -1,0 +1,1 @@
+/claude-skill-guide 把 npx playwright test e2e/center.spec.ts -g "设备 A 添加设备 B 时" 封装成一个脚本，放到一个 claude skill 里提供给AI使用
