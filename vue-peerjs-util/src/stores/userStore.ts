@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import type { UserInfo } from '../types';
 
 const USER_INFO_KEY = 'p2p_user_info';
-const MY_PEER_ID_KEY = 'p2p_my_peer_id';
+// const MY_PEER_ID_KEY = 'p2p_my_peer_id'; // 保留但不使用，避免 ESLint 警告
 
 export const useUserStore = defineStore('user', () => {
   const userInfo = ref<UserInfo>({

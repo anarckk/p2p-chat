@@ -208,12 +208,10 @@ export const useDeviceStore = defineStore('device', () => {
       const now = Date.now();
       const checkedDevices: OnlineDevice[] = [];
 
-      // 收集需要检查的设备
+      // 收集所有设备进行心跳检查（向所有已知设备发起在线检查）
       devices.value.forEach((device) => {
-        // 如果超过10分钟没有心跳，需要检查
-        if (now - device.lastHeartbeat >= OFFLINE_THRESHOLD) {
-          checkedDevices.push(device);
-        }
+        // 向所有设备发起心跳检查
+        checkedDevices.push(device);
       });
 
       // 异步检查每个设备

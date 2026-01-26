@@ -115,11 +115,11 @@ export class PeerHttpUtil {
         break;
       case 'request_content':
         // 二段：对端请求消息内容
-        this.handleRequestContent(protocol as any, from);
+        this.handleRequestContent(protocol as any);
         break;
       case 'message_content':
         // 三段：收到消息内容
-        this.handleMessageContent(protocol as any, from);
+        this.handleMessageContent(protocol as any);
         break;
       case 'delivery_ack':
         // 送达确认
@@ -195,7 +195,6 @@ export class PeerHttpUtil {
    */
   private handleRequestContent(
     protocol: { messageId: string; from: string },
-    _to: string,
   ) {
     const { messageId, from: requestFrom } = protocol;
 
@@ -222,7 +221,6 @@ export class PeerHttpUtil {
    */
   private handleMessageContent(
     protocol: { messageId: string; content: MessageContent; msgType: MessageType; from: string },
-    _from: string,
   ) {
     const { messageId, content, msgType, from: sender } = protocol;
 
@@ -705,14 +703,14 @@ export class PeerHttpUtil {
   /**
    * 在线检查：查询指定设备是否在线
    * @param peerId - 目标节点的 ID
-   * @param username - 当前用户名（用于响应）
-   * @param avatar - 当前头像（用于响应）
+   * @param _username - 当前用户名（用于响应，已废弃，保留参数兼容性）
+   * @param _avatar - 当前头像（用于响应，已废弃，保留参数兼容性）
    * @param userInfoVersion - 当前用户信息版本号
    */
   async checkOnline(
     peerId: string,
-    username: string,
-    avatar: string | null,
+    _username: string,
+    _avatar: string | null,
     userInfoVersion: number,
   ): Promise<{ isOnline: boolean; username: string; avatar: string | null; userInfoVersion: number } | null> {
     return new Promise((resolve) => {

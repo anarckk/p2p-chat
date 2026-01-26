@@ -11,7 +11,9 @@
       "mcp__playwright__browser_evaluate",
       "mcp__playwright__browser_wait_for",
       "Bash(npx playwright test:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

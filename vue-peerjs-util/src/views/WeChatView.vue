@@ -211,8 +211,12 @@ async function sendTextMessage() {
 
 /**
  * 选择文件
+ * @param accept - 文件类型限制（如 'image/*'）
  */
-function selectFile() {
+function selectFile(accept?: string) {
+  if (fileInputRef.value && accept) {
+    fileInputRef.value.setAttribute('accept', accept);
+  }
   fileInputRef.value?.click();
 }
 
@@ -564,22 +568,22 @@ function renderMessageContent(msg: ChatMessage) {
           <!-- 输入区域 -->
           <div class="input-area">
             <div class="input-toolbar">
-              <a-button type="text" size="small" aria-label="upload-file" @click="selectFile">
+              <a-button type="text" size="small" aria-label="upload-file" @click="selectFile()">
                 <template #icon>
                   <PlusOutlined />
                 </template>
               </a-button>
-              <a-button type="text" size="small" aria-label="upload-image">
+              <a-button type="text" size="small" aria-label="upload-image" @click="selectFile('image/*')">
                 <template #icon>
                   <PictureOutlined />
                 </template>
               </a-button>
-              <a-button type="text" size="small" aria-label="upload-file">
+              <a-button type="text" size="small" aria-label="upload-file" @click="selectFile()">
                 <template #icon>
                   <FileOutlined />
                 </template>
               </a-button>
-              <a-button type="text" size="small" aria-label="upload-video">
+              <a-button type="text" size="small" aria-label="upload-video" @click="selectFile('video/*')">
                 <template #icon>
                   <VideoCameraOutlined />
                 </template>
@@ -589,7 +593,6 @@ function renderMessageContent(msg: ChatMessage) {
                 type="file"
                 style="display: none"
                 @change="handleFileSelect"
-                accept="image/*,video/*,*"
               />
             </div>
             <div class="input-row">

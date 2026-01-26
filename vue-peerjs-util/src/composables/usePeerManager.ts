@@ -34,6 +34,8 @@ export function usePeerManager() {
       return null;
     }
 
+    commLog.sync.requestInfo({ to: peerId });
+
     try {
       const userInfo = await peerInstance.queryUserInfo(peerId);
       if (userInfo) {
@@ -262,6 +264,8 @@ export function usePeerManager() {
         const device = deviceStore.getDevice(from);
         const storedVersion = device?.userInfoVersion || 0;
 
+        commLog.heartbeat.response({ to: from, version: userStore.userInfo.version });
+
         // 响应我的在线状态（带上我的版本号）
         peerInstance?.respondOnlineCheck(
           from,
@@ -273,6 +277,7 @@ export function usePeerManager() {
         // 检查对方版本号，如果不一致则请求用户信息
         if (theirVersion !== undefined && theirVersion !== storedVersion) {
           commLog.sync.versionMismatch({ peerId: from, stored: storedVersion, theirs: theirVersion });
+          commLog.sync.requestInfo({ to: from });
           // 异步请求用户信息
           requestUserInfo(from);
         }
@@ -334,8 +339,6 @@ export function usePeerManager() {
       }
     };
 
-    peerInstance.onProtocol('user_info_query', userInfoQueryHandler);
-
     // 处理用户信息响应
     userInfoResponseHandler = (protocol: any, from: string) => {
       if (protocol.type === 'user_info_response') {
@@ -365,6 +368,7 @@ export function usePeerManager() {
       }
     };
 
+    peerInstance.onProtocol('user_info_query', userInfoQueryHandler);
     peerInstance.onProtocol('user_info_response', userInfoResponseHandler);
 
     messageHandler = (data: { from: string; data: any }) => {
@@ -387,7 +391,7 @@ export function usePeerManager() {
   }
 
   async function handleChatMessage(from: string, chatMessage: ChatMessage) {
-    const { id, from: sender, content, type, timestamp } = chatMessage;
+    const { id, type } = chatMessage;
 
     commLog.message.received({ from, msgType: type, messageId: id });
 
@@ -433,10 +437,10 @@ export function usePeerManager() {
   }
 
   // 注意：送达确认已在 PeerHttpUtil 的 handleMessageContent 中自动发送
-  // 这里保留空函数以兼容现有代码
-  async function sendDeliveryAck(_peerId: string, _messageId: string) {
-    // 送达确认由 PeerHttpUtil 内部处理，无需手动发送
-  }
+  // 这里保留空函数以兼容现有代码（虽然未被使用，但保留接口完整性）
+  // async function sendDeliveryAck(_peerId: string, _messageId: string) {
+  //   // 送达确认由 PeerHttpUtil 内部处理，无需手动发送
+  // }
 
   async function retryPendingMessages(peerId: string) {
     const pending = chatStore.getPendingMessagesForPeer(peerId);

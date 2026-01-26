@@ -332,7 +332,7 @@ function refreshDiscovery() {
                     <template #title>
                       {{ item.username }}
                       <a-tag v-if="item.peerId === userStore.myPeerId" color="blue" size="small">我</a-tag>
-                      <a-tag v-else-if="isInChat(item.peerId)" color="green" size="small">已加入聊天</a-tag>
+                      <a-tag v-else-if="isInChat(item.peerId)" color="green" size="small">聊天中</a-tag>
                       <a-tag v-else-if="item.isOnline" color="success" size="small">在线</a-tag>
                       <a-tag v-else color="default" size="small">离线</a-tag>
                     </template>
