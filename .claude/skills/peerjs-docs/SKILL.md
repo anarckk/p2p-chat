@@ -216,14 +216,20 @@ peer.destroy();
 
 ## 常见错误类型
 
-| 错误类型 | 描述 |
-|----------|------|
-| `browser-incompatible` | 浏览器不支持 WebRTC |
-| `peer-unavailable` | 要连接的 peer 不存在 |
-| `invalid-id` | Peer ID 包含非法字符 |
-| `unavailable-id` | 指定的 ID 已被占用 |
-| `network` | 无法连接到信令服务器 |
-| `ssl-unavailable` | 云服务器不支持 SSL |
+| 错误类型 | 是否致命 | 描述 |
+|----------|----------|------|
+| `browser-incompatible` | 是 | 浏览器不支持 WebRTC |
+| `disconnected` | 否 | 已断开与服务器的连接，无法创建新连接 |
+| `invalid-id` | 是 | Peer ID 包含非法字符 |
+| `invalid-key` | 是 | API key 非法或不存在（仅云服务器） |
+| `network` | 否 | 无法连接到信令服务器 |
+| `peer-unavailable` | 否 | 要连接的 peer 不存在 |
+| `ssl-unavailable` | 是 | 云服务器不支持 SSL |
+| `server-error` | 是 | 无法访问服务器 |
+| `socket-error` | 是 | 底层 socket 错误 |
+| `socket-closed` | 是 | 底层 socket 意外关闭 |
+| `unavailable-id` | 可能 | 指定的 ID 已被占用（如果已有 P2P 连接则非致命） |
+| `webrtc` | 否 | 原生 WebRTC 错误 |
 
 ## 连接状态检查
 
@@ -265,8 +271,8 @@ if (call.open) {
 util.browser; // 'firefox' | 'chrome' | 'safari' | 'edge' | 'Not a supported browser.'
 
 // 功能支持检测
-util.supports.data;      // 是否支持数据连接
+util.supports.data;       // 是否支持数据连接
 util.supports.audioVideo; // 是否支持音视频
-util.supports.binary;    // 是否支持二进制数据
-util.supports.reliable;  // 是否支持可靠传输
+util.supports.binary;     // 是否支持二进制数据
+util.supports.reliable;   // 是否支持可靠传输
 ```
