@@ -1,4 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
+import {
+  clearAllStorage,
+} from './test-helpers.js';
 
 /**
  * 用户信息设置测试
@@ -162,13 +165,3 @@ test.describe('用户信息设置', () => {
     await expect(modal).toBeVisible();
   });
 });
-
-/**
- * 辅助函数：清理所有存储
- */
-async function clearAllStorage(page: Page) {
-  await page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
-}

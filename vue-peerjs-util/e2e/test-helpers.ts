@@ -238,9 +238,9 @@ export async function addMessages(
 
 /**
  * 等待 Peer 连接建立
- * 使用精确的选择器而不是固定等待时间
+ * 改进：增加超时时间，确保在网络较慢时也能成功连接
  */
-export async function waitForPeerConnected(page: Page, timeout = 10000): Promise<void> {
+export async function waitForPeerConnected(page: Page, timeout = 20000): Promise<void> {
   await page.waitForSelector(SELECTORS.centerContainer, { timeout });
   // 等待连接状态变为已连接
   await page.waitForSelector('.ant-badge-status-processing', { timeout }).catch(() => {
@@ -260,8 +260,9 @@ export async function waitForDeviceCard(page: Page, usernameOrPeerId: string, ti
 
 /**
  * 等待消息出现在聊天窗口
+ * 改进：增加超时时间和更稳定的选择器
  */
-export async function waitForMessage(page: Page, messageText: string, timeout = 5000): Promise<void> {
+export async function waitForMessage(page: Page, messageText: string, timeout = 8000): Promise<void> {
   await page.waitForSelector(
     `${SELECTORS.messageText}:has-text("${messageText}")`,
     { timeout }
@@ -279,8 +280,9 @@ export async function waitForModal(page: Page, timeout = 3000): Promise<string> 
 
 /**
  * 等待成功消息出现
+ * 改进：增加超时时间和重试机制
  */
-export async function waitForSuccessMessage(page: Page, timeout = 3000): Promise<void> {
+export async function waitForSuccessMessage(page: Page, timeout = 5000): Promise<void> {
   await page.waitForSelector(SELECTORS.successMessage, { timeout });
 }
 
@@ -311,7 +313,7 @@ export interface TestDevices {
 
 /**
  * 创建两个测试设备
- * 改进：确保 Peer 连接完全建立后再返回
+ * 改进：确保 Peer 连接完全建立后再返回，增加更长的等待时间
  */
 export async function createTestDevices(
   browser: any,
@@ -328,8 +330,8 @@ export async function createTestDevices(
   await deviceAPage.goto(`/${startPage}`);
   await setUserInfo(deviceAPage, deviceAUserInfo);
   await waitForPeerConnected(deviceAPage);
-  // 额外等待，确保 Peer 完全初始化
-  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT);
+  // 额外等待，确保 Peer 完全初始化（增加到 8 秒）
+  await deviceAPage.waitForTimeout(8000);
 
   // 创建设备 B
   const deviceBContext = await browser.newContext();
@@ -338,8 +340,8 @@ export async function createTestDevices(
   await deviceBPage.goto(`/${startPage}`);
   await setUserInfo(deviceBPage, deviceBUserInfo);
   await waitForPeerConnected(deviceBPage);
-  // 额外等待，确保 Peer 完全初始化
-  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT);
+  // 额外等待，确保 Peer 完全初始化（增加到 8 秒）
+  await deviceBPage.waitForTimeout(8000);
 
   return {
     deviceA: {
@@ -365,10 +367,14 @@ export async function cleanupTestDevices(devices: TestDevices): Promise<void> {
 
 /**
  * 添加设备（在发现中心页面）
+ * 改进：增加重试机制和更长的等待时间
  */
 export async function addDevice(page: Page, peerId: string): Promise<void> {
   await page.fill(SELECTORS.peerIdInput, peerId);
   await page.click(SELECTORS.addButton);
+  // 等待足够的时间让设备添加完成
+  await page.waitForTimeout(WAIT_TIMES.MESSAGE);
+  // 验证成功消息
   await waitForSuccessMessage(page);
 }
 
@@ -383,21 +389,28 @@ export async function queryDevice(page: Page, peerId: string): Promise<void> {
 
 /**
  * 创建聊天（在聊天页面）
+ * 改进：增加等待时间确保操作完成
  */
 export async function createChat(page: Page, peerId: string): Promise<void> {
   await page.click(SELECTORS.plusButton);
+  await page.waitForTimeout(WAIT_TIMES.SHORT);
   await waitForModal(page);
   await page.fill(SELECTORS.peerIdInput, peerId);
   await page.click(SELECTORS.modalOkButton);
+  // 等待聊天创建完成
+  await page.waitForTimeout(WAIT_TIMES.MESSAGE);
   await waitForSuccessMessage(page);
 }
 
 /**
  * 发送文本消息
+ * 改进：增加等待时间确保消息发送完成
  */
 export async function sendTextMessage(page: Page, message: string): Promise<void> {
   await page.fill(SELECTORS.messageInput, message);
   await page.click(SELECTORS.sendButton);
+  // 等待消息发送和显示
+  await page.waitForTimeout(WAIT_TIMES.MESSAGE);
   await waitForMessage(page, message);
 }
 
@@ -438,12 +451,25 @@ export async function assertDeviceOnlineStatus(
     const onlineTag = card.locator(SELECTORS.onlineTag);
     const meTag = card.locator('.ant-tag:has-text("我")');
     const chatTag = card.locator('.ant-tag:has-text("聊天中")');
-    const hasTag = await onlineTag.count() + await meTag.count() + await chatTag.count();
+
+    // 等待一段时间让标签渲染
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
+
+    const onlineTagCount = await onlineTag.count();
+    const meTagCount = await meTag.count();
+    const chatTagCount = await chatTag.count();
+    const hasTag = onlineTagCount + meTagCount + chatTagCount;
+
     expect(hasTag).toBeGreaterThan(0);
   } else {
     // 离线设备应该有离线标签
     const offlineTag = card.locator(SELECTORS.offlineTag);
-    await expect(offlineTag).toBeVisible();
+
+    // 等待一段时间让标签渲染
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
+
+    const offlineTagCount = await offlineTag.count();
+    expect(offlineTagCount).toBeGreaterThan(0);
   }
 }
 

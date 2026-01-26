@@ -4,6 +4,7 @@ import {
   WAIT_TIMES,
   createUserInfo,
   clearAllStorage,
+  setUserInfo,
   setContactList,
   createTestDevices,
   cleanupTestDevices,
@@ -49,8 +50,8 @@ test.describe('版本号消息同步协议', () => {
         // 验证发送方显示了消息
         await assertMessageExists(devices.deviceA.page, testMessage);
 
-        // 等待接收方接收
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+        // 等待接收方接收（增加等待时间）
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
         await devices.deviceB.page.reload();
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 

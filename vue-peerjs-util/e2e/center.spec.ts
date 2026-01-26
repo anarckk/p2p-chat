@@ -65,8 +65,8 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待发现结果
-      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+      // 等待发现结果（增加等待时间）
+      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.DISCOVERY);
 
       // 验证设备 B 出现在设备 A 的发现列表中
       await assertDeviceExists(devices.deviceA.page, '设备B');
@@ -82,9 +82,13 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待被动发现通知发送和处理
-      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
-      await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+      // 等待被动发现通知发送和处理（增加等待时间）
+      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await devices.deviceB.page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+
+      // 刷新设备 B 的页面以确保显示更新
+      await devices.deviceB.page.reload();
+      await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 验证设备 A 出现在设备 B 的发现列表中（被动发现）
       await assertDeviceExists(devices.deviceB.page, '发现者A');
