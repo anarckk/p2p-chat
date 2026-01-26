@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // 项目 e2e 目录
-const E2E_DIR = join(__dirname, '../../../../vue-peerjs-util/e2e');
+const E2E_DIR = join(__dirname, '../../../../e2e');
 
 /**
  * 解析单个测试文件

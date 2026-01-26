@@ -1,0 +1,2 @@
+<ide_opened_file>The user opened the file c:\bee\projects\sx-peerjs-http-util\.claude\commands\summarize-require.md in the IDE. This may or may not be related to the current task.</ide_opened_file>
+你修复一下这个skill  .claude\skills\list-e2e-tests
