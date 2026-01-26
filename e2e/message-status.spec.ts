@@ -47,6 +47,10 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
+      // 刷新页面以加载联系人列表
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
       // 点击联系人来激活聊天
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -65,7 +69,13 @@ test.describe('消息状态展示与送达确认', () => {
       ];
       await addMessages(page, 'contact-1', messages);
 
+      // 刷新页面以加载消息
+      await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 刷新后需要再次点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证消息显示
       const messageText = page.locator(SELECTORS.messageText).filter({ hasText: '发送中的消息' });
@@ -93,6 +103,10 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
+      // 刷新页面以加载联系人列表
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
       // 点击联系人来激活聊天
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -111,7 +125,13 @@ test.describe('消息状态展示与送达确认', () => {
       ];
       await addMessages(page, 'contact-1', messages);
 
+      // 刷新页面以加载消息
+      await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 刷新后需要再次点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证消息显示
       const messageText = page.locator(SELECTORS.messageText).filter({ hasText: '已送达的消息' });
@@ -139,6 +159,10 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
+      // 刷新页面以加载联系人列表
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
       // 点击联系人来激活聊天
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -157,7 +181,13 @@ test.describe('消息状态展示与送达确认', () => {
       ];
       await addMessages(page, 'contact-1', messages);
 
+      // 刷新页面以加载消息
+      await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 刷新后需要再次点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证消息显示
       const messageText = page.locator(SELECTORS.messageText).filter({ hasText: '发送失败的消息' });
@@ -185,6 +215,10 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
+      // 刷新页面以加载联系人列表
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
       // 点击联系人来激活聊天
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -202,7 +236,13 @@ test.describe('消息状态展示与送达确认', () => {
       ];
       await addMessages(page, 'contact-1', messages);
 
+      // 刷新页面以加载消息
+      await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 刷新后需要再次点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证消息时间显示
       const messageTime = page.locator(SELECTORS.messageTime);
@@ -232,6 +272,10 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
+      // 刷新页面以加载联系人列表
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
       // 点击联系人来激活聊天
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -258,7 +302,13 @@ test.describe('消息状态展示与送达确认', () => {
       ];
       await addMessages(page, 'contact-1', messages);
 
+      // 刷新页面以加载消息
+      await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 刷新后需要再次点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证每条消息都有唯一 ID
       const messageIds = await page.evaluate((peerId) => {
@@ -287,6 +337,10 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
+      // 刷新页面以加载联系人列表
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
       // 点击联系人来激活聊天
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -305,7 +359,13 @@ test.describe('消息状态展示与送达确认', () => {
       ];
       await addMessages(page, 'contact-1', messages);
 
+      // 刷新页面以加载消息
+      await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 刷新后需要再次点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证消息列表中不会有重复
       const messageItems = page.locator(SELECTORS.messageItem);
@@ -335,6 +395,10 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
+      // 刷新页面以加载联系人列表
+      await page.reload();
+      await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
       // 点击联系人来激活聊天
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -352,7 +416,13 @@ test.describe('消息状态展示与送达确认', () => {
       ];
       await addMessages(page, 'contact-1', messages);
 
+      // 刷新页面以加载消息
+      await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 刷新后需要再次点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证消息显示
       const messageText = page.locator(SELECTORS.messageText).filter({ hasText: '持久化消息' });
@@ -373,9 +443,16 @@ test.describe('消息状态展示与送达确认', () => {
    */
   test.describe('多设备消息送达', () => {
     test('失败的消息应该自动重试', async ({ browser }) => {
-      const devices = await createTestDevices(browser, '重试测试A', '重试测试B', { startPage: 'wechat' });
+      const devices = await createTestDevices(browser, '重试测试A', '重试测试B', { startPage: 'center' });
 
       try {
+        // 额外等待确保 Peer 连接稳定
+        await devices.deviceA.page.waitForTimeout(3000);
+        await devices.deviceB.page.waitForTimeout(3000);
+
+        // 切换到聊天页面
+        await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         // 设备 A 创建聊天并发送消息
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
@@ -407,9 +484,16 @@ test.describe('消息状态展示与送达确认', () => {
     });
 
     test('离线设备上线后应该能接收消息', async ({ browser }) => {
-      const devices = await createTestDevices(browser, '在线方A', '离线方B', { startPage: 'wechat' });
+      const devices = await createTestDevices(browser, '在线方A', '离线方B', { startPage: 'center' });
 
       try {
+        // 额外等待确保 Peer 连接稳定
+        await devices.deviceA.page.waitForTimeout(3000);
+        await devices.deviceB.page.waitForTimeout(3000);
+
+        // 切换到聊天页面
+        await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         const deviceBPeerId = devices.deviceB.userInfo.peerId;
 
         // 设备 A 尝试发送消息给离线的设备 B
@@ -425,11 +509,11 @@ test.describe('消息状态展示与送达确认', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
 
         // 验证代码不会崩溃 - 检查消息是否保存
-        const messageExists = await devices.deviceA.page.evaluate(() => {
-          const stored = localStorage.getItem('p2p_messages_' + deviceBPeerId);
+        const messageExists = await devices.deviceA.page.evaluate((peerId) => {
+          const stored = localStorage.getItem('p2p_messages_' + peerId);
           const messages = stored ? JSON.parse(stored) : [];
           return messages.length > 0;
-        });
+        }, deviceBPeerId);
 
         expect(messageExists).toBe(true);
       } finally {
