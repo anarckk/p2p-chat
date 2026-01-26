@@ -223,7 +223,7 @@ export function usePeerManager() {
     // 处理用户名查询
     usernameQueryHandler = (_protocol: any, from: string) => {
       if (_protocol.type === 'username_query') {
-        commLog.info('用户名查询', { from });
+        commLog.discovery.query({ from });
         // 响应我的用户信息
         peerInstance?.respondUsernameQuery(
           from,
@@ -239,6 +239,7 @@ export function usePeerManager() {
     usernameResponseHandler = (protocol: any, _from: string) => {
       if (protocol.type === 'username_response') {
         const { username, avatar } = protocol;
+        commLog.discovery.response({ to: _from, username });
         // 更新联系人信息
         const contact = chatStore.getContact(_from);
         if (contact) {
@@ -320,7 +321,7 @@ export function usePeerManager() {
     peerInstance.onProtocol('online_check_response', onlineCheckResponseHandler);
 
     // 处理用户信息查询
-    const userInfoQueryHandler = (_protocol: any, from: string) => {
+    userInfoQueryHandler = (_protocol: any, from: string) => {
       if (_protocol.type === 'user_info_query') {
         commLog.sync.respondInfo({ to: from, version: userStore.userInfo.version });
         // 响应我的用户信息
@@ -336,7 +337,7 @@ export function usePeerManager() {
     peerInstance.onProtocol('user_info_query', userInfoQueryHandler);
 
     // 处理用户信息响应
-    const userInfoResponseHandler = (protocol: any, from: string) => {
+    userInfoResponseHandler = (protocol: any, from: string) => {
       if (protocol.type === 'user_info_response') {
         const { username, avatar, version } = protocol;
         commLog.sync.updateInfo({ peerId: from, username, version });
@@ -648,7 +649,7 @@ export function usePeerManager() {
     }
 
     try {
-      commLog.info('查询用户名', { peerId });
+      commLog.discovery.query({ from: peerId });
       return await peerInstance.queryUsername(peerId);
     } catch (error) {
       console.error('[Peer] Query username error:', error);

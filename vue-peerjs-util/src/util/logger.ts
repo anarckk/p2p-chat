@@ -150,6 +150,8 @@ export const commLog = {
     add: (data?: { peerId?: string; username?: string }) => log('DISCOVERY', LogLevel.INFO, '添加设备', data),
     notify: (data?: { to?: string; username?: string }) => log('DISCOVERY', LogLevel.INFO, '发送发现通知', data),
     notified: (data?: { from?: string; username?: string }) => log('DISCOVERY', LogLevel.INFO, '收到发现通知', data),
+    query: (data?: { from?: string }) => log('DISCOVERY', LogLevel.INFO, '查询用户名', data),
+    response: (data?: { to?: string; username?: string }) => log('DISCOVERY', LogLevel.INFO, '响应用户名', data),
   },
 
   // 消息相关

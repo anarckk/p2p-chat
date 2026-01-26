@@ -39,14 +39,21 @@ export const useUserStore = defineStore('user', () => {
 
   function saveUserInfo(info: Partial<UserInfo>) {
     // 检查是否有实质性变更（username 或 avatar 变化）
-    const hasChange =
-      (info.username !== undefined && info.username !== userInfo.value.username) ||
-      (info.avatar !== undefined && info.avatar !== userInfo.value.avatar);
+    // 注意：需要考虑 null 的情况，只有当新值与旧值确实不同时才算变更
+    const hasUsernameChange =
+      info.username !== undefined && info.username !== userInfo.value.username;
+    const hasAvatarChange =
+      info.avatar !== undefined &&
+      info.avatar !== userInfo.value.avatar &&
+      // 处理 null 的情况：如果新旧值都是 null，不算变更
+      !((info.avatar === null || info.avatar === undefined) && userInfo.value.avatar === null);
+
+    const hasChange = hasUsernameChange || hasAvatarChange;
 
     userInfo.value = { ...userInfo.value, ...info };
 
     // 如果有实质性变更，版本号+1
-    if (hasChange && (info.username || info.avatar !== undefined)) {
+    if (hasChange) {
       userInfo.value.version += 1;
     }
 
