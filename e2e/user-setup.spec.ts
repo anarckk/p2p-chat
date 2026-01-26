@@ -84,14 +84,18 @@ test.describe('用户信息设置', () => {
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
 
-    // 等待 Peer 初始化完成（按钮 loading 状态结束）
-    await page.waitForSelector('.ant-modal .ant-btn-primary:not([disabled])', { timeout: 35000 }).catch(() => {
-      throw new Error('Peer initialization timeout - button stuck in loading state');
-    });
-
-    // 等待弹窗关闭
-    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
-      throw new Error('Modal did not close after Peer initialization');
+    // 等待 Peer 初始化完成（弹窗关闭）
+    // 在 ant-design-vue 中，loading 状态的按钮不会有 disabled 属性，而是有 .ant-btn-loading 类
+    // 所以我们直接等待弹窗关闭更可靠
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 35000 }).catch(() => {
+      // 检查按钮状态以提供更好的错误信息
+      return page.evaluate(() => {
+        const btn = document.querySelector('.ant-modal .ant-btn-primary');
+        const hasLoadingClass = btn?.classList.contains('ant-btn-loading');
+        return { hasLoadingClass, btnExists: !!btn };
+      }).then((state) => {
+        throw new Error(`Peer initialization timeout - button stuck. State: ${JSON.stringify(state)}`);
+      });
     });
 
     // 验证 localStorage 中保存了用户信息
@@ -200,15 +204,9 @@ test.describe('用户信息设置', () => {
       const okButton = page.locator('.ant-modal .ant-btn-primary');
       await okButton.click();
 
-      // 等待按钮 loading 状态结束（最多 35 秒）
-      await page.waitForSelector('.ant-modal .ant-btn-primary:not([disabled])', { timeout: 35000 }).catch(() => {
-        // 如果按钮一直是 disabled 状态，说明 Peer 初始化卡住了
-        throw new Error('Peer initialization timeout with Chinese username - button stuck in loading state');
-      });
-
-      // 等待弹窗关闭
-      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
-        throw new Error('Modal did not close after Peer initialization');
+      // 等待弹窗关闭（Peer 初始化完成）
+      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 35000 }).catch(() => {
+        throw new Error('Peer initialization timeout with Chinese username - modal did not close');
       });
 
       // 验证"我的 Peer ID"显示的不是"连接中..."
@@ -246,14 +244,9 @@ test.describe('用户信息设置', () => {
       const okButton = page.locator('.ant-modal .ant-btn-primary');
       await okButton.click();
 
-      // 等待按钮 loading 状态结束
-      await page.waitForSelector('.ant-modal .ant-btn-primary:not([disabled])', { timeout: 35000 }).catch(() => {
-        throw new Error('Peer initialization timeout in chat page');
-      });
-
-      // 等待弹窗关闭
-      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
-        throw new Error('Modal did not close');
+      // 等待弹窗关闭（Peer 初始化完成）
+      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 35000 }).catch(() => {
+        throw new Error('Peer initialization timeout in chat page - modal did not close');
       });
 
       // 验证用户信息已保存
@@ -291,13 +284,9 @@ test.describe('用户信息设置', () => {
       const okButton = page.locator('.ant-modal .ant-btn-primary');
       await okButton.click();
 
-      // 等待初始化完成
-      await page.waitForSelector('.ant-modal .ant-btn-primary:not([disabled])', { timeout: 35000 }).catch(() => {
-        throw new Error('Peer initialization timeout with mixed username');
-      });
-
-      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
-        throw new Error('Modal did not close');
+      // 等待弹窗关闭（Peer 初始化完成）
+      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 35000 }).catch(() => {
+        throw new Error('Peer initialization timeout with mixed username - modal did not close');
       });
 
       // 验证 Peer ID 正常显示
