@@ -34,9 +34,28 @@ test.describe('聊天消息发送与接收', () => {
    */
   test.describe('多设备消息发送', () => {
     test('设备 A 向设备 B 发送文本消息，设备 B 能正常接收', async ({ browser }) => {
-      const devices = await createTestDevices(browser, '发送者A', '接收者B', { startPage: 'wechat' });
+      const devices = await createTestDevices(browser, '发送者A', '接收者B', { startPage: 'center' });
+
+      console.log('[Test] Device A UserInfo:', devices.deviceA.userInfo);
+      console.log('[Test] Device B UserInfo:', devices.deviceB.userInfo);
 
       try {
+        // 额外等待确保两个设备的 Peer 连接都稳定
+        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceB.page.waitForTimeout(5000);
+
+        // 两个设备都切换到聊天页面
+        await devices.deviceB.page.click(SELECTORS.wechatMenuItem);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+        await devices.deviceB.page.waitForTimeout(2000);
+
+        // 切换到聊天页面
+        await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+
+        // 额外等待确保 Peer 连接稳定
+        await devices.deviceA.page.waitForTimeout(2000);
+
         // 设备 A 创建与设备 B 的聊天
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
@@ -51,10 +70,23 @@ test.describe('聊天消息发送与接收', () => {
         // 验证消息显示在设备 A 的聊天窗口
         await assertMessageExists(devices.deviceA.page, testMessage);
 
-        // 切换到设备 B，等待接收消息（优化：减少等待时间）
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
-        await devices.deviceB.page.reload();
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
+        // 检查消息状态
+        const messageStatus = devices.deviceA.page.locator(SELECTORS.messageStatus);
+        const statusCount = await messageStatus.count();
+        console.log('[Test] Device A message status count:', statusCount);
+
+        // 等待更长时间确保消息发送到对端
+        await devices.deviceA.page.waitForTimeout(5000);
+
+        // 切换到设备 B 的聊天页面
+        await devices.deviceB.page.click(SELECTORS.wechatMenuItem);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+
+        // 额外等待确保 Peer 连接稳定
+        await devices.deviceB.page.waitForTimeout(3000);
+
+        // 等待足够的时间让被动添加完成和消息到达
+        await devices.deviceB.page.waitForTimeout(10000);
 
         // 检查设备 B 是否收到了消息 - 使用更精确的选择器
         const messageInB = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
@@ -68,9 +100,13 @@ test.describe('聊天消息发送与接收', () => {
     });
 
     test('被动添加聊天：对端主动发起通信时自动加入列表', async ({ browser }) => {
-      const devices = await createTestDevices(browser, '主动发起者', '被动接收者', { startPage: 'wechat' });
+      const devices = await createTestDevices(browser, '主动发起者', '被动接收者', { startPage: 'center' });
 
       try {
+        // 切换到聊天页面
+        await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+
         // 设备 A 创建与设备 B 的聊天并发送消息
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
@@ -81,6 +117,10 @@ test.describe('聊天消息发送与接收', () => {
         // 发送消息
         const testMessage = '自动添加聊天测试';
         await sendTextMessage(devices.deviceA.page, testMessage);
+
+        // 切换设备 B 到聊天页面
+        await devices.deviceB.page.click(SELECTORS.wechatMenuItem);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 等待设备 B 接收消息（增加等待时间）
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
