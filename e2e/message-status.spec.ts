@@ -432,6 +432,10 @@ test.describe('消息状态展示与送达确认', () => {
       await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
+      // 刷新后需要再次点击联系人来激活聊天
+      await page.click(SELECTORS.contactItem);
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
+
       // 验证消息依然存在
       const messageTextAfterReload = page.locator(SELECTORS.messageText).filter({ hasText: '持久化消息' });
       await expect(messageTextAfterReload).toBeVisible();
