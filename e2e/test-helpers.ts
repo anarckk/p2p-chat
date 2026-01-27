@@ -110,11 +110,13 @@ export const WAIT_TIMES = {
 /**
  * 生成唯一的 PeerId（使用 UUID 格式，不包含中文字符）
  */
-export function generatePeerId(prefix: string): string {
+export function generatePeerId(): string {
   // 使用 crypto API 生成 UUID，确保不包含中文字符
+  // 只使用安全的英文字符作为前缀
+  const safePrefix = 'peer';
   const timestamp = Date.now().toString(36);
   const randomStr = Math.random().toString(36).substring(2, 11);
-  return `${prefix}-${timestamp}-${randomStr}`;
+  return `${safePrefix}-${timestamp}-${randomStr}`;
 }
 
 /**
@@ -124,7 +126,7 @@ export function createUserInfo(username: string, peerId?: string): UserInfo {
   return {
     username,
     avatar: null,
-    peerId: peerId || generatePeerId(username),
+    peerId: peerId || generatePeerId(),
   };
 }
 
@@ -427,10 +429,10 @@ export async function createTestDevices(
       console.log('[Test] Device B PeerId not ready, continuing...');
     });
   }
-  // 额外等待确保 PeerJS 完全初始化
-  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 3);
+  // 额外等待确保 PeerJS 完全初始化（减少等待时间避免超时）
+  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT);
   // 等待连接状态变为已连接（增加超时时间）
-  await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 30000 }).catch(() => {
+  await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 20000 }).catch(() => {
     console.log('[Test] Device B connection status not showing as connected, continuing...');
   });
 

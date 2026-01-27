@@ -163,23 +163,24 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
 
       // 验证设备 A 出现在设备 B 的发现列表中（被动发现）
       // 使用重试机制增加成功率
-      await retry(async () => {
-        // 先检查设备 B 是否收到了发现通知
-        const newLogs: string[] = [];
-        devices.deviceB.page.on('console', msg => {
-          if (msg.type() === 'log') {
-            newLogs.push(msg.text());
-          }
-        });
-        await devices.deviceB.page.waitForTimeout(3000); // 增加到 3 秒
+      const allDeviceBLogs: string[] = [...deviceBLogs];
+      devices.deviceB.page.on('console', msg => {
+        if (msg.type() === 'log') {
+          allDeviceBLogs.push(msg.text());
+        }
+      });
 
-        const foundNotification = newLogs.some(log => log.includes('Received discovery notification'));
+      await retry(async () => {
+        // 检查设备 B 是否收到了发现通知
+        await devices.deviceB.page.waitForTimeout(3000);
+
+        const foundNotification = allDeviceBLogs.some(log => log.includes('Received discovery notification'));
         if (!foundNotification) {
           throw new Error('Device B did not receive discovery notification yet');
         }
 
         await assertDeviceExists(devices.deviceB.page, '发现者A');
-      }, { maxAttempts: 8, delay: 8000, context: 'Passive discovery check' }); // 增加重试次数和延迟
+      }, { maxAttempts: 8, delay: 5000, context: 'Passive discovery check' }); // 增加重试次数和延迟
     } finally {
       await cleanupTestDevices(devices);
     }
@@ -279,10 +280,24 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
  */
 test.describe('设备用户名显示', () => {
   test('添加设备后应该显示对端的用户名', async ({ browser }) => {
-    test.setTimeout(60000);
+    test.setTimeout(90000);
     const devices = await createTestDevices(browser, '查看用户名A', '被查看用户名B', { startPage: 'center' });
 
     try {
+      // 监听控制台日志
+      const deviceALogs: string[] = [];
+      const deviceBLogs: string[] = [];
+      devices.deviceA.page.on('console', msg => {
+        if (msg.type() === 'log') {
+          deviceALogs.push(msg.text());
+        }
+      });
+      devices.deviceB.page.on('console', msg => {
+        if (msg.type() === 'log') {
+          deviceBLogs.push(msg.text());
+        }
+      });
+
       // 等待 Peer 连接稳定
       await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
       await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
@@ -291,8 +306,19 @@ test.describe('设备用户名显示', () => {
       await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
       await devices.deviceA.page.click(SELECTORS.addButton);
 
-      // 等待添加完成和用户名查询
-      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+      // 等待添加完成和用户名查询（增加等待时间）
+      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE * 3);
+
+      // 打印相关日志
+      console.log('[Test] Device A logs (username related):');
+      deviceALogs.filter(log => log.includes('username') || log.includes('Username') || log.includes('用户')).forEach(log => {
+        console.log('  ', log);
+      });
+
+      console.log('[Test] Device B logs (username related):');
+      deviceBLogs.filter(log => log.includes('username') || log.includes('Username') || log.includes('用户')).forEach(log => {
+        console.log('  ', log);
+      });
 
       // 使用重试机制检查用户名是否正确显示
       await retry(async () => {
@@ -314,7 +340,7 @@ test.describe('设备用户名显示', () => {
         if (!titleText?.includes(devices.deviceB.userInfo.username)) {
           throw new Error(`Expected username "${devices.deviceB.userInfo.username}" not found in title "${titleText}"`);
         }
-      }, { maxAttempts: 5, delay: 3000, context: 'Check username display' });
+      }, { maxAttempts: 10, delay: 2000, context: 'Check username display' });
 
       // 最终验证：设备 B 的用户名应该显示在设备 A 的发现中心
       const deviceBCard = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.username });

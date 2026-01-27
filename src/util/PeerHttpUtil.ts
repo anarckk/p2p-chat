@@ -393,7 +393,7 @@ export class PeerHttpUtil {
    */
   private handleUsernameQuery(from: string) {
     // 需要获取当前用户信息，这里通过事件传递出去，让外部处理
-    this.emitProtocol('username_query', { from } as any);
+    this.emitProtocol('username_query', { type: 'username_query', from } as any);
   }
 
   /**

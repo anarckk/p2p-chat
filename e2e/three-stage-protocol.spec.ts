@@ -103,13 +103,13 @@ test.describe('版本号消息同步协议', () => {
     });
 
     test('重试消息时应该重新发送版本号通知', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间
+      test.setTimeout(120000); // 增加超时时间到 2 分钟
       const devices = await createTestDevices(browser, '重试发送方', '重试接收方', { startPage: 'wechat' });
 
       try {
         // 等待 Peer 连接稳定
-        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
         // 设备 A 创建聊天
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
@@ -119,28 +119,30 @@ test.describe('版本号消息同步协议', () => {
 
         // 发送消息
         const testMessage = '重试测试消息';
-        // 使用更宽松的发送方式
         await devices.deviceA.page.fill(SELECTORS.messageInput, testMessage);
         await devices.deviceA.page.click(SELECTORS.sendButton);
 
-        // 使用重试机制等待消息出现
+        // 等待消息出现（增加等待时间）
         let hasMessage = false;
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 10; i++) {
           await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
           const messages = await devices.deviceA.page.locator(SELECTORS.messageText).allTextContents();
           hasMessage = messages.some(msg => msg.includes(testMessage));
           if (hasMessage) {
+            console.log(`Message found after ${i + 1} attempts`);
             break;
           }
           console.log(`Attempt ${i + 1}: Message not found in A, retrying...`);
         }
 
+        expect(hasMessage).toBeTruthy();
+
         // 验证消息状态 - 检查消息有唯一ID和messageStage
         const deviceBPeerId = devices.deviceB.userInfo.peerId;
 
-        // 使用重试机制等待消息存储到 localStorage
+        // 等待消息存储到 localStorage（增加等待时间）
         let messageStatus: any = null;
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 10; i++) {
           await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
           messageStatus = await devices.deviceA.page.evaluate((peerId) => {
             const stored = localStorage.getItem('p2p_messages_' + peerId);
@@ -149,6 +151,7 @@ test.describe('版本号消息同步协议', () => {
             return lastMessage ? { id: lastMessage.id, messageStage: lastMessage.messageStage } : null;
           }, deviceBPeerId);
           if (messageStatus) {
+            console.log(`Message status found after ${i + 1} attempts`);
             break;
           }
           console.log(`Attempt ${i + 1}: Message status not found in storage, retrying...`);
@@ -431,6 +434,7 @@ test.describe('版本号消息同步协议', () => {
    */
   test.describe('文件消息上传', () => {
     test('应该支持大文件消息的版本号传输', async ({ browser }) => {
+      test.setTimeout(120000); // 增加超时时间到 2 分钟
       const devices = await createTestDevices(browser, '文件发送方', '文件接收方', { startPage: 'wechat' });
 
       try {

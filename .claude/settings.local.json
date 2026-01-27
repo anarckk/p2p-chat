@@ -28,7 +28,8 @@
       "mcp__playwright__browser_run_code",
       "mcp__playwright__browser_close",
       "Bash(timeout:*)",
-      "Bash(exit:*)"
+      "Bash(exit:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

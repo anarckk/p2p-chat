@@ -12,7 +12,7 @@ test('调试：检查 PeerJS 连接状态', async ({ browser }) => {
   test.setTimeout(120000);
 
   // 创建设备 A
-  const deviceAUserInfo = createUserInfo('调试设备A');
+  const deviceAUserInfo = createUserInfo('调试设备A', 'debug-device-a');
   const deviceAContext = await browser.newContext();
   const deviceAPage = await deviceAContext.newPage();
   await deviceAPage.goto('/center');
@@ -24,7 +24,7 @@ test('调试：检查 PeerJS 连接状态', async ({ browser }) => {
   await deviceAPage.waitForSelector('.center-container', { timeout: 15000 });
 
   // 创建设备 B
-  const deviceBUserInfo = createUserInfo('调试设备B');
+  const deviceBUserInfo = createUserInfo('调试设备B', 'debug-device-b');
   const deviceBContext = await browser.newContext();
   const deviceBPage = await deviceBContext.newPage();
   await deviceBPage.goto('/center');
