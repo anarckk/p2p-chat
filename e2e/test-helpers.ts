@@ -182,12 +182,28 @@ export async function setUserInfo(
 
   await page.goto(navigateTo);
   await page.waitForLoadState('domcontentloaded');
-  await page.evaluate((info) => {
-    localStorage.setItem('p2p_user_info', JSON.stringify(info));
-  }, userInfo);
-  if (shouldReload) {
-    await page.reload();
-    await page.waitForLoadState('domcontentloaded');
+
+  // 检查是否有用户设置弹窗
+  try {
+    await page.waitForSelector('.ant-modal-title', { timeout: 3000 });
+    // 有弹窗，填写用户名
+    const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
+    await usernameInput.fill(userInfo.username);
+    // 点击确定按钮
+    await page.click('.ant-modal .ant-btn-primary');
+    // 等待弹窗关闭和 Peer 初始化
+    await page.waitForTimeout(6000);
+  } catch (error) {
+    // 没有弹窗，直接设置用户信息到 localStorage
+    await page.evaluate((info) => {
+      localStorage.setItem('p2p_user_info', JSON.stringify(info));
+    }, userInfo);
+    if (shouldReload) {
+      await page.reload();
+      await page.waitForLoadState('domcontentloaded');
+      // 等待 Peer 初始化
+      await page.waitForTimeout(5000);
+    }
   }
 }
 
@@ -195,10 +211,16 @@ export async function setUserInfo(
  * 清理所有 localStorage 数据
  */
 export async function clearAllStorage(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
+  // 在当前页面上下文中清理（不导航到其他页面）
+  try {
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+  } catch (error) {
+    // 如果当前页面不支持 localStorage（比如 about:blank），忽略错误
+    console.log('[Test] clearAllStorage failed, page may not support localStorage');
+  }
 }
 
 /**
@@ -642,5 +664,68 @@ export async function waitForDeviceCardLegacy(page: any, deviceName: string, tim
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * 设置用户信息（处理首次进入弹窗）
+ * @param page 页面实例
+ * @param username 用户名
+ */
+export async function setupUser(page: Page, username: string): Promise<void> {
+  // 等待用户设置弹窗出现
+  try {
+    await page.waitForSelector('.ant-modal-title', { timeout: 3000 });
+    // 填写用户名
+    const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
+    await usernameInput.fill(username);
+    // 点击确定按钮
+    await page.click('.ant-modal .ant-btn-primary');
+    // 等待弹窗关闭和 Peer 初始化
+    await page.waitForTimeout(6000);
+  } catch (error) {
+    // 弹窗可能已经设置过了，直接设置用户信息到 localStorage
+    console.log('[Test] User setup modal not found, setting up via localStorage');
+    await page.evaluate((name) => {
+      const userInfo = {
+        username: name,
+        avatar: null,
+        peerId: null,
+      };
+      localStorage.setItem('p2p_user_info', JSON.stringify(userInfo));
+    }, username);
+    // 刷新页面以应用设置
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+    // 等待 Peer 初始化
+    await page.waitForTimeout(5000);
+  }
+}
+
+/**
+ * 从 localStorage 获取 PeerId
+ * @param page 页面实例
+ * @returns PeerId 或 null
+ */
+export async function getPeerIdFromStorage(page: Page): Promise<string | null> {
+  const userInfo = await page.evaluate(() => {
+    const stored = localStorage.getItem('p2p_user_info');
+    return stored ? JSON.parse(stored) : null;
+  });
+  return userInfo?.peerId || null;
+}
+
+/**
+ * 从页面元素中提取 PeerId
+ * @param page 页面实例
+ * @returns PeerId 或 null
+ */
+export async function getPeerIdFromElement(page: Page): Promise<string | null> {
+  try {
+    const peerIdElement = page.locator('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography');
+    const peerId = await peerIdElement.textContent();
+    return peerId?.trim() || null;
+  } catch (error) {
+    return null;
   }
 }

@@ -192,6 +192,14 @@ test.describe('聊天消息发送与接收', () => {
       await page.click(SELECTORS.wechatMenuItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
+      // 等待用户设置弹窗消失（如果存在）
+      try {
+        await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 3000 });
+      } catch (error) {
+        // 弹窗可能已经不存在了，继续执行
+        console.log('[Test] No modal to close, continuing...');
+      }
+
       // 监听控制台日志
       const logs: string[] = [];
       page.on('console', msg => {
@@ -202,17 +210,25 @@ test.describe('聊天消息发送与接收', () => {
       await page.click(SELECTORS.plusButton);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      // 验证新增聊天弹窗显示
-      const modal = page.locator('.ant-modal');
+      // 验证新增聊天弹窗显示（使用更精确的选择器）
+      const modals = page.locator('.ant-modal');
+      const modalCount = await modals.count();
+      console.log('[Test] Modal count after clicking plus button:', modalCount);
+
+      // 选择最后一个弹窗（新增聊天弹窗）
+      const modal = modals.nth(modalCount - 1);
       await expect(modal).toBeVisible();
-      const modalTitle = page.locator(SELECTORS.modalTitle);
+      const modalTitle = modal.locator(SELECTORS.modalTitle);
       await expect(modalTitle).toContainText('新增聊天');
 
       // 输入对方 PeerId
-      await page.fill(SELECTORS.peerIdInput, 'some-peer-id-456');
+      const peerIdInput = modal.locator(SELECTORS.peerIdInput);
+      await peerIdInput.fill('some-peer-id-456');
 
-      // 点击创建
-      await page.click(SELECTORS.modalOkButton);
+      // 点击创建（使用弹窗内的主按钮）
+      const okButton = modal.locator('.ant-btn-primary');
+      await expect(okButton).toBeVisible({ timeout: 5000 });
+      await okButton.click();
 
       // 等待更长时间确保聊天创建完成
       await page.waitForTimeout(3000);
@@ -248,24 +264,50 @@ test.describe('聊天消息发送与接收', () => {
 
     test('不能与自己创建聊天', async ({ page }) => {
       // 设置用户信息
-      const myPeerId = 'my-peer-id-123';
-      await setUserInfo(page, createUserInfo('测试用户', myPeerId), { navigateTo: '/wechat' });
+      await setUserInfo(page, createUserInfo('测试用户', 'test-self-chat-123'), { navigateTo: '/wechat' });
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 获取实际的 PeerId
+      const actualPeerId = await page.evaluate(() => {
+        const stored = localStorage.getItem('p2p_user_info');
+        return stored ? JSON.parse(stored).peerId : null;
+      });
+
+      console.log('[Test] Actual PeerId:', actualPeerId);
+
+      // 等待用户设置弹窗消失（如果存在）
+      try {
+        await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 3000 });
+      } catch (error) {
+        console.log('[Test] No modal to close, continuing...');
+      }
 
       // 点击添加按钮
       await page.click(SELECTORS.plusButton);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
+      // 等待新增聊天弹窗显示
+      const modals = page.locator('.ant-modal');
+      const modalCount = await modals.count();
+      console.log('[Test] Modal count:', modalCount);
+
+      const modal = modals.nth(modalCount - 1);
+      await expect(modal).toBeVisible();
+
       // 输入自己的 PeerId
-      await page.fill(SELECTORS.peerIdInput, myPeerId);
+      const peerIdInput = modal.locator(SELECTORS.peerIdInput);
+      await peerIdInput.fill(actualPeerId || 'test-self-chat-123');
 
       // 点击创建
-      await page.click(SELECTORS.modalOkButton);
+      const okButton = modal.locator('.ant-btn-primary');
+      await expect(okButton).toBeVisible({ timeout: 5000 });
+      await okButton.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证警告消息 - 使用更精确的选择器
-      const warningMsg = page.locator('.ant-message .anticon-exclamation-circle');
+      const warningMsg = page.locator('.ant-message-warning, .ant-message .anticon-exclamation-circle');
       const warningCount = await warningMsg.count();
+      console.log('[Test] Warning message count:', warningCount);
       expect(warningCount).toBeGreaterThan(0);
     });
 
@@ -368,6 +410,14 @@ test.describe('聊天消息发送与接收', () => {
       // 设置用户信息和消息
       await setUserInfo(page, createUserInfo('测试用户', 'my-peer-123'), { navigateTo: '/wechat' });
 
+      // 获取实际的 PeerId（因为 setUserInfo 可能会生成新的 PeerId）
+      const actualPeerId = await page.evaluate(() => {
+        const stored = localStorage.getItem('p2p_user_info');
+        return stored ? JSON.parse(stored).peerId : null;
+      });
+
+      console.log('[Test] Actual PeerId:', actualPeerId);
+
       const contacts = {
         'contact-1': {
           peerId: 'contact-1',
@@ -385,10 +435,15 @@ test.describe('聊天消息发送与接收', () => {
       await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
+      // 等待联系人列表出现
+      await page.waitForSelector(SELECTORS.contactItem, { timeout: 10000 }).catch(() => {
+        console.log('[Test] No contact items found, continuing...');
+      });
+
       const messages = [
         {
           id: 'msg-1',
-          from: 'my-peer-123',
+          from: actualPeerId || 'my-peer-123',
           to: 'contact-1',
           content: '我发送的消息',
           type: 'text',
@@ -398,7 +453,7 @@ test.describe('聊天消息发送与接收', () => {
         {
           id: 'msg-2',
           from: 'contact-1',
-          to: 'my-peer-123',
+          to: actualPeerId || 'my-peer-123',
           content: '对方发送的消息',
           type: 'text',
           timestamp: Date.now() + 1000,
@@ -414,19 +469,34 @@ test.describe('聊天消息发送与接收', () => {
       await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
+      // 等待联系人列表出现
+      await page.waitForSelector(SELECTORS.contactItem, { timeout: 10000 }).catch(() => {
+        console.log('[Test] No contact items found after reload, skipping click...');
+      });
+
       // 点击联系人来激活聊天
-      await page.click(SELECTORS.contactItem);
-      await page.waitForTimeout(WAIT_TIMES.SHORT);
+      const contactItems = await page.locator(SELECTORS.contactItem).count();
+      console.log('[Test] Contact items count:', contactItems);
 
-      // 验证消息显示
-      const messages_count = page.locator(SELECTORS.messageItem);
-      const count = await messages_count.count();
-      expect(count).toBeGreaterThan(0);
+      if (contactItems > 0) {
+        await page.click(SELECTORS.contactItem);
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      // 验证自己发送的消息在右侧
-      const selfMessage = page.locator(SELECTORS.messageSelf);
-      const selfCount = await selfMessage.count();
-      expect(selfCount).toBeGreaterThan(0);
+        // 验证消息显示
+        const messages_count = page.locator(SELECTORS.messageItem);
+        const count = await messages_count.count();
+        console.log('[Test] Message items count:', count);
+        expect(count).toBeGreaterThan(0);
+
+        // 验证自己发送的消息在右侧
+        const selfMessage = page.locator(SELECTORS.messageSelf);
+        const selfCount = await selfMessage.count();
+        console.log('[Test] Self message count:', selfCount);
+        expect(selfCount).toBeGreaterThan(0);
+      } else {
+        console.log('[Test] No contact items to click, skipping message validation...');
+        throw new Error('No contact items found, cannot test message display');
+      }
     });
   });
 });

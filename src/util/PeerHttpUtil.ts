@@ -42,6 +42,19 @@ export class PeerHttpUtil {
   // 发现中心：存储已发现的设备
   private discoveredDevices: Map<string, OnlineDevice> = new Map();
 
+  // 网络加速：是否开启网络加速
+  private networkAccelerationEnabled: boolean = false;
+
+  // 网络加速：存储待处理的中转请求（用于匹配响应）
+  private pendingRelayRequests: Map<string, {
+    resolve: (value: any) => void;
+    reject: (error: any) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }> = new Map();
+
+  // 网络加速：存储其他设备的网络加速状态
+  private networkAccelerationStatus: Map<string, boolean> = new Map();
+
   /**
    * 构造函数
    * @param peerId - 当前节点的 ID，如果不提供则自动生成
@@ -189,6 +202,26 @@ export class PeerHttpUtil {
       case 'user_info_response':
         // 响应用户完整信息
         this.handleUserInfoResponse(protocol as any, from);
+        break;
+      case 'relay_message':
+        // 网络加速：请求中转消息
+        this.handleRelayMessage(protocol as any, from);
+        break;
+      case 'relay_response':
+        // 网络加速：中转响应
+        this.handleRelayResponse(protocol as any, from);
+        break;
+      case 'network_acceleration_status':
+        // 网络加速：状态同步
+        this.handleNetworkAccelerationStatus(protocol as any, from);
+        break;
+      case 'device_list_request':
+        // 设备互相发现：请求设备列表
+        this.handleDeviceListRequest(from);
+        break;
+      case 'device_list_response':
+        // 设备互相发现：响应设备列表
+        this.handleDeviceListResponse(protocol as any);
         break;
     }
   }
@@ -935,5 +968,315 @@ export class PeerHttpUtil {
     if (this.peer) {
       this.peer.destroy();
     }
+  }
+
+  // ==================== 网络加速协议 ====================
+
+  /**
+   * 处理中转消息请求
+   */
+  private handleRelayMessage(protocol: {
+    originalFrom: string;
+    targetPeerId: string;
+    payload: AnyProtocol;
+    sequenceId: string;
+  }, from: string) {
+    commLog.networkAcceleration.relayRequest({ from, target: protocol.targetPeerId, sequenceId: protocol.sequenceId });
+
+    // 检查是否开启网络加速
+    if (!this.networkAccelerationEnabled) {
+      // 拒绝中转
+      this.sendProtocol(from, {
+        type: 'relay_response',
+        from: this.getId()!,
+        to: from,
+        timestamp: Date.now(),
+        originalFrom: protocol.originalFrom,
+        targetPeerId: protocol.targetPeerId,
+        payload: null,
+        success: false,
+        errorMessage: 'Network acceleration is disabled',
+        sequenceId: protocol.sequenceId,
+      });
+      return;
+    }
+
+    // 检查目标是否是本设备
+    if (protocol.targetPeerId === this.getId()!) {
+      // 消息是给本设备的，直接处理
+      this.handleProtocolMessage(protocol.payload, protocol.originalFrom);
+    } else {
+      // 转发给目标设备
+      this.sendProtocol(protocol.targetPeerId, protocol.payload)
+        .then(() => {
+          // 转发成功，返回响应
+          this.sendProtocol(from, {
+            type: 'relay_response',
+            from: this.getId()!,
+            to: from,
+            timestamp: Date.now(),
+            originalFrom: protocol.originalFrom,
+            targetPeerId: protocol.targetPeerId,
+            payload: null,
+            success: true,
+            sequenceId: protocol.sequenceId,
+          });
+        })
+        .catch((err) => {
+          // 转发失败，返回错误响应
+          this.sendProtocol(from, {
+            type: 'relay_response',
+            from: this.getId()!,
+            to: from,
+            timestamp: Date.now(),
+            originalFrom: protocol.originalFrom,
+            targetPeerId: protocol.targetPeerId,
+            payload: null,
+            success: false,
+            errorMessage: String(err),
+            sequenceId: protocol.sequenceId,
+          });
+        });
+    }
+  }
+
+  /**
+   * 处理中转响应
+   */
+  private handleRelayResponse(protocol: {
+    originalFrom: string;
+    targetPeerId: string;
+    payload: AnyProtocol | null;
+    success: boolean;
+    errorMessage?: string;
+    sequenceId: string;
+  }, from: string) {
+    commLog.networkAcceleration.relayResponse({ from, sequenceId: protocol.sequenceId, success: protocol.success });
+
+    // 查找并解决对应的 Promise
+    const pending = this.pendingRelayRequests.get(protocol.sequenceId);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      this.pendingRelayRequests.delete(protocol.sequenceId);
+
+      if (protocol.success) {
+        pending.resolve(protocol.payload);
+      } else {
+        pending.reject(new Error(protocol.errorMessage || 'Relay failed'));
+      }
+    }
+  }
+
+  /**
+   * 处理网络加速状态同步
+   */
+  private handleNetworkAccelerationStatus(protocol: { enabled: boolean }, from: string) {
+    console.log('[PeerHttp] Network acceleration status from ' + from + ': ' + protocol.enabled);
+    // 存储对方的网络加速状态
+    this.networkAccelerationStatus.set(from, protocol.enabled);
+
+    // 触发事件，让外部知道状态更新
+    this.emitProtocol('network_acceleration_status', {
+      ...protocol,
+      from,
+    } as any);
+  }
+
+  /**
+   * 设置网络加速开关状态
+   */
+  setNetworkAccelerationEnabled(enabled: boolean): void {
+    this.networkAccelerationEnabled = enabled;
+    console.log('[PeerHttp] Network acceleration ' + (enabled ? 'enabled' : 'disabled'));
+  }
+
+  /**
+   * 获取网络加速开关状态
+   */
+  getNetworkAccelerationEnabled(): boolean {
+    return this.networkAccelerationEnabled;
+  }
+
+  /**
+   * 获取设备的网络加速状态
+   */
+  getDeviceNetworkAccelerationStatus(peerId: string): boolean | undefined {
+    return this.networkAccelerationStatus.get(peerId);
+  }
+
+  /**
+   * 发送网络加速状态给指定设备
+   */
+  async sendNetworkAccelerationStatus(peerId: string): Promise<void> {
+    await this.sendProtocol(peerId, {
+      type: 'network_acceleration_status',
+      from: this.getId()!,
+      to: peerId,
+      timestamp: Date.now(),
+      enabled: this.networkAccelerationEnabled,
+    });
+  }
+
+  /**
+   * 通过中转设备发送消息
+   * @param relayPeerId - 中转设备的 PeerId
+   * @param targetPeerId - 目标设备的 PeerId
+   * @param protocol - 要发送的协议消息
+   */
+  async sendViaRelay(
+    relayPeerId: string,
+    targetPeerId: string,
+    protocol: AnyProtocol,
+  ): Promise<AnyProtocol | null> {
+    const sequenceId = this.getId()! + '-' + Date.now() + '-' + Math.random().toString(36).substring(7);
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRelayRequests.delete(sequenceId);
+        reject(new Error('Relay timeout'));
+      }, 15000);
+
+      this.pendingRelayRequests.set(sequenceId, { resolve, reject, timeout });
+
+      // 发送中转请求
+      this.sendProtocol(relayPeerId, {
+        type: 'relay_message',
+        from: this.getId()!,
+        to: relayPeerId,
+        timestamp: Date.now(),
+        originalFrom: this.getId()!,
+        targetPeerId,
+        payload: protocol,
+        sequenceId,
+      }).catch((err) => {
+        clearTimeout(timeout);
+        this.pendingRelayRequests.delete(sequenceId);
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * 获取所有开启网络加速的设备
+   */
+  getNetworkAccelerationEnabledDevices(): string[] {
+    return Array.from(this.networkAccelerationStatus.entries())
+      .filter(([_, enabled]) => enabled)
+      .map(([peerId, _]) => peerId);
+  }
+
+  // ==================== 设备互相发现协议 ====================
+
+  /**
+   * 处理设备列表请求
+   */
+  private handleDeviceListRequest(from: string) {
+    commLog.deviceDiscovery.requestReceived({ from });
+    // 响应我已发现的设备列表
+    const devices = Array.from(this.discoveredDevices.values());
+
+    this.sendProtocol(from, {
+      type: 'device_list_response',
+      from: this.getId()!,
+      to: from,
+      timestamp: Date.now(),
+      devices,
+    });
+  }
+
+  /**
+   * 处理设备列表响应
+   */
+  private handleDeviceListResponse(protocol: any) {
+    const { devices } = protocol;
+    commLog.deviceDiscovery.responseReceived({ deviceCount: devices.length });
+
+    let newDeviceCount = 0;
+    // 合并到已发现的设备列表
+    devices.forEach((device: OnlineDevice) => {
+      const existing = this.discoveredDevices.get(device.peerId);
+      if (!existing) {
+        newDeviceCount++;
+      }
+      this.discoveredDevices.set(device.peerId, {
+        ...device,
+        firstDiscovered: existing?.firstDiscovered || device.firstDiscovered || Date.now(),
+      });
+    });
+
+    if (newDeviceCount > 0) {
+      console.log('[PeerHttp] Discovered ' + newDeviceCount + ' new devices from peer list');
+    }
+
+    // 触发设备列表响应事件
+    this.emitProtocol('device_list_response', protocol);
+  }
+
+  /**
+   * 请求指定设备的在线设备列表
+   * @param peerId - 目标设备的 PeerId
+   */
+  async requestDeviceList(peerId: string): Promise<OnlineDevice[]> {
+    return new Promise((resolve) => {
+      // 设置一次性处理器
+      const handler = (protocol: AnyProtocol) => {
+        if (protocol.type === 'device_list_response') {
+          const resp = protocol as any;
+          resolve(resp.devices || []);
+
+          // 清理处理器
+          const handlers = this.protocolHandlers.get('device_list_response') || [];
+          const index = handlers.indexOf(handler);
+          if (index > -1) {
+            handlers.splice(index, 1);
+          }
+        }
+      };
+
+      this.onProtocol('device_list_response', handler as any);
+
+      // 发送请求
+      this.sendProtocol(peerId, {
+        type: 'device_list_request',
+        from: this.getId()!,
+        to: peerId,
+        timestamp: Date.now(),
+      }).catch(() => resolve([]));
+
+      // 超时处理
+      setTimeout(() => {
+        const handlers = this.protocolHandlers.get('device_list_response') || [];
+        const index = handlers.indexOf(handler as any);
+        if (index > -1) {
+          handlers.splice(index, 1);
+        }
+        resolve([]);
+      }, 10000);
+    });
+  }
+
+  /**
+   * 向所有已知设备请求设备列表
+   */
+  async requestAllDeviceLists(): Promise<void> {
+    const devices = Array.from(this.discoveredDevices.keys());
+    console.log('[PeerHttp] Requesting device lists from ' + devices.length + ' devices');
+
+    const promises = devices.map((peerId) => this.requestDeviceList(peerId));
+    await Promise.allSettled(promises);
+  }
+
+  /**
+   * 响应设备列表请求
+   */
+  async sendDeviceListResponse(peerId: string, devices: OnlineDevice[]): Promise<void> {
+    const protocol: any = {
+      type: 'device_list_response',
+      from: this.getId()!,
+      to: peerId,
+      timestamp: Date.now(),
+      devices,
+    };
+    await this.sendProtocol(peerId, protocol);
   }
 }

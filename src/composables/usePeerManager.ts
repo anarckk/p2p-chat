@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import Peer from 'peerjs';
 import { PeerHttpUtil } from '../util/PeerHttpUtil';
 import { useChatStore } from '../stores/chatStore';
 import { useUserStore } from '../stores/userStore';
@@ -18,6 +19,11 @@ let onlineCheckQueryHandler: ((protocol: any, from: string) => void) | null = nu
 let onlineCheckResponseHandler: ((protocol: any, from: string) => void) | null = null;
 let userInfoQueryHandler: ((protocol: any, from: string) => void) | null = null;
 let userInfoResponseHandler: ((protocol: any, from: string) => void) | null = null;
+let relayMessageHandler: ((protocol: any, from: string) => void) | null = null;
+let relayResponseHandler: ((protocol: any, from: string) => void) | null = null;
+let networkAccelerationStatusHandler: ((protocol: any, from: string) => void) | null = null;
+let deviceListRequestHandler: ((protocol: any, from: string) => void) | null = null;
+let deviceListResponseHandler: ((protocol: any, from: string) => void) | null = null;
 
 // 自动重连相关
 let reconnectTimer: number | null = null;
@@ -442,6 +448,51 @@ export function usePeerManager() {
     peerInstance.onProtocol('user_info_query', userInfoQueryHandler);
     peerInstance.onProtocol('user_info_response', userInfoResponseHandler);
 
+    // 处理网络加速状态同步
+    networkAccelerationStatusHandler = (protocol: any, from: string) => {
+      if (protocol.type === 'network_acceleration_status') {
+        const { enabled } = protocol;
+        console.log('[Peer] Network acceleration status from ' + from + ': ' + enabled);
+        commLog.networkAcceleration.statusSync({ from, enabled });
+        // 存储到 deviceStore 中
+        const device = deviceStore.getDevice(from);
+        if (device) {
+          deviceStore.addOrUpdateDevice({
+            ...device,
+            networkAccelerationEnabled: enabled,
+          });
+        }
+      }
+    };
+
+    peerInstance.onProtocol('network_acceleration_status', networkAccelerationStatusHandler);
+
+    // 处理设备列表响应
+    deviceListResponseHandler = (protocol: any) => {
+      if (protocol.type === 'device_list_response') {
+        const { devices } = protocol;
+        commLog.deviceDiscovery.responseReceived({ deviceCount: devices?.length || 0 });
+        // 合并到 deviceStore
+        if (devices && devices.length > 0) {
+          deviceStore.addDevices(devices);
+        }
+      }
+    };
+
+    peerInstance.onProtocol('device_list_response', deviceListResponseHandler);
+
+    // 处理设备列表请求
+    deviceListRequestHandler = (_protocol: any, from: string) => {
+      if (_protocol.type === 'device_list_request') {
+        commLog.deviceDiscovery.requestReceived({ from });
+        // 响应我的设备列表
+        const devices = deviceStore.allDevices;
+        peerInstance?.sendDeviceListResponse(from, devices);
+      }
+    };
+
+    peerInstance.onProtocol('device_list_request', deviceListRequestHandler);
+
     messageHandler = (data: { from: string; data: any }) => {
       handleIncomingMessage(data);
     };
@@ -771,6 +822,181 @@ export function usePeerManager() {
     }
   }
 
+  // ==================== 宇宙启动者 ====================
+
+  /**
+   * 尝试成为宇宙启动者
+   * 使用固定的 peerId 尝试连接，如果成功则成为启动者
+   */
+  async function tryBecomeBootstrap(): Promise<boolean> {
+    const UNIVERSE_BOOTSTRAP_ID = 'UNIVERSE-BOOTSTRAP-PEER-ID-001';
+    commLog.universeBootstrap.connecting();
+
+    return new Promise((resolve) => {
+      // 尝试连接宇宙启动者 ID
+      let bootstrapPeer: any = null;
+
+      // 设置超时，3秒内如果连接成功则说明没有其他启动者
+      const successTimeout = setTimeout(() => {
+        commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
+        console.log('[Peer] Became the universe bootstrap!');
+        if (bootstrapPeer) {
+          bootstrapPeer.destroy();
+        }
+        resolve(true);
+      }, 3000);
+
+      // 尝试创建 peer
+      try {
+        bootstrapPeer = new Peer(UNIVERSE_BOOTSTRAP_ID);
+
+        bootstrapPeer.on('open', () => {
+          // 连接成功，说明我们是第一个启动者
+          clearTimeout(successTimeout);
+          commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
+          console.log('[Peer] Became the universe bootstrap!');
+          bootstrapPeer.destroy();
+          resolve(true);
+        });
+
+        bootstrapPeer.on('error', (error: any) => {
+          clearTimeout(successTimeout);
+          commLog.universeBootstrap.failed({ error: error?.type });
+          console.log('[Peer] Bootstrap already exists, requesting device list...');
+
+          // 向启动者请求设备列表
+          requestBootstrapDeviceList(UNIVERSE_BOOTSTRAP_ID).then(() => {
+            resolve(false);
+          }).catch(() => {
+            resolve(false);
+          });
+
+          bootstrapPeer.destroy();
+        });
+      } catch (error) {
+        clearTimeout(successTimeout);
+        console.error('[Peer] Bootstrap error:', error);
+        resolve(false);
+      }
+    });
+  }
+
+  /**
+   * 向宇宙启动者请求设备列表
+   */
+  async function requestBootstrapDeviceList(bootstrapPeerId: string): Promise<void> {
+    if (!peerInstance) {
+      return;
+    }
+
+    commLog.universeBootstrap.requestList({ to: bootstrapPeerId });
+
+    try {
+      const devices = await peerInstance.requestDeviceList(bootstrapPeerId);
+      commLog.universeBootstrap.responseList({ deviceCount: devices.length });
+
+      // 合并到 deviceStore
+      if (devices.length > 0) {
+        deviceStore.addDevices(devices);
+        console.log('[Peer] Got ' + devices.length + ' devices from bootstrap');
+      }
+    } catch (error) {
+      console.error('[Peer] Request bootstrap device list error:', error);
+    }
+  }
+
+  // ==================== 网络加速 ====================
+
+  /**
+   * 设置网络加速开关
+   */
+  function setNetworkAccelerationEnabled(enabled: boolean): void {
+    if (peerInstance) {
+      peerInstance.setNetworkAccelerationEnabled(enabled);
+      if (enabled) {
+        commLog.networkAcceleration.enabled();
+      } else {
+        commLog.networkAcceleration.disabled();
+      }
+    }
+  }
+
+  /**
+   * 获取网络加速开关状态
+   */
+  function getNetworkAccelerationEnabled(): boolean {
+    return peerInstance?.getNetworkAccelerationEnabled() || false;
+  }
+
+  /**
+   * 发送网络加速状态给所有在线设备
+   */
+  async function broadcastNetworkAccelerationStatus(): Promise<void> {
+    if (!peerInstance) {
+      return;
+    }
+
+    const devices = deviceStore.allDevices;
+    const enabled = peerInstance.getNetworkAccelerationEnabled();
+
+    const promises = devices.map((device) => {
+      if (device.isOnline) {
+        return peerInstance!.sendNetworkAccelerationStatus(device.peerId).catch(() => {
+          // 忽略错误
+        });
+      }
+      return Promise.resolve();
+    });
+
+    await Promise.allSettled(promises);
+  }
+
+  // ==================== 设备互相发现 ====================
+
+  /**
+   * 请求指定设备的在线设备列表
+   */
+  async function requestDeviceList(peerId: string): Promise<OnlineDevice[]> {
+    if (!peerInstance) {
+      return [];
+    }
+
+    commLog.deviceDiscovery.requestSent({ to: peerId });
+
+    try {
+      const devices = await peerInstance.requestDeviceList(peerId);
+      // 合并到 deviceStore
+      if (devices.length > 0) {
+        deviceStore.addDevices(devices);
+      }
+      return devices;
+    } catch (error) {
+      console.error('[Peer] Request device list error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 向所有在线设备请求设备列表
+   */
+  async function requestAllDeviceLists(): Promise<void> {
+    if (!peerInstance) {
+      return;
+    }
+
+    const devices = deviceStore.allDevices;
+    console.log('[Peer] Requesting device lists from ' + devices.length + ' devices');
+
+    const promises = devices.map((device) => {
+      if (device.isOnline) {
+        return requestDeviceList(device.peerId);
+      }
+      return Promise.resolve([]);
+    });
+
+    await Promise.allSettled(promises);
+  }
+
   function destroy() {
     // 停止自动重连
     stopReconnect();
@@ -818,5 +1044,14 @@ export function usePeerManager() {
     requestUserInfo,
     destroy,
     deviceStore,
+    // 宇宙启动者
+    tryBecomeBootstrap,
+    // 网络加速
+    setNetworkAccelerationEnabled,
+    getNetworkAccelerationEnabled,
+    broadcastNetworkAccelerationStatus,
+    // 设备互相发现
+    requestDeviceList,
+    requestAllDeviceLists,
   };
 }

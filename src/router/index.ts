@@ -25,6 +25,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/WeChatView.vue'),
         meta: { title: '聊天', requiresSetup: true },
       },
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: () => import('../views/SettingsView.vue'),
+        meta: { title: '设置', requiresSetup: true },
+      },
     ],
   },
 ];

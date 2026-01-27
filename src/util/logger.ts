@@ -189,6 +189,35 @@ export const commLog = {
     error: (data?: { error?: string }) => log('CONN', LogLevel.ERROR, '连接错误', data),
   },
 
+  // 网络加速
+  networkAcceleration: {
+    enabled: (data?: { peerId?: string }) => log('NA', LogLevel.SUCCESS, '网络加速已开启', data),
+    disabled: (data?: { peerId?: string }) => log('NA', LogLevel.INFO, '网络加速已关闭', data),
+    relayRequest: (data?: { from?: string; target?: string; sequenceId?: string }) => log('NA', LogLevel.INFO, '中转请求', data),
+    relayResponse: (data?: { from?: string; sequenceId?: string; success?: boolean }) => log('NA', LogLevel.SUCCESS, '中转响应', data),
+    relayFailed: (data?: { from?: string; error?: string }) => log('NA', LogLevel.ERROR, '中转失败', data),
+    statusSync: (data?: { from?: string; enabled?: boolean }) => log('NA', LogLevel.INFO, '状态同步', data),
+  },
+
+  // 设备互相发现
+  deviceDiscovery: {
+    requestSent: (data?: { to?: string }) => log('DEVDISC', LogLevel.INFO, '请求设备列表', data),
+    requestReceived: (data?: { from?: string }) => log('DEVDISC', LogLevel.INFO, '收到设备列表请求', data),
+    responseSent: (data?: { to?: string; deviceCount?: number }) => log('DEVDISC', LogLevel.INFO, '响应设备列表', data),
+    responseReceived: (data?: { deviceCount?: number }) => log('DEVDISC', LogLevel.SUCCESS, '收到设备列表响应', data),
+    newDevice: (data?: { peerId?: string; username?: string }) => log('DEVDISC', LogLevel.SUCCESS, '发现新设备', data),
+  },
+
+  // 宇宙启动者
+  universeBootstrap: {
+    connecting: () => log('UNIVERSE', LogLevel.INFO, '连接宇宙启动者'),
+    success: (data?: { peerId?: string }) => log('UNIVERSE', LogLevel.SUCCESS, '成为宇宙启动者', data),
+    failed: (data?: { error?: string }) => log('UNIVERSE', LogLevel.WARNING, '连接失败，请求设备列表', data),
+    requestList: (data?: { to?: string }) => log('UNIVERSE', LogLevel.INFO, '向启动者请求设备列表', data),
+    responseList: (data?: { deviceCount?: number }) => log('UNIVERSE', LogLevel.SUCCESS, '收到设备列表', data),
+    requestReceived: (data?: { from?: string }) => log('UNIVERSE', LogLevel.INFO, '收到设备列表请求', data),
+  },
+
   // 通用
   info: (action: string, data?: any) => log('COMM', LogLevel.INFO, action, data),
   success: (action: string, data?: any) => log('COMM', LogLevel.SUCCESS, action, data),

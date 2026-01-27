@@ -32,6 +32,14 @@ test.describe('消息状态展示与送达确认', () => {
     test('应该正确显示各种消息状态', async ({ page }) => {
       await setUserInfo(page, createUserInfo('测试用户', 'my-peer-123'), { navigateTo: '/wechat' });
 
+      // 获取实际的 PeerId（因为 setUserInfo 可能会生成新的 PeerId）
+      const actualPeerId = await page.evaluate(() => {
+        const stored = localStorage.getItem('p2p_user_info');
+        return stored ? JSON.parse(stored).peerId : null;
+      });
+
+      console.log('[Test] Actual PeerId:', actualPeerId);
+
       const contacts = {
         'contact-1': {
           peerId: 'contact-1',
@@ -51,11 +59,11 @@ test.describe('消息状态展示与送达确认', () => {
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      // 模拟不同状态的消息
+      // 模拟不同状态的消息（使用实际的 PeerId）
       const messages = [
         {
           id: 'msg-sending-1',
-          from: 'my-peer-123',
+          from: actualPeerId || 'my-peer-123',
           to: 'contact-1',
           content: '发送中的消息',
           type: 'text',
@@ -64,7 +72,7 @@ test.describe('消息状态展示与送达确认', () => {
         },
         {
           id: 'msg-delivered-1',
-          from: 'my-peer-123',
+          from: actualPeerId || 'my-peer-123',
           to: 'contact-1',
           content: '已送达的消息',
           type: 'text',
@@ -73,7 +81,7 @@ test.describe('消息状态展示与送达确认', () => {
         },
         {
           id: 'msg-failed-1',
-          from: 'my-peer-123',
+          from: actualPeerId || 'my-peer-123',
           to: 'contact-1',
           content: '发送失败的消息',
           type: 'text',
@@ -98,18 +106,27 @@ test.describe('消息状态展示与送达确认', () => {
       const failedMessage = page.locator(SELECTORS.messageText).filter({ hasText: '发送失败的消息' });
       await expect(failedMessage).toBeVisible();
 
-      // 验证消息状态图标
-      const loadingIcon = page.locator('.message-status .anticon-loading');
-      const hasLoadingIcon = await loadingIcon.count();
-      expect(hasLoadingIcon).toBeGreaterThan(0);
+      // 验证消息状态容器存在
+      const messageStatusElements = page.locator('.message-status');
+      const hasMessageStatus = await messageStatusElements.count();
+      console.log('[Test] Message status elements count:', hasMessageStatus);
+      expect(hasMessageStatus).toBeGreaterThan(0);
 
-      const checkIcon = page.locator('.message-status .anticon-check-circle');
-      const hasCheckIcon = await checkIcon.count();
-      expect(hasCheckIcon).toBeGreaterThan(0);
+      // 验证不同状态的消息有不同的 CSS 类
+      const sendingStatus = page.locator('.message-status-sending');
+      const hasSendingStatus = await sendingStatus.count();
+      console.log('[Test] Sending status count:', hasSendingStatus);
+      expect(hasSendingStatus).toBeGreaterThan(0);
 
-      const errorIcon = page.locator('.message-status .anticon-exclamation-circle');
-      const hasErrorIcon = await errorIcon.count();
-      expect(hasErrorIcon).toBeGreaterThan(0);
+      const deliveredStatus = page.locator('.message-status-delivered');
+      const hasDeliveredStatus = await deliveredStatus.count();
+      console.log('[Test] Delivered status count:', hasDeliveredStatus);
+      expect(hasDeliveredStatus).toBeGreaterThan(0);
+
+      const failedStatus = page.locator('.message-status-failed');
+      const hasFailedStatus = await failedStatus.count();
+      console.log('[Test] Failed status count:', hasFailedStatus);
+      expect(hasFailedStatus).toBeGreaterThan(0);
     });
 
     test('消息应该持久化到 localStorage', async ({ page }) => {

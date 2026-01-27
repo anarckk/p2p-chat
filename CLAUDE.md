@@ -43,24 +43,25 @@ sx-peerjs-http-util/
         ├── main.ts - Vue 入口（已全局注册 ant-design-vue、vue-router、pinia）
         ├── App.vue - 根组件
         ├── router/
-        │   ├── index.ts - 路由配置（/test、/center、/wechat）
+        │   ├── index.ts - 路由配置（/test、/center、/wechat、/settings）
         │   └── RouterView.vue - 路由视图组件
         ├── layouts/
         │   └── MainLayout.vue - 主布局（顶部导航菜单：/test 为隐藏路由，不在菜单中显示）
         ├── views/
         │   ├── TestView.vue - 测试页面（原 App.vue 内容迁移）
-        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听、设备持久化、在线/离线状态显示、添加设备后查询用户名更新显示、左侧"我的信息"卡片实时显示与 Peer Server 的连接状态）
-        │   └── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持、按钮 aria-label 可访问性、消息时间独立显示优化：时间与消息气泡分离、我方消息时间深灰色、透明背景）
+        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听、设备持久化、在线/离线状态显示、添加设备后查询用户名更新显示、左侧"我的信息"卡片实时显示与 Peer Server 的连接状态、设备互相发现、"宇宙启动者"机制）
+        │   ├── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持、按钮 aria-label 可访问性、消息时间独立显示优化：时间与消息气泡分离、我方消息时间深灰色、透明背景）
+        │   └── SettingsView.vue - 设置页面（用户名、头像维护、网络加速开关）
         ├── stores/
-        │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性）
+        │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性、个人信息版本号）
         │   ├── chatStore.ts - 聊天 store（消息状态管理、版本号机制、重试机制、localStorage 持久化）
         │   └── deviceStore.ts - 设备持久化 store（设备列表 localStorage 持久化、3天未在线自动删除、10分钟定时心跳检查）
         ├── composables/
-        │   └── usePeerManager.ts - Peer 管理逻辑（基于版本号的三段式通信、送达确认、发现中心、消息重试、被动发现自动刷新、在线检查协议处理、deviceStore 集成、连接状态实时监听、10秒自动重连机制）
+        │   └── usePeerManager.ts - Peer 管理逻辑（基于版本号的三段式通信、送达确认、发现中心、消息重试、被动发现自动刷新、在线检查协议处理、deviceStore 集成、连接状态实时监听、10秒自动重连机制、设备互相发现、"宇宙启动者"机制、网络加速）
         ├── types/
         │   └── index.ts - TypeScript 类型定义（消息类型、协议类型、基于版本号的三段式通信协议、在线检查协议、OnlineDevice 扩展 isOnline/firstDiscovered）
         └── util/
-            ├── PeerHttpUtil.ts - PeerJS 工具类（基于版本号的三段式通信协议、去中心化发现中心、在线检查协议 checkOnline/respondOnlineCheck、disconnected/close 事件监听）
+            ├── PeerHttpUtil.ts - PeerJS 工具类（基于版本号的三段式通信协议、去中心化发现中心、在线检查协议 checkOnline/respondOnlineCheck、disconnected/close 事件监听、网络加速中转协议）
             └── logger.ts - 通讯日志工具（支持连接事件日志：connected/disconnected/closed）
     ├── e2e/
         ├── test-helpers.ts - E2E 测试共享辅助函数（类型定义、SELECTORS/WAIT_TIMES 常量、数据工厂函数、页面操作、等待策略、设备管理、断言辅助、时间辅助函数）
@@ -74,7 +75,11 @@ sx-peerjs-http-util/
         ├── message-status.spec.ts - 消息状态展示与送达确认 E2E 测试（发送中/已送达/发送失败、版本号对比、重试、离线消息）
         ├── three-stage-protocol.spec.ts - 三段式通信协议 E2E 测试（版本号机制、拉取机制、多消息类型支持）
         ├── online-check-protocol.spec.ts - 在线检查协议 E2E 测试（checkOnline/respondOnlineCheck、定时心跳、超时判定）
-        └── chat-badge.spec.ts - 聊天中标识 E2E 测试（"已加入聊天"标识、设备可见性、在线状态同时显示）
+        ├── chat-badge.spec.ts - 聊天中标识 E2E 测试（"已加入聊天"标识、设备可见性、在线状态同时显示）
+        ├── connection-status.spec.ts - 发现中心连接状态 E2E 测试
+        ├── device-discovery.spec.ts - 设备互相发现 E2E 测试
+        ├── universe-bootstrap.spec.ts - "宇宙启动者"机制 E2E 测试
+        └── settings.spec.ts - 设置页面 E2E 测试（用户名、头像、网络加速开关）
 
 ---
 
@@ -96,6 +101,7 @@ sx-peerjs-http-util/
   - `/test` - 隐藏路由(不显示在菜单中)
   - `/center` - 去中心化发现中心
   - `/wechat` - 聊天应用
+  - `/settings` - 设置页面（用户名、头像、网络加速开关）
 
 ### 三段式通信协议（基于聊天版本号）
 1. **第一段**: 发送方发送版本号变更通知（不发送消息本体）
@@ -118,14 +124,22 @@ sx-peerjs-http-util/
 - **用户信息持久化**: 用户名、头像、PeerId 存储到 LocalStorage（头像以 Base64 格式存储）
 - **PeerId 稳定性**: 用户在页面间切换时,PeerId 保持不变
 - **PeerId 生成规则**: 使用 UUID 生成，避免出现中文字符导致连接问题
+- **设置页面** (`/settings`): 可维护用户名、头像，可开关配置"网络加速"功能
 
 ### 2. 去中心化发现中心 (`/center`)
 
 #### 核心功能
 - **主动发现**: 用户可手动输入对端设备的 PeerId 进行添加
 - **被动发现**: 自动接收并处理其他设备的发现通知，并自动刷新
+- **设备互相发现**: 定期向其他设备询问在线设备列表，拉取并更新本地发现中心
 - **设备信息展示**: 显示对端设备的用户名、头像、PeerId(小字)
 - **在线状态**: 实时显示设备在线/离线状态
+
+#### "宇宙启动者"机制
+- **固定 PeerId**: 首次打开后尝试用固定 peerId（如 peer-ABCxxxxxxx）连接
+- **成为启动者**: 连接成功则成为"宇宙启动者"，等待其他设备请求在线设备列表
+- **请求启动者**: 连接失败则向"宇宙启动者"请求在线设备列表并更新自身
+- **响应请求**: 作为"宇宙启动者"响应其他设备的在线设备列表请求
 
 #### 设备状态标识
 - **在线**: 设备可通信
@@ -191,6 +205,12 @@ sx-peerjs-http-util/
 - **拉取机制**: 对端对比版本号发现更新时，主动拉取最新消息
 - **离线消息**: 对端下线时不删除聊天，上线后通过版本号对比自动拉取
 
+### 4. 网络加速功能
+- **消息中转**: 其他设备帮助本设备传递消息给第三方（实现间接通信）
+- **可配置开关**: 可在设置页面开启/关闭网络加速
+- **关闭效果**: 关闭后不帮助任何人进行网络中转，别人也不会帮本设备与第三方通信
+- **直连模式**: 关闭网络加速时，与任何设备都是直连
+
 ## 技术实现要求
 
 ### 前端技术栈
@@ -212,12 +232,16 @@ sx-peerjs-http-util/
 - **浏览器范围**: 仅需 Chrome 测试,无需 webkit
 - **测试覆盖**:
   - 主动发现和被动发现
+  - 设备互相发现
+  - "宇宙启动者"机制
   - 设备持久化和自动清理
   - 消息发送和送达确认
   - 版本号机制和拉取机制
   - 用户信息设置（用户名必填）
+  - 设置页面（用户名、头像、网络加速开关）
   - 定时心跳检查
   - 发现中心连接状态
+  - 网络加速中转功能
 - **按钮可访问性**: 所有按钮添加 aria-label 属性以便测试定位
 - **测试选择器**: 使用 `.ant-modal .ant-btn-primary` 等精确选择器替代文本匹配
 - **等待时间优化**:
@@ -234,6 +258,11 @@ sx-peerjs-http-util/
 - **变量日志**: 一般变量转成字符串，长度不超过200个字
 - **对象日志**: 对象打印到控制台时转成字符串，每个对象字段长度限制200个字，超长则截断
 - **关键节点日志**: 发现用户、收到消息、同步个人信息等关键通讯节点要有控制台日志
+
+### 问题修复流程
+- **先写测试**: 发现问题后，先写 e2e 测试确保能测试出问题
+- **再修正代码**: 修正代码解决问题
+- **最后验证**: 用 e2e 测试确保问题已解决
 
 ### 命令行使用原则
 - 执行命令时路径不要 cd 到当前目录，直接执行命令

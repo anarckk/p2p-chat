@@ -19,6 +19,7 @@ const {
   sendDiscoveryNotification,
   queryUsername,
   checkOnline,
+  requestAllDeviceLists,
 } = peerManager;
 
 const queryPeerIdInput = ref('');
@@ -228,9 +229,12 @@ function copyPeerId(id: string) {
 }
 
 /**
- * 刷新发现列表
+ * 刷新发现列表（设备互相发现）
  */
-function refreshDiscovery() {
+async function refreshDiscovery() {
+  // 向所有在线设备请求设备列表
+  await requestAllDeviceLists();
+
   // 重新加载设备状态
   deviceStore.updateOnlineStatus();
   message.success(`已刷新，当前发现 ${storedDevices.value.length} 个设备`);

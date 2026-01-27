@@ -6,6 +6,7 @@ import {
   RadarChartOutlined,
   PlusOutlined,
   LoadingOutlined,
+  SettingOutlined,
 } from '@ant-design/icons-vue';
 import type { UploadChangeParam, UploadProps } from 'ant-design-vue';
 import { useUserStore } from '../stores/userStore';
@@ -47,6 +48,11 @@ const menuItems = [
     key: 'Center',
     label: '发现中心',
     icon: RadarChartOutlined,
+  },
+  {
+    key: 'Settings',
+    label: '设置',
+    icon: SettingOutlined,
   },
 ];
 

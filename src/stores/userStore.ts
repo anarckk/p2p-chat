@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { UserInfo } from '../types';
 
 const USER_INFO_KEY = 'p2p_user_info';
+const NETWORK_ACCELERATION_KEY = 'p2p_network_acceleration';
 // const MY_PEER_ID_KEY = 'p2p_my_peer_id'; // 保留但不使用，避免 ESLint 警告
 
 export const useUserStore = defineStore('user', () => {
@@ -14,6 +15,9 @@ export const useUserStore = defineStore('user', () => {
   });
 
   const isSetup = ref(false);
+
+  // 网络加速开关
+  const networkAccelerationEnabled = ref(false);
 
   // 独立的 myPeerId，用于发现中心展示
   const myPeerId = computed(() => userInfo.value.peerId);
@@ -79,6 +83,27 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem(USER_INFO_KEY);
   }
 
+  // ==================== 网络加速 ====================
+
+  /**
+   * 加载网络加速开关状态
+   */
+  function loadNetworkAcceleration() {
+    const saved = localStorage.getItem(NETWORK_ACCELERATION_KEY);
+    if (saved !== null) {
+      networkAccelerationEnabled.value = saved === 'true';
+    }
+    return networkAccelerationEnabled.value;
+  }
+
+  /**
+   * 设置网络加速开关状态
+   */
+  function setNetworkAcceleration(enabled: boolean) {
+    networkAccelerationEnabled.value = enabled;
+    localStorage.setItem(NETWORK_ACCELERATION_KEY, String(enabled));
+  }
+
   return {
     userInfo,
     isSetup,
@@ -87,5 +112,9 @@ export const useUserStore = defineStore('user', () => {
     saveUserInfo,
     setPeerId,
     clearUserInfo,
+    // 网络加速
+    networkAccelerationEnabled,
+    loadNetworkAcceleration,
+    setNetworkAcceleration,
   };
 });
