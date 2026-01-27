@@ -82,7 +82,7 @@ sx-peerjs-http-util/
         ├── chat-badge.spec.ts - 聊天中标识 E2E 测试（"已加入聊天"标识、设备可见性、在线状态同时显示）
         ├── connection-status.spec.ts - 发现中心连接状态 E2E 测试
         ├── device-discovery.spec.ts - 设备互相发现 E2E 测试
-        ├── universe-bootstrap.spec.ts - "宇宙启动者"机制 E2E 测试（验证启动者保持连接、设备列表请求协议响应、多设备互相发现）
+        ├── universe-bootstrap.spec.ts - "宇宙启动者"机制 E2E 测试（验证固定 ID UNIVERSE-BOOTSTRAP-PEER-ID-001 的使用、控制台日志验证、多设备启动者选举、提前监听日志机制）
         └── settings.spec.ts - 设置页面 E2E 测试（用户名、头像、网络加速开关）
 
 ---
