@@ -9,6 +9,7 @@ import { message } from 'ant-design-vue';
 import { commLog } from '../util/logger';
 
 let peerInstance: PeerHttpUtil | null = null;
+let bootstrapPeerInstance: Peer | null = null;
 let messageHandler: ((data: { from: string; data: any }) => void) | null = null;
 let deliveryAckHandler: ((protocol: any, from: string) => void) | null = null;
 let discoveryResponseHandler: ((protocol: any, from: string) => void) | null = null;
@@ -835,43 +836,81 @@ export function usePeerManager() {
 
   /**
    * 尝试成为宇宙启动者
-   * 使用固定的 peerId 尝试连接，如果成功则成为启动者
+   * 使用固定的 peerId 尝试连接，如果成功则成为启动者并保持连接
    */
   async function tryBecomeBootstrap(): Promise<boolean> {
     const UNIVERSE_BOOTSTRAP_ID = 'UNIVERSE-BOOTSTRAP-PEER-ID-001';
     commLog.universeBootstrap.connecting();
 
     return new Promise((resolve) => {
-      // 尝试连接宇宙启动者 ID
-      let bootstrapPeer: any = null;
+      // 如果已经是启动者，直接返回
+      if (bootstrapPeerInstance) {
+        console.log('[Peer] Already is bootstrap');
+        resolve(true);
+        return;
+      }
 
       // 设置超时，3秒内如果连接成功则说明没有其他启动者
       const successTimeout = setTimeout(() => {
         commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
-        console.log('[Peer] Became the universe bootstrap!');
-        if (bootstrapPeer) {
-          bootstrapPeer.destroy();
-        }
+        console.log('[Peer] Became the universe bootstrap! Keeping connection...');
+        // 不销毁连接，保持启动者状态
         resolve(true);
       }, 3000);
 
       // 尝试创建 peer
       try {
-        bootstrapPeer = new Peer(UNIVERSE_BOOTSTRAP_ID);
+        bootstrapPeerInstance = new Peer(UNIVERSE_BOOTSTRAP_ID);
 
-        bootstrapPeer.on('open', () => {
+        bootstrapPeerInstance.on('open', (id: string) => {
           // 连接成功，说明我们是第一个启动者
           clearTimeout(successTimeout);
           commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
-          console.log('[Peer] Became the universe bootstrap!');
-          bootstrapPeer.destroy();
+          console.log('[Peer] Became the universe bootstrap! ID:', id);
+
+          // 监听设备列表请求
+          bootstrapPeerInstance!.on('connection', (conn: any) => {
+            conn.on('data', (data: any) => {
+              if (data && data.type === 'device_list_request') {
+                console.log('[Peer-Bootstrap] Received device list request from:', data.from);
+                commLog.deviceDiscovery.requestReceived({ from: data.from });
+
+                // 响应我的设备列表
+                const devices = deviceStore.allDevices;
+                const response = {
+                  type: 'device_list_response',
+                  from: UNIVERSE_BOOTSTRAP_ID,
+                  to: data.from,
+                  timestamp: Date.now(),
+                  devices,
+                };
+
+                conn.send(response);
+                commLog.deviceDiscovery.responseSent({ to: data.from, deviceCount: devices.length });
+                console.log('[Peer-Bootstrap] Sent device list with', devices.length, 'devices');
+              }
+            });
+          });
+
+          console.log('[Peer-Bootstrap] Listening for device list requests...');
           resolve(true);
         });
 
-        bootstrapPeer.on('error', (error: any) => {
+        bootstrapPeerInstance.on('error', (error: any) => {
+          if (!bootstrapPeerInstance) {
+            // 已经被清理了
+            return;
+          }
+
           clearTimeout(successTimeout);
           commLog.universeBootstrap.failed({ error: error?.type });
           console.log('[Peer] Bootstrap already exists, requesting device list...');
+
+          // 清理失败的连接
+          if (bootstrapPeerInstance) {
+            bootstrapPeerInstance.destroy();
+            bootstrapPeerInstance = null;
+          }
 
           // 向启动者请求设备列表
           requestBootstrapDeviceList(UNIVERSE_BOOTSTRAP_ID).then(() => {
@@ -879,12 +918,20 @@ export function usePeerManager() {
           }).catch(() => {
             resolve(false);
           });
+        });
 
-          bootstrapPeer.destroy();
+        bootstrapPeerInstance.on('disconnected', () => {
+          console.warn('[Peer-Bootstrap] Disconnected from server');
+        });
+
+        bootstrapPeerInstance.on('close', () => {
+          console.log('[Peer-Bootstrap] Connection closed');
+          bootstrapPeerInstance = null;
         });
       } catch (error) {
         clearTimeout(successTimeout);
         console.error('[Peer] Bootstrap error:', error);
+        bootstrapPeerInstance = null;
         resolve(false);
       }
     });
@@ -892,26 +939,106 @@ export function usePeerManager() {
 
   /**
    * 向宇宙启动者请求设备列表
+   * 使用原始 Peer 连接直接与启动者通信
    */
   async function requestBootstrapDeviceList(bootstrapPeerId: string): Promise<void> {
-    if (!peerInstance) {
-      return;
-    }
-
     commLog.universeBootstrap.requestList({ to: bootstrapPeerId });
 
-    try {
-      const devices = await peerInstance.requestDeviceList(bootstrapPeerId);
-      commLog.universeBootstrap.responseList({ deviceCount: devices.length });
-
-      // 合并到 deviceStore
-      if (devices.length > 0) {
-        deviceStore.addDevices(devices);
-        console.log('[Peer] Got ' + devices.length + ' devices from bootstrap');
+    return new Promise((resolve) => {
+      if (!peerInstance) {
+        resolve();
+        return;
       }
-    } catch (error) {
-      console.error('[Peer] Request bootstrap device list error:', error);
-    }
+
+      // 创建一个临时 Peer 连接向启动者请求设备列表
+      let tempPeer: any = null;
+      let conn: any = null;
+      let timeoutId: number | null = null;
+
+      const cleanup = () => {
+        if (conn) {
+          conn.close();
+          conn = null;
+        }
+        if (tempPeer) {
+          tempPeer.destroy();
+          tempPeer = null;
+        }
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      };
+
+      // 设置超时
+      timeoutId = window.setTimeout(() => {
+        console.warn('[Peer] Request bootstrap device list timeout');
+        cleanup();
+        resolve();
+      }, 10000);
+
+      try {
+        // 创建临时 Peer 连接
+        tempPeer = new Peer();
+
+        tempPeer.on('open', (myId: string) => {
+          console.log('[Peer] Temp peer connected with ID:', myId);
+
+          // 连接到启动者
+          conn = tempPeer.connect(bootstrapPeerId);
+
+          conn.on('open', () => {
+            console.log('[Peer] Connected to bootstrap, requesting device list...');
+
+            // 发送设备列表请求
+            const request = {
+              type: 'device_list_request',
+              from: myId,
+              to: bootstrapPeerId,
+              timestamp: Date.now(),
+            };
+
+            conn.send(request);
+          });
+
+          conn.on('data', (data: any) => {
+            if (data && data.type === 'device_list_response') {
+              console.log('[Peer] Received device list from bootstrap:', data.devices?.length || 0, 'devices');
+              commLog.universeBootstrap.responseList({ deviceCount: data.devices?.length || 0 });
+
+              // 合并到 deviceStore
+              if (data.devices && data.devices.length > 0) {
+                deviceStore.addDevices(data.devices);
+              }
+
+              cleanup();
+              resolve();
+            }
+          });
+
+          conn.on('error', (error: any) => {
+            console.error('[Peer] Bootstrap connection error:', error);
+            cleanup();
+            resolve();
+          });
+
+          conn.on('close', () => {
+            cleanup();
+            resolve();
+          });
+        });
+
+        tempPeer.on('error', (error: any) => {
+          console.error('[Peer] Temp peer error:', error);
+          cleanup();
+          resolve();
+        });
+      } catch (error) {
+        console.error('[Peer] Request bootstrap device list error:', error);
+        cleanup();
+        resolve();
+      }
+    });
   }
 
   // ==================== 网络加速 ====================
@@ -1029,6 +1156,14 @@ export function usePeerManager() {
       onlineCheckResponseHandler = null;
       isConnected.value = false;
     }
+
+    // 清理启动者连接
+    if (bootstrapPeerInstance) {
+      bootstrapPeerInstance.destroy();
+      bootstrapPeerInstance = null;
+      console.log('[Peer] Bootstrap connection destroyed');
+    }
+
     // 不要停止心跳定时器，让它在全局持续运行
     // deviceStore.stopHeartbeatTimer();
   }

@@ -53,19 +53,18 @@ test.describe('宇宙启动者', () => {
     expect(hasBootstrapSuccessLog).toBe(true);
   });
 
-  test('后续设备应该能向宇宙启动者请求设备列表', async ({ page, context }) => {
-    // 创建第二个浏览器上下文模拟第二个设备
+  test('设备应该能通过设备列表请求协议互相发现', async ({ page, context }) => {
     const browser2 = await context.browser()?.newContext();
     const page2 = await browser2.newPage();
 
     try {
-      // 设置第一个用户（可能是启动者）
+      // 设置第一个用户
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
-      await setupUser(page, '宇宙启动者');
+      await setupUser(page, '设备A');
 
-      const peerId1 = await getPeerIdFromStorage(page);
-      if (!peerId1) {
+      const peerIdA = await getPeerIdFromStorage(page);
+      if (!peerIdA) {
         test.skip();
         return;
       }
@@ -73,30 +72,45 @@ test.describe('宇宙启动者', () => {
       // 设置第二个用户
       await page2.goto('/center');
       await page2.waitForLoadState('domcontentloaded');
-      await setupUser(page2, '新加入设备');
+      await setupUser(page2, '设备B');
 
-      const peerId2 = await getPeerIdFromStorage(page2);
-      if (!peerId2) {
+      const peerIdB = await getPeerIdFromStorage(page2);
+      if (!peerIdB) {
         test.skip();
         return;
       }
 
-      // 监听第二个设备的控制台日志
-      const logs: string[] = [];
-      page2.on('console', msg => {
-        logs.push(msg.text());
-      });
+      // 设备 A 手动添加设备 B
+      const queryInputA = page.locator('input[placeholder*="输入对方 Peer ID"]');
+      await queryInputA.fill(peerIdB);
+      await page.locator('button[aria-label="add-device"]').click();
+      await page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
-      // 第二个设备手动添加第一个设备
-      const queryInput2 = page2.locator('input[placeholder*="输入对方 Peer ID"]');
-      await queryInput2.fill(peerId1);
-      await page2.locator('button[aria-label="add-device"]').click();
-      await page2.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
+      // 验证设备 A 的设备列表中包含设备 B
+      const deviceCardsA = page.locator('.device-card');
+      const countA = await deviceCardsA.count();
+      expect(countA).toBeGreaterThan(0);
 
-      // 验证第二个设备的设备列表中包含第一个设备
-      const deviceCards = page2.locator('.device-card');
-      const count = await deviceCards.count();
-      expect(count).toBeGreaterThan(0);
+      // 设备 A 点击刷新按钮，向设备 B 请求设备列表
+      await page.locator('button[aria-label="refresh-discovery"]').click();
+      await page.waitForTimeout(WAIT_TIMES.MESSAGE + WAIT_TIMES.LONG);
+
+      // 设备 B 点击刷新按钮，向设备 A 请求设备列表
+      await page2.locator('button[aria-label="refresh-discovery"]').click();
+      await page2.waitForTimeout(WAIT_TIMES.MESSAGE + WAIT_TIMES.LONG);
+
+      // 验证设备 B 的设备列表中包含设备 A（通过设备列表请求协议获取）
+      const deviceCardsB = page2.locator('.device-card');
+      const countB = await deviceCardsB.count();
+      expect(countB).toBeGreaterThan(0);
+
+      // 验证设备 A 显示设备 B 的用户名（在卡片标题中）
+      const deviceBCard = page.locator('.device-card').filter({ hasText: '设备B' });
+      await expect(deviceBCard).toHaveCount(1);
+
+      // 验证设备 B 显示设备 A 的用户名（在卡片标题中）
+      const deviceACard = page2.locator('.device-card').filter({ hasText: '设备A' });
+      await expect(deviceACard).toHaveCount(1);
     } finally {
       await page2.close();
       await browser2?.close();
