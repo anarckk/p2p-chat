@@ -110,9 +110,11 @@ export const WAIT_TIMES = {
 /**
  * 生成唯一的 PeerId（使用 UUID 格式，不包含中文字符）
  */
-export function generatePeerId(_prefix: string): string {
+export function generatePeerId(prefix: string): string {
   // 使用 crypto API 生成 UUID，确保不包含中文字符
-  return `peer-${Date.now()}-${Math.random().toString(36).substring(2, 11)}-${Math.random().toString(36).substring(2, 11)}`;
+  const timestamp = Date.now().toString(36);
+  const randomStr = Math.random().toString(36).substring(2, 11);
+  return `${prefix}-${timestamp}-${randomStr}`;
 }
 
 /**
@@ -202,7 +204,7 @@ export async function setUserInfo(
       await page.reload();
       await page.waitForLoadState('domcontentloaded');
       // 等待 Peer 初始化
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(6000);
     }
   }
 }
@@ -388,8 +390,8 @@ export async function createTestDevices(
       console.log('[Test] Device A PeerId not ready, continuing...');
     });
   }
-  // 额外等待确保 PeerJS 完全初始化（基于 PeerJS 5秒连接标准）
-  await deviceAPage.waitForTimeout(5000);
+  // 额外等待确保 PeerJS 完全初始化
+  await deviceAPage.waitForTimeout(6000);
 
   // 创建设备 B
   const deviceBUserInfo = createUserInfo(deviceBName);
@@ -414,8 +416,8 @@ export async function createTestDevices(
       console.log('[Test] Device B PeerId not ready, continuing...');
     });
   }
-  // 额外等待确保 PeerJS 完全初始化（基于 PeerJS 5秒连接标准）
-  await deviceBPage.waitForTimeout(5000);
+  // 额外等待确保 PeerJS 完全初始化
+  await deviceBPage.waitForTimeout(6000);
 
   return {
     deviceA: {
@@ -592,6 +594,70 @@ export function daysAgo(days: number): number {
   return Date.now() - days * 24 * 60 * 60 * 1000;
 }
 
+// ==================== 重试机制辅助函数 ====================
+
+/**
+ * 通用的重试辅助函数
+ * @param fn 要重试的异步函数
+ * @param options 重试选项
+ * @returns 函数执行结果或抛出错误
+ */
+export async function retry<T>(
+  fn: () => Promise<T>,
+  options?: { maxAttempts?: number; delay?: number; context?: string }
+): Promise<T> {
+  const maxAttempts = options?.maxAttempts || 3;
+  const delay = options?.delay || 3000;
+  const context = options?.context || 'Operation';
+
+  let lastError: Error | undefined;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      if (i < maxAttempts - 1) {
+        console.log(`[Test] ${context} attempt ${i + 1} failed, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError || new Error(`${context} failed after ${maxAttempts} attempts`);
+}
+
+/**
+ * 等待条件满足
+ * @param condition 条件函数
+ * @param options 等待选项
+ * @returns 条件是否满足
+ */
+export async function waitForCondition(
+  condition: () => Promise<boolean>,
+  options?: { timeout?: number; interval?: number; context?: string }
+): Promise<boolean> {
+  const timeout = options?.timeout || 15000;
+  const interval = options?.interval || 500;
+  const context = options?.context || 'Condition';
+
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeout) {
+    try {
+      if (await condition()) {
+        return true;
+      }
+    } catch {
+      // 忽略条件函数中的错误，继续重试
+    }
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+
+  console.log(`[Test] ${context} timeout after ${timeout}ms`);
+  return false;
+}
+
 // ==================== 向后兼容的辅助函数 ====================
 
 /**
@@ -698,7 +764,7 @@ export async function setupUser(page: Page, username: string): Promise<void> {
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
     // 等待 Peer 初始化
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(6000);
   }
 }
 

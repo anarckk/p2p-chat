@@ -3,6 +3,7 @@ import {
   setupUser,
   clearAllStorage,
   getPeerIdFromStorage,
+  WAIT_TIMES,
 } from './test-helpers.js';
 
 /**
@@ -23,7 +24,6 @@ test.describe('宇宙启动者', () => {
 
     // 设置用户
     await setupUser(page, '启动者测试用户');
-    await page.waitForTimeout(5000);
 
     // 验证 Peer 连接成功
     const peerId = await getPeerIdFromStorage(page);
@@ -48,7 +48,6 @@ test.describe('宇宙启动者', () => {
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
       await setupUser(page, '宇宙启动者');
-      await page.waitForTimeout(5000);
 
       const peerId1 = await getPeerIdFromStorage(page);
       if (!peerId1) {
@@ -60,7 +59,6 @@ test.describe('宇宙启动者', () => {
       await page2.goto('/center');
       await page2.waitForLoadState('domcontentloaded');
       await setupUser(page2, '新加入设备');
-      await page2.waitForTimeout(5000);
 
       const peerId2 = await getPeerIdFromStorage(page2);
       if (!peerId2) {

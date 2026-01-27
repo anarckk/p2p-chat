@@ -12,6 +12,7 @@ import {
   sendTextMessage,
   assertMessageExists,
   assertEmptyState,
+  retry,
 } from './test-helpers.js';
 
 /**
@@ -105,16 +106,14 @@ test.describe('聊天消息发送与接收', () => {
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 使用重试机制检查设备 B 是否收到了消息
-        let messageCount = 0;
-        for (let i = 0; i < 3; i++) {
+        const messageCount = await retry(async () => {
           const messageInB = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
-          messageCount = await messageInB.count();
-          if (messageCount > 0) {
-            break;
+          const count = await messageInB.count();
+          if (count > 0) {
+            return count;
           }
-          console.log(`Attempt ${i + 1}: Message not found in B, retrying...`);
-          await devices.deviceB.page.waitForTimeout(3000);
-        }
+          throw new Error('Message not found');
+        }, { maxAttempts: 3, delay: 3000, context: 'Check message in Device B' });
 
         // 验证消息接收成功（至少有一条匹配的消息）
         expect(messageCount).toBeGreaterThan(0);
@@ -151,22 +150,20 @@ test.describe('聊天消息发送与接收', () => {
         await devices.deviceB.page.click(SELECTORS.wechatMenuItem);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
-        // 等待设备 B 接收消息（增加等待时间）
+        // 等待设备 B 接收消息
         await devices.deviceB.page.waitForTimeout(10000);
         await devices.deviceB.page.reload();
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 
         // 使用重试机制验证设备 B 的聊天列表中自动添加了设备 A
-        let contactCount = 0;
-        for (let i = 0; i < 3; i++) {
+        const contactCount = await retry(async () => {
           const contactInB = devices.deviceB.page.locator(SELECTORS.contactItem);
-          contactCount = await contactInB.count();
-          if (contactCount > 0) {
-            break;
+          const count = await contactInB.count();
+          if (count > 0) {
+            return count;
           }
-          console.log(`Attempt ${i + 1}: Contact not found in B, retrying...`);
-          await devices.deviceB.page.waitForTimeout(3000);
-        }
+          throw new Error('Contact not found');
+        }, { maxAttempts: 3, delay: 3000, context: 'Check contact in Device B' });
 
         // 验证被动添加聊天功能
         expect(contactCount).toBeGreaterThan(0);

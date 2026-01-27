@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   clearAllStorage,
+  WAIT_TIMES,
 } from './test-helpers.js';
 
 /**
@@ -19,7 +20,7 @@ test.describe('用户信息设置', () => {
     await clearAllStorage(page);
     await page.reload();
 
-    await page.waitForSelector('.ant-modal', { timeout: 5000 });
+    await page.waitForSelector('.ant-modal', { timeout: WAIT_TIMES.MODAL });
 
     const modal = page.locator('.ant-modal');
     await expect(modal).toBeVisible();
@@ -37,7 +38,7 @@ test.describe('用户信息设置', () => {
     await clearAllStorage(page);
     await page.reload();
 
-    await page.waitForSelector('.ant-modal', { timeout: 5000 });
+    await page.waitForSelector('.ant-modal', { timeout: WAIT_TIMES.MODAL });
 
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     await usernameInput.fill('测试用户卡密');
@@ -66,7 +67,7 @@ test.describe('用户信息设置', () => {
     await clearAllStorage(page);
     await page.reload();
 
-    await page.waitForSelector('.ant-modal', { timeout: 5000 });
+    await page.waitForSelector('.ant-modal', { timeout: WAIT_TIMES.MODAL });
 
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     await usernameInput.fill('持久化测试用户');
@@ -95,7 +96,7 @@ test.describe('用户信息设置', () => {
     await clearAllStorage(page);
     await page.reload();
 
-    await page.waitForSelector('.ant-modal', { timeout: 5000 });
+    await page.waitForSelector('.ant-modal', { timeout: WAIT_TIMES.MODAL });
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     await usernameInput.fill('刷新测试用户');
 
@@ -136,7 +137,7 @@ test.describe('用户信息设置', () => {
     await clearAllStorage(page);
     await page.reload();
 
-    await page.waitForSelector('.ant-modal', { timeout: 5000 });
+    await page.waitForSelector('.ant-modal', { timeout: WAIT_TIMES.MODAL });
 
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     const maxLength = await usernameInput.getAttribute('maxlength');
@@ -150,7 +151,7 @@ test.describe('用户信息设置', () => {
     await clearAllStorage(page);
     await page.reload();
 
-    await page.waitForSelector('.ant-modal', { timeout: 5000 });
+    await page.waitForSelector('.ant-modal', { timeout: WAIT_TIMES.MODAL });
 
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
@@ -165,7 +166,7 @@ test.describe('用户信息设置', () => {
     await clearAllStorage(page);
     await page.reload();
 
-    await page.waitForSelector('.ant-modal', { timeout: 5000 });
+    await page.waitForSelector('.ant-modal', { timeout: WAIT_TIMES.MODAL });
 
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     await usernameInput.fill('测试用户');

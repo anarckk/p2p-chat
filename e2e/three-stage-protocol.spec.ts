@@ -11,6 +11,7 @@ import {
   createChat,
   sendTextMessage,
   assertMessageExists,
+  retry,
 } from './test-helpers.js';
 
 /**
@@ -65,16 +66,14 @@ test.describe('版本号消息同步协议', () => {
         await devices.deviceA.page.click(SELECTORS.sendButton);
 
         // 使用重试机制等待消息出现
-        let hasMessageInA = false;
-        for (let i = 0; i < 5; i++) {
-          await devices.deviceA.page.waitForTimeout(3000);
+        const hasMessageInA = await retry(async () => {
           const messagesInA = await devices.deviceA.page.locator(SELECTORS.messageText).allTextContents();
-          hasMessageInA = messagesInA.some(msg => msg.includes(testMessage));
-          if (hasMessageInA) {
-            break;
+          const found = messagesInA.some(msg => msg.includes(testMessage));
+          if (found) {
+            return true;
           }
-          console.log(`Attempt ${i + 1}: Message not found in A, retrying...`);
-        }
+          throw new Error('Message not found in A');
+        }, { maxAttempts: 5, delay: 3000, context: 'Wait for message in Device A' });
         expect(hasMessageInA).toBe(true);
 
         // 等待接收方接收（增加等待时间）
@@ -87,16 +86,14 @@ test.describe('版本号消息同步协议', () => {
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 使用重试机制验证接收方收到消息
-        let messageCount = 0;
-        for (let i = 0; i < 3; i++) {
+        const messageCount = await retry(async () => {
           const messageInReceiver = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
-          messageCount = await messageInReceiver.count();
-          if (messageCount > 0) {
-            break;
+          const count = await messageInReceiver.count();
+          if (count > 0) {
+            return count;
           }
-          console.log(`Attempt ${i + 1}: Message not found in receiver, retrying...`);
-          await devices.deviceB.page.waitForTimeout(3000);
-        }
+          throw new Error('Message not found in receiver');
+        }, { maxAttempts: 3, delay: 3000, context: 'Wait for message in Device B' });
 
         // 验证版本号协议成功传输消息
         expect(messageCount).toBeGreaterThan(0);
@@ -264,9 +261,18 @@ test.describe('版本号消息同步协议', () => {
         await page.click(SELECTORS.contactItem);
         await page.waitForTimeout(WAIT_TIMES.SHORT);
       } else {
-        console.log('[Test] No contact items to click, skipping...');
-        test.skip();
-        return;
+        console.log('[Test] No contact items to click, creating new test...');
+        // 如果没有联系人，先创建一个
+        await page.click(SELECTORS.plusButton);
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
+        const modals = page.locator('.ant-modal');
+        const modalCount = await modals.count();
+        const modal = modals.nth(modalCount - 1);
+        const peerIdInput = modal.locator(SELECTORS.peerIdInput);
+        await peerIdInput.fill('contact-1');
+        const okButton = modal.locator('.ant-btn-primary');
+        await okButton.click();
+        await page.waitForTimeout(WAIT_TIMES.MEDIUM);
       }
 
       // 模拟有重复ID的消息
@@ -336,9 +342,18 @@ test.describe('版本号消息同步协议', () => {
         await page.click(SELECTORS.contactItem);
         await page.waitForTimeout(WAIT_TIMES.SHORT);
       } else {
-        console.log('[Test] No contact items to click, skipping...');
-        test.skip();
-        return;
+        console.log('[Test] No contact items to click, creating new test...');
+        // 如果没有联系人，先创建一个
+        await page.click(SELECTORS.plusButton);
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
+        const modals = page.locator('.ant-modal');
+        const modalCount = await modals.count();
+        const modal = modals.nth(modalCount - 1);
+        const peerIdInput = modal.locator(SELECTORS.peerIdInput);
+        await peerIdInput.fill('contact-1');
+        const okButton = modal.locator('.ant-btn-primary');
+        await okButton.click();
+        await page.waitForTimeout(WAIT_TIMES.MEDIUM);
       }
 
       // 模拟不同类型的消息

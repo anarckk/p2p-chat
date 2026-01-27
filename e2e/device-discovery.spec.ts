@@ -4,6 +4,7 @@ import {
   clearAllStorage,
   getPeerIdFromStorage,
   getPeerIdFromElement,
+  WAIT_TIMES,
 } from './test-helpers.js';
 
 /**
@@ -26,13 +27,11 @@ test.describe('设备互相发现', () => {
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
       await setupUser(page, '设备A');
-      await page.waitForTimeout(2000);
 
       // 设置第二个用户
       await page2.goto('/center');
       await page2.waitForLoadState('domcontentloaded');
       await setupUser(page2, '设备B');
-      await page2.waitForTimeout(2000);
 
       // 获取两个设备的 PeerId
       const peerIdA = await getPeerIdFromStorage(page);
@@ -47,20 +46,18 @@ test.describe('设备互相发现', () => {
       const queryInput = page.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInput.fill(peerIdB);
       await page.locator('button[aria-label="add-device"]').click();
-      await page.waitForTimeout(3000);
 
       // 设备 B 手动添加设备 A
       const queryInput2 = page2.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInput2.fill(peerIdA);
       await page2.locator('button[aria-label="add-device"]').click();
-      await page2.waitForTimeout(3000);
 
       // 记录刷新前的设备数量
       const deviceCountBefore = await page.locator('.device-card').count();
 
       // 点击刷新按钮
       await page.locator('button[aria-label="refresh-discovery"]').click();
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
 
       // 验证设备列表已更新（至少包含设备 B 和自己）
       const deviceCountAfter = await page.locator('.device-card').count();
@@ -80,13 +77,11 @@ test.describe('设备互相发现', () => {
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
       await setupUser(page, '设备A');
-      await page.waitForTimeout(2000);
 
       // 设置第二个用户
       await page2.goto('/center');
       await page2.waitForLoadState('domcontentloaded');
       await setupUser(page2, '设备B');
-      await page2.waitForTimeout(2000);
 
       const peerIdA = await getPeerIdFromStorage(page);
       const peerIdB = await getPeerIdFromStorage(page2);
@@ -100,17 +95,15 @@ test.describe('设备互相发现', () => {
       const queryInput = page.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInput.fill(peerIdB);
       await page.locator('button[aria-label="add-device"]').click();
-      await page.waitForTimeout(3000);
 
       // 设备 B 添加设备 C（模拟第三个设备）
       const queryInput2 = page2.locator('input[placeholder*="输入对方 Peer ID"]');
       queryInput2.fill('peer_c_mock_id_' + Date.now());
       await page2.locator('button[aria-label="add-device"]').click();
-      await page2.waitForTimeout(3000);
 
       // 设备 A 刷新，应该能通过设备 B 发现设备 C
       await page.locator('button[aria-label="refresh-discovery"]').click();
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
 
       // 验证设备列表包含多个设备
       const deviceCount = await page.locator('.device-card').count();
@@ -130,12 +123,10 @@ test.describe('设备互相发现', () => {
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
       await setupUser(page, '用户A');
-      await page.waitForTimeout(2000);
 
       await page2.goto('/center');
       await page2.waitForLoadState('domcontentloaded');
       await setupUser(page2, '用户B');
-      await page2.waitForTimeout(2000);
 
       const peerIdA = await getPeerIdFromStorage(page);
       const peerIdB = await getPeerIdFromStorage(page2);
@@ -149,12 +140,10 @@ test.describe('设备互相发现', () => {
       const queryInput = page.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInput.fill(peerIdB);
       await page.locator('button[aria-label="add-device"]').click();
-      await page.waitForTimeout(3000);
 
       const queryInput2 = page2.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInput2.fill(peerIdA);
       await page2.locator('button[aria-label="add-device"]').click();
-      await page2.waitForTimeout(3000);
 
       // 监听控制台日志
       const logs: string[] = [];
@@ -164,7 +153,7 @@ test.describe('设备互相发现', () => {
 
       // 点击刷新
       await page.locator('button[aria-label="refresh-discovery"]').click();
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
 
       // 验证有请求设备列表的日志
       const hasRequestLog = logs.some(log =>
@@ -182,11 +171,10 @@ test.describe('设备互相发现', () => {
     await page.goto('/center');
     await page.waitForLoadState('domcontentloaded');
     await setupUser(page, '刷新消息测试用户');
-    await page.waitForTimeout(2000);
 
     // 点击刷新按钮
     await page.locator('button[aria-label="refresh-discovery"]').click();
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 验证显示成功消息（即使没有设备也应该显示消息）
     const successMessage = page.locator('.ant-message-success');
@@ -203,12 +191,10 @@ test.describe('设备互相发现', () => {
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
       await setupUser(page, '状态测试A');
-      await page.waitForTimeout(2000);
 
       await page2.goto('/center');
       await page2.waitForLoadState('domcontentloaded');
       await setupUser(page2, '状态测试B');
-      await page2.waitForTimeout(2000);
 
       const peerIdA = await getPeerIdFromStorage(page);
       const peerIdB = await getPeerIdFromStorage(page2);
@@ -222,11 +208,10 @@ test.describe('设备互相发现', () => {
       const queryInput = page.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInput.fill(peerIdB);
       await page.locator('button[aria-label="add-device"]').click();
-      await page.waitForTimeout(3000);
 
       // 刷新以更新在线状态
       await page.locator('button[aria-label="refresh-discovery"]').click();
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
 
       // 验证至少有在线状态标识
       const onlineBadges = page.locator('.ant-badge-status-processing');

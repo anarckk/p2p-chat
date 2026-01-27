@@ -10,6 +10,7 @@ import {
   cleanupTestDevices,
   createChat,
   addMessages,
+  retry,
 } from './test-helpers.js';
 
 /**
@@ -198,8 +199,8 @@ test.describe('消息状态展示与送达确认', () => {
 
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-        // 等待聊天创建完成
-        await devices.deviceA.page.waitForTimeout(2000);
+        // 等待聊天创建完成（基于 PeerJS 5秒连接标准）
+        await devices.deviceA.page.waitForTimeout(3000);
 
         // 检查联系人是否存在
         const contactCount = await devices.deviceA.page.locator(SELECTORS.contactItem).count();
@@ -234,21 +235,19 @@ test.describe('消息状态展示与送达确认', () => {
         const deviceBPeerId = devices.deviceB.userInfo.peerId;
 
         // 使用重试机制检查消息是否存储到 localStorage
-        let messageStatus: any = null;
-        for (let i = 0; i < 10; i++) {
-          await devices.deviceA.page.waitForTimeout(3000);
-          messageStatus = await devices.deviceA.page.evaluate((peerId) => {
+        const messageStatus = await retry(async () => {
+          await devices.deviceA.page.waitForTimeout(1000);
+          const status = await devices.deviceA.page.evaluate((peerId) => {
             const stored = localStorage.getItem('p2p_messages_' + peerId);
             const messages = stored ? JSON.parse(stored) : [];
             const lastMessage = messages[messages.length - 1];
             return lastMessage ? { id: lastMessage.id, status: lastMessage.status, content: lastMessage.content } : null;
           }, deviceBPeerId);
-          console.log(`[Test] Attempt ${i + 1}: Message status:`, messageStatus);
-          if (messageStatus && messageStatus.content === testMessage) {
-            break;
+          if (status && status.content === testMessage) {
+            return status;
           }
-          console.log(`Attempt ${i + 1}: Message not found in storage, retrying...`);
-        }
+          throw new Error('Message not found in storage');
+        }, { maxAttempts: 10, delay: 3000, context: 'Check message in localStorage' });
 
         expect(messageStatus).not.toBeNull();
         expect(messageStatus?.id).toBeTruthy();
@@ -272,8 +271,8 @@ test.describe('消息状态展示与送达确认', () => {
 
         await createChat(devices.deviceA.page, deviceBPeerId);
 
-        // 等待聊天创建完成
-        await devices.deviceA.page.waitForTimeout(2000);
+        // 等待聊天创建完成（基于 PeerJS 5秒连接标准）
+        await devices.deviceA.page.waitForTimeout(3000);
 
         await devices.deviceA.page.click(SELECTORS.contactItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -286,21 +285,19 @@ test.describe('消息状态展示与送达确认', () => {
         await devices.deviceA.page.click(SELECTORS.sendButton);
 
         // 使用重试机制检查消息是否存储到 localStorage
-        let messageStatus: any = null;
-        for (let i = 0; i < 10; i++) {
-          await devices.deviceA.page.waitForTimeout(3000);
-          messageStatus = await devices.deviceA.page.evaluate((peerId) => {
+        const messageStatus = await retry(async () => {
+          await devices.deviceA.page.waitForTimeout(1000);
+          const status = await devices.deviceA.page.evaluate((peerId) => {
             const stored = localStorage.getItem('p2p_messages_' + peerId);
             const messages = stored ? JSON.parse(stored) : [];
             const lastMessage = messages[messages.length - 1];
             return lastMessage ? { id: lastMessage.id, content: lastMessage.content } : null;
           }, deviceBPeerId);
-          console.log(`[Test] Attempt ${i + 1}: Message status:`, messageStatus);
-          if (messageStatus && messageStatus.content === testMessage) {
-            break;
+          if (status && status.content === testMessage) {
+            return status;
           }
-          console.log(`Attempt ${i + 1}: Message not found in storage, retrying...`);
-        }
+          throw new Error('Message not found in storage');
+        }, { maxAttempts: 10, delay: 3000, context: 'Check message in localStorage' });
 
         expect(messageStatus).not.toBeNull();
         expect(messageStatus?.id).toBeTruthy();

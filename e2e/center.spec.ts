@@ -10,6 +10,7 @@ import {
   addDevice,
   assertDeviceExists,
   assertDeviceOnlineStatus,
+  retry,
 } from './test-helpers.js';
 
 /**
@@ -94,7 +95,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒标准）
+      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒连接标准）
       await devices.deviceA.page.waitForTimeout(5000);
 
       // 验证设备 B 出现在设备 A 的发现列表中
@@ -158,18 +159,9 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
 
       // 验证设备 A 出现在设备 B 的发现列表中（被动发现）
       // 使用重试机制增加成功率
-      let found = false;
-      for (let i = 0; i < 3; i++) {
-        try {
-          await assertDeviceExists(devices.deviceB.page, '发现者A');
-          found = true;
-          break;
-        } catch (error) {
-          console.log(`Attempt ${i + 1} failed, retrying...`);
-          await devices.deviceB.page.waitForTimeout(3000);
-        }
-      }
-      expect(found).toBe(true);
+      await retry(async () => {
+        await assertDeviceExists(devices.deviceB.page, '发现者A');
+      }, { maxAttempts: 3, delay: 3000, context: 'Passive discovery check' });
     } finally {
       await cleanupTestDevices(devices);
     }
@@ -182,7 +174,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒标准）
+      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒连接标准）
       await devices.deviceA.page.waitForTimeout(5000);
 
       // 验证设备 B 显示为在线（使用 peerId）
@@ -199,7 +191,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒标准）
+      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒连接标准）
       await devices.deviceA.page.waitForTimeout(5000);
 
       // 记录设备数量
@@ -224,7 +216,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒标准）
+      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒连接标准）
       await devices.deviceA.page.waitForTimeout(5000);
 
       // 验证设备 B 的卡片包含 Peer ID（使用 peerId 进行查找）
