@@ -482,7 +482,7 @@ function renderMessageContent(msg: ChatMessage) {
                 <span class="contact-time">{{ formatTime(contact.lastSeen) }}</span>
               </div>
               <div class="contact-bottom">
-                <span class="contact-peer-id">{{ contact.peerId.slice(0, 20) }}...</span>
+                <span class="contact-peer-id">{{ contact.peerId.slice(0, 8) }}...{{ contact.peerId.slice(-4) }}</span>
                 <a-badge
                   :status="contact.online ? 'processing' : 'default'"
                   :text="contact.online ? '在线' : '离线'"
@@ -752,6 +752,7 @@ function renderMessageContent(msg: ChatMessage) {
 .contact-peer-id {
   font-size: 11px;
   color: #999;
+  font-family: 'Courier New', monospace;
 }
 
 /* 聊天面板 */
@@ -899,6 +900,7 @@ function renderMessageContent(msg: ChatMessage) {
   justify-content: flex-end;
   gap: 4px;
   margin-top: 4px;
+  background: transparent !important;
 }
 
 .message-time {
@@ -907,7 +909,7 @@ function renderMessageContent(msg: ChatMessage) {
 }
 
 .message-item.is-self .message-time {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .message-status {
