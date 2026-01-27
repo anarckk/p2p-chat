@@ -24,7 +24,9 @@
       "Bash(powershell.exe:*)",
       "mcp__playwright__browser_type",
       "Bash(git checkout:*)",
-      "Bash(npm run dev)"
+      "Bash(npm run dev)",
+      "mcp__playwright__browser_run_code",
+      "mcp__playwright__browser_close"
     ]
   }
 }

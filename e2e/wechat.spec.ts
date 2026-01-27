@@ -45,4 +45,37 @@ test.describe('WeChat 页面', () => {
     const emptyState = page.locator('.empty-contacts');
     await expect(emptyState).toBeVisible();
   });
+
+  test('我发送的消息时间不应该有蓝色背景', async ({ page }) => {
+    // 点击添加聊天按钮
+    await page.locator('button[aria-label="plus"]').click();
+    await page.waitForTimeout(300);
+
+    // 输入 Peer ID
+    const testPeerId = 'peer-test-style-check-' + Date.now();
+    await page.locator('input[placeholder*="Peer ID"]').fill(testPeerId);
+
+    // 点击创建按钮
+    await page.locator('.ant-modal .ant-btn-primary').click();
+    await page.waitForTimeout(500);
+
+    // 输入并发送消息
+    await page.locator('input[placeholder="输入消息..."]').fill('测试消息样式');
+    await page.locator('button[aria-label="send"]').click();
+    await page.waitForTimeout(500);
+
+    // 检查 message-meta 的背景色
+    const messageMeta = page.locator('.message-item.is-self .message-meta').first();
+    await expect(messageMeta).toBeVisible();
+
+    // 获取背景色
+    const backgroundColor = await messageMeta.evaluate((el) => {
+      return window.getComputedStyle(el).backgroundColor;
+    });
+
+    // 背景色应该是 transparent 或 rgba(0, 0, 0, 0)
+    // 当前代码会有问题，背景色是 rgb(24, 144, 255) 蓝色
+    const isTransparent = backgroundColor === 'transparent' || backgroundColor === 'rgba(0, 0, 0, 0)';
+    expect(isTransparent).toBeTruthy();
+  });
 });
