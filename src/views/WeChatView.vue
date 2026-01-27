@@ -560,14 +560,14 @@ function renderMessageContent(msg: ChatMessage) {
               >
                 <div class="message-content">
                   <component :is="renderMessageContent(msg)" />
-                  <div class="message-meta">
-                    <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
-                    <span v-if="msg.from === userStore.myPeerId" class="message-status" :class="`message-status-${msg.status}`">
-                      <CheckCircleOutlined v-if="msg.status === 'delivered'" style="color: #52c41a; font-size: 12px" />
-                      <ExclamationCircleOutlined v-else-if="msg.status === 'failed'" style="color: #ff4d4f; font-size: 12px" />
-                      <LoadingOutlined v-else-if="msg.status === 'sending'" style="font-size: 12px" />
-                    </span>
-                  </div>
+                </div>
+                <div class="message-meta">
+                  <span v-if="msg.from === userStore.myPeerId" class="message-status" :class="`message-status-${msg.status}`">
+                    <CheckCircleOutlined v-if="msg.status === 'delivered'" />
+                    <ExclamationCircleOutlined v-else-if="msg.status === 'failed'" />
+                    <LoadingOutlined v-else-if="msg.status === 'sending'" />
+                  </span>
+                  <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
                 </div>
               </div>
             </div>
@@ -818,10 +818,12 @@ function renderMessageContent(msg: ChatMessage) {
 
 .message-item {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .message-item.is-self {
-  justify-content: flex-end;
+  align-items: flex-end;
 }
 
 .message-content {
@@ -897,23 +899,42 @@ function renderMessageContent(msg: ChatMessage) {
 .message-meta {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 4px;
   margin-top: 4px;
+  padding: 0 2px;
   background: transparent !important;
 }
 
 .message-time {
   font-size: 11px;
   color: #999;
+  line-height: 1.4;
 }
 
 .message-item.is-self .message-time {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(0, 0, 0, 0.45);
 }
 
 .message-status {
+  display: inline-flex;
+  align-items: center;
   font-size: 12px;
+}
+
+.message-status .anticon {
+  font-size: 11px;
+}
+
+.message-status-delivered .anticon {
+  color: #52c41a;
+}
+
+.message-status-failed .anticon {
+  color: #ff4d4f;
+}
+
+.message-status-sending .anticon {
+  color: #999;
 }
 
 .input-area {

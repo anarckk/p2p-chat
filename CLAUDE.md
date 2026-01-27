@@ -50,7 +50,7 @@ sx-peerjs-http-util/
         ├── views/
         │   ├── TestView.vue - 测试页面（原 App.vue 内容迁移）
         │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听、设备持久化、在线/离线状态显示、添加设备后查询用户名更新显示、左侧"我的信息"卡片实时显示与 Peer Server 的连接状态）
-        │   └── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持、按钮 aria-label 可访问性）
+        │   └── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持、按钮 aria-label 可访问性、消息时间独立显示优化：时间与消息气泡分离、我方消息时间深灰色、透明背景）
         ├── stores/
         │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性）
         │   ├── chatStore.ts - 聊天 store（消息状态管理、版本号机制、重试机制、localStorage 持久化）
