@@ -41,9 +41,8 @@ test.describe('WeChat 页面', () => {
     // 优化：从 3000 减少到 800
     await page.waitForTimeout(800);
 
-    // 检查空状态 - 使用正确的文本
-    const pageContent = await page.content();
-    const hasEmptyState = pageContent.includes('暂无在线设备') || pageContent.includes('在发现中心添加设备');
-    expect(hasEmptyState).toBe(true);
+    // 检查空状态 - 使用更精确的选择器
+    const emptyState = page.locator('.empty-contacts');
+    await expect(emptyState).toBeVisible();
   });
 });

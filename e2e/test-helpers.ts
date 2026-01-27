@@ -181,11 +181,13 @@ export async function setUserInfo(
   const shouldReload = options?.reload !== false;
 
   await page.goto(navigateTo);
+  await page.waitForLoadState('domcontentloaded');
   await page.evaluate((info) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, userInfo);
   if (shouldReload) {
     await page.reload();
+    await page.waitForLoadState('domcontentloaded');
   }
 }
 
@@ -322,7 +324,7 @@ export interface TestDevices {
 
 /**
  * 创建两个测试设备
- * 改进：确保 Peer 连接完全建立后再返回，增加更长的等待时间
+ * 改进：确保 Peer 连接完全建立后再返回，使用更可靠的等待策略
  */
 export async function createTestDevices(
   browser: any,
@@ -335,13 +337,17 @@ export async function createTestDevices(
   // 创建设备 A
   const deviceAUserInfo = createUserInfo(deviceAName);
   const deviceAContext = await browser.newContext();
-  // 使用 addInitScript 在页面加载前设置 localStorage
-  await deviceAContext.addInitScript((info: any) => {
+  const deviceAPage = await deviceAContext.newPage();
+  // 先导航到页面
+  await deviceAPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
+  // 等待页面加载
+  await deviceAPage.waitForLoadState('domcontentloaded');
+  // 设置 localStorage
+  await deviceAPage.evaluate((info: any) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, deviceAUserInfo);
-  const deviceAPage = await deviceAContext.newPage();
-  // 导航到目标页面
-  await deviceAPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
+  // 重新加载页面以应用用户信息
+  await deviceAPage.reload();
   // 等待页面加载完成，PeerJS 初始化
   await deviceAPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 15000 });
   // 等待 PeerJS 初始化（使用 PeerId 出现作为标志）
@@ -351,19 +357,23 @@ export async function createTestDevices(
       console.log('[Test] Device A PeerId not ready, continuing...');
     });
   }
-  // 额外等待确保 PeerJS 完全初始化（给予足够时间连接到 Peer Server）
-  await deviceAPage.waitForTimeout(8000);
+  // 额外等待确保 PeerJS 完全初始化（基于 PeerJS 5秒连接标准）
+  await deviceAPage.waitForTimeout(5000);
 
   // 创建设备 B
   const deviceBUserInfo = createUserInfo(deviceBName);
   const deviceBContext = await browser.newContext();
-  // 使用 addInitScript 在页面加载前设置 localStorage
-  await deviceBContext.addInitScript((info: any) => {
+  const deviceBPage = await deviceBContext.newPage();
+  // 先导航到页面
+  await deviceBPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
+  // 等待页面加载
+  await deviceBPage.waitForLoadState('domcontentloaded');
+  // 设置 localStorage
+  await deviceBPage.evaluate((info: any) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, deviceBUserInfo);
-  const deviceBPage = await deviceBContext.newPage();
-  // 导航到目标页面
-  await deviceBPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
+  // 重新加载页面以应用用户信息
+  await deviceBPage.reload();
   // 等待页面加载完成，PeerJS 初始化
   await deviceBPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 15000 });
   // 等待 PeerJS 初始化（使用 PeerId 出现作为标志）
@@ -373,8 +383,8 @@ export async function createTestDevices(
       console.log('[Test] Device B PeerId not ready, continuing...');
     });
   }
-  // 额外等待确保 PeerJS 完全初始化（给予足够时间连接到 Peer Server）
-  await deviceBPage.waitForTimeout(8000);
+  // 额外等待确保 PeerJS 完全初始化（基于 PeerJS 5秒连接标准）
+  await deviceBPage.waitForTimeout(5000);
 
   return {
     deviceA: {

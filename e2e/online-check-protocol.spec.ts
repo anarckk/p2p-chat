@@ -49,9 +49,9 @@ test.describe('在线检查协议', () => {
         const deviceAStatus = await devices.deviceA.page.locator('.ant-descriptions-item-label:has-text("连接状态") + .ant-descriptions-item-content .ant-badge-status-text').textContent();
         console.log('[Test] Device A connection status:', deviceAStatus);
 
-        // 等待 Peer 连接建立
-        await devices.deviceA.page.waitForTimeout(3000);
-        await devices.deviceB.page.waitForTimeout(3000);
+        // 等待 Peer 连接建立（基于 PeerJS 5秒标准）
+        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceB.page.waitForTimeout(5000);
 
         // 检查方添加目标设备
         await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
@@ -79,16 +79,18 @@ test.describe('在线检查协议', () => {
       await setUserInfo(page, createUserInfo('测试用户', 'offline-test-123'));
 
       // 添加一个离线设备（lastHeartbeat 超过 10 分钟）
+      // 注意：离线判断基于 lastHeartbeat 时间，而不是 isOnline 字段
+      const now = Date.now();
       const devices = {
         'offline-device': createDeviceInfo('offline-device', '离线设备', {
           isOnline: false,
-          lastHeartbeat: minutesAgo(15),
-          firstDiscovered: minutesAgo(60),
+          lastHeartbeat: now - 15 * 60 * 1000, // 15分钟前
+          firstDiscovered: now - 60 * 60 * 1000, // 60分钟前发现
         }),
         'online-device': createDeviceInfo('online-device', '在线设备', {
           isOnline: true,
-          lastHeartbeat: minutesAgo(5),
-          firstDiscovered: minutesAgo(60),
+          lastHeartbeat: now - 5 * 60 * 1000, // 5分钟前
+          firstDiscovered: now - 60 * 60 * 1000, // 60分钟前发现
         }),
       };
       await setDeviceList(page, devices);
@@ -121,11 +123,13 @@ test.describe('在线检查协议', () => {
       await setUserInfo(page, createUserInfo('超时测试用户', 'timeout-test-123'));
 
       // 添加一个长时间未响应的设备
+      // 注意：离线判断基于 lastHeartbeat 时间（超过10分钟）
+      const now = Date.now();
       const devices = {
         'timeout-device': createDeviceInfo('timeout-device', '超时设备', {
           isOnline: false,
-          lastHeartbeat: minutesAgo(15),
-          firstDiscovered: minutesAgo(15),
+          lastHeartbeat: now - 15 * 60 * 1000, // 15分钟前
+          firstDiscovered: now - 15 * 60 * 1000,
         }),
       };
       await setDeviceList(page, devices);
@@ -147,11 +151,12 @@ test.describe('在线检查协议', () => {
     test('应该正确显示设备的最后心跳时间', async ({ page }) => {
       await setUserInfo(page, createUserInfo('时间测试用户', 'time-test-123'));
 
+      const now = Date.now();
       const devices = {
         'recent-device': createDeviceInfo('recent-device', '最近活跃设备', {
           isOnline: true,
-          lastHeartbeat: minutesAgo(2),
-          firstDiscovered: Date.now() - 3600000,
+          lastHeartbeat: now - 2 * 60 * 1000, // 2分钟前
+          firstDiscovered: now - 60 * 60 * 1000, // 1小时前发现
         }),
       };
       await setDeviceList(page, devices);
@@ -162,9 +167,14 @@ test.describe('在线检查协议', () => {
       // 验证设备信息显示
       await assertDeviceExists(page, '最近活跃设备');
 
-      // 验证设备卡片有描述信息（包含心跳时间）
+      // 验证设备卡片有描述信息（包含 Peer ID）
       const deviceCard = page.locator(SELECTORS.deviceCard).filter({ hasText: '最近活跃设备' });
       await expect(deviceCard).toBeVisible();
+
+      // 验证设备卡片包含 Peer ID 信息（小字显示）
+      const peerIdText = deviceCard.locator('.ant-typography-secondary');
+      const hasPeerId = await peerIdText.count();
+      expect(hasPeerId).toBeGreaterThan(0);
     });
   });
 
@@ -237,8 +247,8 @@ test.describe('在线检查协议', () => {
       const devices = await createTestDevices(browser, '状态检查方', '离线设备789', { startPage: 'center' });
 
       try {
-        // 等待 Peer 连接建立
-        await devices.deviceA.page.waitForTimeout(3000);
+        // 等待 Peer 连接建立（基于 PeerJS 5秒标准）
+        await devices.deviceA.page.waitForTimeout(5000);
 
         // 设置一个离线设备
         const offlineDevices = {
@@ -277,11 +287,12 @@ test.describe('在线检查协议', () => {
     test('设备上线后应该更新为在线状态', async ({ page }) => {
       await setUserInfo(page, createUserInfo('状态测试用户', 'status-change-test-123'));
 
+      const now = Date.now();
       const devices = {
         'was-offline-device': createDeviceInfo('was-offline-device', '曾经离线的设备', {
           isOnline: false,
-          lastHeartbeat: minutesAgo(15),
-          firstDiscovered: minutesAgo(60),
+          lastHeartbeat: now - 15 * 60 * 1000, // 15分钟前
+          firstDiscovered: now - 60 * 60 * 1000, // 1小时前
         }),
       };
       await setDeviceList(page, devices);
@@ -293,8 +304,8 @@ test.describe('在线检查协议', () => {
       const updatedDevices = {
         'was-offline-device': createDeviceInfo('was-offline-device', '曾经离线的设备', {
           isOnline: true,
-          lastHeartbeat: Date.now(),
-          firstDiscovered: Date.now() - 60000,
+          lastHeartbeat: now, // 现在
+          firstDiscovered: now - 60 * 1000, // 1分钟前发现
         }),
       };
       await setDeviceList(page, updatedDevices);
@@ -310,23 +321,25 @@ test.describe('在线检查协议', () => {
     test('应该正确处理多个设备的状态', async ({ page }) => {
       await setUserInfo(page, createUserInfo('多状态测试用户', 'multi-status-test-123'));
 
+      const now = Date.now();
       // 创建多个不同状态的设备
+      // 注意：离线判断基于 lastHeartbeat 超过 10 分钟
       const devices = {
         'device-online-1': createDeviceInfo('device-online-1', '在线设备1', {
           isOnline: true,
-          lastHeartbeat: minutesAgo(2),
+          lastHeartbeat: now - 2 * 60 * 1000, // 2分钟前
         }),
         'device-online-2': createDeviceInfo('device-online-2', '在线设备2', {
           isOnline: true,
-          lastHeartbeat: minutesAgo(5),
+          lastHeartbeat: now - 5 * 60 * 1000, // 5分钟前
         }),
         'device-offline-1': createDeviceInfo('device-offline-1', '离线设备1', {
           isOnline: false,
-          lastHeartbeat: minutesAgo(12),
+          lastHeartbeat: now - 12 * 60 * 1000, // 12分钟前（超过10分钟离线阈值）
         }),
         'device-offline-2': createDeviceInfo('device-offline-2', '离线设备2', {
           isOnline: false,
-          lastHeartbeat: minutesAgo(20),
+          lastHeartbeat: now - 20 * 60 * 1000, // 20分钟前
         }),
       };
       await setDeviceList(page, devices);

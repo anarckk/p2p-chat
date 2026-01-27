@@ -46,7 +46,7 @@ test.describe('聊天消息发送与接收', () => {
       devices.deviceB.page.on('console', msg => deviceBLogs.push(msg.text()));
 
       try {
-        // 额外等待确保两个设备的 Peer 连接都稳定
+        // 额外等待确保两个设备的 Peer 连接都稳定（基于 PeerJS 5秒标准）
         await devices.deviceA.page.waitForTimeout(5000);
         await devices.deviceB.page.waitForTimeout(5000);
 
@@ -62,8 +62,8 @@ test.describe('聊天消息发送与接收', () => {
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
-        // 额外等待确保 Peer 连接稳定
-        await devices.deviceA.page.waitForTimeout(2000);
+        // 额外等待确保 Peer 连接稳定（基于 PeerJS 5秒标准）
+        await devices.deviceA.page.waitForTimeout(5000);
 
         // 设备 A 创建与设备 B 的聊天
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
@@ -86,7 +86,7 @@ test.describe('聊天消息发送与接收', () => {
 
         // 等待足够的时间让消息发送到设备 B
         // 设备 B 已经在聊天页面，应该能接收消息
-        await devices.deviceB.page.waitForTimeout(15000);
+        await devices.deviceB.page.waitForTimeout(8000);
 
         // 打印相关的调试日志
         console.log('[Test] Device A relevant logs:');
@@ -165,7 +165,7 @@ test.describe('聊天消息发送与接收', () => {
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 等待 Peer 连接建立
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(3000);
 
       // 切换到聊天页面
       await page.click(SELECTORS.wechatMenuItem);
@@ -194,7 +194,7 @@ test.describe('聊天消息发送与接收', () => {
       await page.click(SELECTORS.modalOkButton);
 
       // 等待更长时间确保聊天创建完成
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(3000);
 
       // 打印相关日志
       console.log('[Test] Logs (filtered):');

@@ -66,10 +66,10 @@ test.describe('聊天中标识', () => {
     const deviceCards = await page.locator('.device-card').count();
     expect(deviceCards).toBeGreaterThan(0);
 
-    // 验证页面包含"聊天中"文本
-    const pageContent = await page.content();
-    const hasChatBadgeText = pageContent.includes('聊天中');
-    expect(hasChatBadgeText).toBe(true);
+    // 使用更精确的选择器验证"聊天中"标识
+    const chatBadgeTag = page.locator('.ant-tag.ant-tag-green:has-text("聊天中")');
+    const hasChatBadge = await chatBadgeTag.count();
+    expect(hasChatBadge).toBeGreaterThan(0);
   });
 
   test('聊天中的设备在发现中心仍然可见', async ({ page }) => {
@@ -152,7 +152,13 @@ test.describe('聊天中标识', () => {
     await expect(deviceCard).toBeVisible();
 
     // 验证没有"聊天中"标识（应该显示"在线"标识）
-    const pageContent = await page.content();
-    expect(pageContent).toContain('在线');
+    const chatBadgeTag = page.locator('.device-card').filter({ hasText: '非聊天设备' }).locator('.ant-tag.ant-tag-green:has-text("聊天中")');
+    const hasChatBadge = await chatBadgeTag.count();
+    expect(hasChatBadge).toBe(0);
+
+    // 应该显示"在线"标识
+    const onlineTag = page.locator('.device-card').filter({ hasText: '非聊天设备' }).locator('.ant-tag.ant-tag-success');
+    const hasOnlineTag = await onlineTag.count();
+    expect(hasOnlineTag).toBeGreaterThan(0);
   });
 });

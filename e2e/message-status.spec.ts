@@ -450,9 +450,9 @@ test.describe('消息状态展示与送达确认', () => {
       const devices = await createTestDevices(browser, '重试测试A', '重试测试B', { startPage: 'center' });
 
       try {
-        // 额外等待确保 Peer 连接稳定
-        await devices.deviceA.page.waitForTimeout(3000);
-        await devices.deviceB.page.waitForTimeout(3000);
+        // 额外等待确保 Peer 连接稳定（基于 PeerJS 5秒标准）
+        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceB.page.waitForTimeout(5000);
 
         // 切换到聊天页面
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
@@ -491,9 +491,9 @@ test.describe('消息状态展示与送达确认', () => {
       const devices = await createTestDevices(browser, '在线方A', '离线方B', { startPage: 'center' });
 
       try {
-        // 额外等待确保 Peer 连接稳定
-        await devices.deviceA.page.waitForTimeout(3000);
-        await devices.deviceB.page.waitForTimeout(3000);
+        // 额外等待确保 Peer 连接稳定（基于 PeerJS 5秒标准）
+        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceB.page.waitForTimeout(5000);
 
         // 切换到聊天页面
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
