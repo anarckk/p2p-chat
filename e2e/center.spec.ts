@@ -393,12 +393,41 @@ test.describe('设备用户名显示', () => {
   });
 
   test('设备卡片的头像首字母应该来自用户名', async ({ browser }) => {
-    test.setTimeout(60000);
+    test.setTimeout(120000); // 增加超时时间到120秒
     const devices = await createTestDevices(browser, '头像测试A', '头像测试B', { startPage: 'center' });
+
+    // 监听控制台日志
+    const logs: string[] = [];
+    devices.deviceA.page.on('console', (msg: any) => {
+      if (msg.type() === 'log' || msg.type() === 'error' || msg.type() === 'warn') {
+        logs.push(msg.text());
+      }
+    });
 
     try {
       // 等待 Peer 连接稳定
       await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+      await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+
+      // 额外等待确保两个设备都已完全连接到 Peer Server
+      // 增加等待时间以避免 "Cannot connect to new Peer after disconnecting from server" 错误
+      await devices.deviceA.page.waitForTimeout(10000);
+      await devices.deviceB.page.waitForTimeout(10000);
+
+      // 检查设备A的连接状态
+      const deviceAConnected = await devices.deviceA.page.locator('.ant-badge-status-processing').count() > 0;
+      console.log('[Test] Device A connected:', deviceAConnected);
+
+      // 检查设备B的连接状态
+      const deviceBConnected = await devices.deviceB.page.locator('.ant-badge-status-processing').count() > 0;
+      console.log('[Test] Device B connected:', deviceBConnected);
+
+      // 如果任一设备未连接，再等待一段时间
+      if (!deviceAConnected || !deviceBConnected) {
+        console.log('[Test] One or both devices not connected, waiting more...');
+        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceB.page.waitForTimeout(5000);
+      }
 
       // 设备 A 添加设备 B
       await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
@@ -406,6 +435,21 @@ test.describe('设备用户名显示', () => {
 
       // 等待添加完成和用户名查询
       await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+
+      // 等待更长时间以确保用户名查询完成
+      await devices.deviceA.page.waitForTimeout(10000);
+
+      // 检查设备B的用户信息
+      const deviceBUserInfo = await devices.deviceB.page.evaluate(() => {
+        const stored = localStorage.getItem('p2p_user_info');
+        return stored ? JSON.parse(stored) : null;
+      });
+      console.log('[Test] Device B user info:', deviceBUserInfo);
+
+      // 检查设备列表中设备B的用户名
+      const deviceBCards = await devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.peerId }).allTextContents();
+      console.log('[Test] Device B cards:', deviceBCards);
+      console.log('[Test] Console logs from device A:', logs.filter(log => log.includes('Query') || log.includes('username') || log.includes('[Peer]')));
 
       // 使用重试机制检查头像首字母
       await retry(async () => {

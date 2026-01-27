@@ -186,14 +186,19 @@ async function addDeviceManually() {
 
   // 发送发现通知给对端
   console.log('[Center] Sending discovery notification to:', peerId);
-  await sendDiscoveryNotification(peerId);
-  console.log('[Center] Discovery notification sent to:', peerId);
+  try {
+    await sendDiscoveryNotification(peerId);
+    console.log('[Center] Discovery notification sent to:', peerId);
+  } catch (error) {
+    console.error('[Center] Error sending discovery notification:', error);
+  }
 
   // 显示成功消息（设备已添加，即使查询用户名失败也算成功）
   message.success(`已添加设备 ${peerId}`);
   queryPeerIdInput.value = '';
 
   // 异步查询对端的用户名（不阻塞UI）
+  console.log('[Center] About to query username for:', peerId);
   queryUsername(peerId).then((userInfo) => {
     if (userInfo) {
       console.log('[Center] Received user info:', userInfo);

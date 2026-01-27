@@ -238,14 +238,40 @@ export function usePeerManager() {
     peerInstance.onProtocol('delivery_ack', deliveryAckHandler);
 
     // 处理发现中心响应
-    discoveryResponseHandler = (protocol: any, _from: string) => {
+    discoveryResponseHandler = (protocol: any, from: string) => {
       if (protocol.type === 'discovery_response') {
-        const { devices } = protocol;
-        commLog.discovery.found({ peerId: _from });
-        // 更新在线设备列表
-        devices?.forEach((device: OnlineDevice) => {
-          peerInstance?.addDiscoveredDevice(device);
-        });
+        // 检查是否是设备列表响应
+        if (protocol.devices) {
+          const { devices } = protocol;
+          commLog.discovery.found({ peerId: from });
+          // 更新在线设备列表
+          devices?.forEach((device: OnlineDevice) => {
+            peerInstance?.addDiscoveredDevice(device);
+          });
+        }
+        // 检查是否是用户信息响应（来自发现通知的响应）
+        else if (protocol.username) {
+          const { username, avatar } = protocol;
+          console.log('[Peer] Received discovery response from:', from, 'username:', username);
+
+          // 更新设备信息
+          const existingDevice = deviceStore.getDevice(from);
+          const deviceInfo: OnlineDevice = {
+            peerId: from,
+            username,
+            avatar,
+            lastHeartbeat: Date.now(),
+            firstDiscovered: existingDevice?.firstDiscovered || Date.now(),
+            isOnline: true,
+          };
+
+          // 同时更新 peerInstance 和 deviceStore
+          peerInstance?.addDiscoveredDevice(deviceInfo);
+          deviceStore.addOrUpdateDevice(deviceInfo);
+
+          // 触发自定义事件，通知 UI 自动刷新
+          window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+        }
       }
     };
 
@@ -294,6 +320,10 @@ export function usePeerManager() {
           });
           message.info(`${fromUsername} 发现了你`);
         }
+
+        // 发送响应，包含我的用户名和头像
+        // 这样对端就能知道我的用户信息，而不需要额外查询
+        peerInstance?.sendDiscoveryResponse(from, userStore.userInfo.username || '', userStore.userInfo.avatar);
       }
     };
 
@@ -328,15 +358,19 @@ export function usePeerManager() {
             avatar,
           });
         }
-        // 同时更新发现中心的设备信息
-        deviceStore.addOrUpdateDevice({
+        // 获取现有设备信息以保留 firstDiscovered
+        const existingDevice = deviceStore.getDevice(_from);
+        const deviceInfo: OnlineDevice = {
           peerId: _from,
           username,
           avatar,
           lastHeartbeat: Date.now(),
-          firstDiscovered: Date.now(),
+          firstDiscovered: existingDevice?.firstDiscovered || Date.now(),
           isOnline: true,
-        });
+        };
+        // 同时更新 peerInstance 和 deviceStore
+        peerInstance?.addDiscoveredDevice(deviceInfo);
+        deviceStore.addOrUpdateDevice(deviceInfo);
       }
     };
 
@@ -793,12 +827,16 @@ export function usePeerManager() {
    */
   async function queryUsername(peerId: string): Promise<{ username: string; avatar: string | null } | null> {
     if (!peerInstance) {
+      console.warn('[Peer] queryUsername: peerInstance is null');
       return null;
     }
 
     try {
+      console.log('[Peer] Querying username for:', peerId);
       commLog.discovery.query({ from: peerId });
-      return await peerInstance.queryUsername(peerId);
+      const result = await peerInstance.queryUsername(peerId);
+      console.log('[Peer] Query username result:', result);
+      return result;
     } catch (error) {
       console.error('[Peer] Query username error: ' + String(error));
       return null;

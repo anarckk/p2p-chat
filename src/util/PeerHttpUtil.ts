@@ -352,10 +352,12 @@ export class PeerHttpUtil {
   private handleDiscoveryResponse(protocol: DiscoveryResponseProtocol) {
     const { devices } = protocol;
 
-    // 合并到已发现的设备列表
-    devices.forEach((device) => {
-      this.discoveredDevices.set(device.peerId, device);
-    });
+    // 如果有设备列表，合并到已发现的设备列表
+    if (devices) {
+      devices.forEach((device) => {
+        this.discoveredDevices.set(device.peerId, device);
+      });
+    }
 
     // 触发发现中心事件
     this.emitProtocol('discovery_response', protocol);
@@ -446,36 +448,41 @@ export class PeerHttpUtil {
     console.log('[PeerHttp] Sending protocol:', { peerId, protocolType: protocol.type });
 
     return new Promise((resolve, reject) => {
-      const conn = this.peer.connect(peerId);
-      const timeout = setTimeout(() => {
-        console.error('[PeerHttp] Connection timeout for:', peerId);
-        conn.close();
-        reject(new Error('Connection timeout'));
-      }, 20000); // 增加到 20 秒，给予更多时间建立连接
+      try {
+        const conn = this.peer.connect(peerId);
+        const timeout = setTimeout(() => {
+          console.error('[PeerHttp] Connection timeout for:', peerId);
+          conn.close();
+          reject(new Error('Connection timeout'));
+        }, 20000); // 增加到 20 秒，给予更多时间建立连接
 
-      conn.on('open', () => {
-        console.log('[PeerHttp] Connection opened to:', peerId);
-        try {
-          conn.send(protocol);
-          console.log('[PeerHttp] Protocol sent successfully');
-          // 等待一小段时间确保数据发送完成
-          setTimeout(() => {
+        conn.on('open', () => {
+          console.log('[PeerHttp] Connection opened to:', peerId);
+          try {
+            conn.send(protocol);
+            console.log('[PeerHttp] Protocol sent successfully');
+            // 等待一小段时间确保数据发送完成
+            setTimeout(() => {
+              clearTimeout(timeout);
+              conn.close();
+              resolve();
+            }, 100);
+          } catch (err) {
+            console.error('[PeerHttp] Error sending protocol:', err);
             clearTimeout(timeout);
             conn.close();
-            resolve();
-          }, 100);
-        } catch (err) {
-          console.error('[PeerHttp] Error sending protocol:', err);
+            reject(err);
+          }
+        });
+        conn.on('error', (err: any) => {
+          console.error('[PeerHttp] Connection error:', err);
           clearTimeout(timeout);
-          conn.close();
           reject(err);
-        }
-      });
-      conn.on('error', (err: any) => {
-        console.error('[PeerHttp] Connection error:', err);
-        clearTimeout(timeout);
-        reject(err);
-      });
+        });
+      } catch (error: any) {
+        console.error('[PeerHttp] Error creating connection:', error);
+        reject(error);
+      }
     });
   }
 
@@ -640,6 +647,24 @@ export class PeerHttpUtil {
       });
     } catch (err) {
       console.error('[PeerHttp] Failed to send discovery notification:', err);
+    }
+  }
+
+  /**
+   * 发现中心：发送发现响应（包含用户信息）
+   */
+  async sendDiscoveryResponse(peerId: string, username: string, avatar: string | null) {
+    try {
+      await this.sendProtocol(peerId, {
+        type: 'discovery_response',
+        from: this.getId()!,
+        to: peerId,
+        timestamp: Date.now(),
+        username,
+        avatar,
+      });
+    } catch (err) {
+      console.error('[PeerHttp] Failed to send discovery response:', err);
     }
   }
 

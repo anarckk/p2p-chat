@@ -151,7 +151,9 @@ export interface DiscoveryQueryProtocol extends ProtocolMessage {
 // 发现中心：响应在线设备列表
 export interface DiscoveryResponseProtocol extends ProtocolMessage {
   type: 'discovery_response';
-  devices: OnlineDevice[];
+  devices?: OnlineDevice[]; // 设备列表（用于查询设备列表的响应）
+  username?: string; // 用户名（用于发现通知的响应）
+  avatar?: string | null; // 头像（用于发现通知的响应）
 }
 
 // 发现中心：通知对端我发现了你
