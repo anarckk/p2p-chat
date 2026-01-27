@@ -95,8 +95,8 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒连接标准）
-      await devices.deviceA.page.waitForTimeout(5000);
+      // 等待发现结果和用户名查询完成
+      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
       // 验证设备 B 出现在设备 A 的发现列表中
       // 注意：用户名查询可能失败，所以使用 peerId 进行验证
@@ -114,8 +114,8 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
 
     try {
       // 等待 Peer 连接完全稳定
-      await devices.deviceA.page.waitForTimeout(3000);
-      await devices.deviceB.page.waitForTimeout(3000);
+      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+      await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
       // 监听控制台日志
       const deviceALogs: string[] = [];
@@ -138,8 +138,8 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待被动发现完成 - 增加等待时间
-      await devices.deviceB.page.waitForTimeout(8000);
+      // 等待被动发现完成
+      await devices.deviceB.page.waitForTimeout(WAIT_TIMES.DISCOVERY * 2);
 
       // 打印设备 A 的相关日志
       console.log('Device A logs (discovery notification):');
@@ -174,8 +174,8 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒连接标准）
-      await devices.deviceA.page.waitForTimeout(5000);
+      // 等待发现结果和用户名查询完成
+      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
       // 验证设备 B 显示为在线（使用 peerId）
       await assertDeviceOnlineStatus(devices.deviceA.page, devices.deviceB.userInfo.peerId, true);
@@ -191,8 +191,8 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒连接标准）
-      await devices.deviceA.page.waitForTimeout(5000);
+      // 等待发现结果和用户名查询完成
+      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
       // 记录设备数量
       const deviceCountBefore = await devices.deviceA.page.locator(SELECTORS.deviceCard).count();
@@ -216,8 +216,8 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待发现结果和用户名查询完成（基于 PeerJS 5秒连接标准）
-      await devices.deviceA.page.waitForTimeout(5000);
+      // 等待发现结果和用户名查询完成
+      await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
       // 验证设备 B 的卡片包含 Peer ID（使用 peerId 进行查找）
       const deviceBCard = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.peerId });

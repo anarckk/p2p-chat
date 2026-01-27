@@ -76,7 +76,7 @@ test.describe('宇宙启动者', () => {
       const queryInput2 = page2.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInput2.fill(peerId1);
       await page2.locator('button[aria-label="add-device"]').click();
-      await page2.waitForTimeout(5000);
+      await page2.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
       // 验证第二个设备的设备列表中包含第一个设备
       const deviceCards = page2.locator('.device-card');
@@ -97,7 +97,7 @@ test.describe('宇宙启动者', () => {
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
       await setupUser(page, '设备列表提供者');
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
       const peerId1 = await getPeerIdFromStorage(page);
       if (!peerId1) {
@@ -109,7 +109,7 @@ test.describe('宇宙启动者', () => {
       await page2.goto('/center');
       await page2.waitForLoadState('domcontentloaded');
       await setupUser(page2, '设备列表请求者');
-      await page2.waitForTimeout(5000);
+      await page2.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
       const peerId2 = await getPeerIdFromStorage(page2);
       if (!peerId2) {
@@ -121,11 +121,11 @@ test.describe('宇宙启动者', () => {
       const queryInput2 = page2.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInput2.fill(peerId1);
       await page2.locator('button[aria-label="add-device"]').click();
-      await page2.waitForTimeout(5000);
+      await page2.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
       // 点击刷新按钮，触发设备列表请求
       await page2.locator('button[aria-label="refresh-discovery"]').click();
-      await page2.waitForTimeout(8000);
+      await page2.waitForTimeout(WAIT_TIMES.MESSAGE + WAIT_TIMES.LONG);
 
       // 验证第二个设备的设备列表已更新
       const deviceCount = await page2.locator('.device-card').count();
@@ -147,17 +147,17 @@ test.describe('宇宙启动者', () => {
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
       await setupUser(page, '设备A');
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
       await page2.goto('/center');
       await page2.waitForLoadState('domcontentloaded');
       await setupUser(page2, '设备B');
-      await page2.waitForTimeout(5000);
+      await page2.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
       await page3.goto('/center');
       await page3.waitForLoadState('domcontentloaded');
       await setupUser(page3, '设备C');
-      await page3.waitForTimeout(5000);
+      await page3.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
       const peerIdA = await getPeerIdFromStorage(page);
       const peerIdB = await getPeerIdFromStorage(page2);
@@ -172,17 +172,17 @@ test.describe('宇宙启动者', () => {
       const queryInputB = page2.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInputB.fill(peerIdA);
       await page2.locator('button[aria-label="add-device"]').click();
-      await page2.waitForTimeout(5000);
+      await page2.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
       // 设备 C 添加设备 A
       const queryInputC = page3.locator('input[placeholder*="输入对方 Peer ID"]');
       await queryInputC.fill(peerIdA);
       await page3.locator('button[aria-label="add-device"]').click();
-      await page3.waitForTimeout(5000);
+      await page3.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
       // 设备 B 刷新，应该能通过设备 A 发现设备 C
       await page2.locator('button[aria-label="refresh-discovery"]').click();
-      await page2.waitForTimeout(8000);
+      await page2.waitForTimeout(WAIT_TIMES.MESSAGE + WAIT_TIMES.LONG);
 
       // 验证设备 B 的设备列表包含多个设备
       const deviceCountB = await page2.locator('.device-card').count();
@@ -209,7 +209,7 @@ test.describe('宇宙启动者', () => {
 
     // 设置用户
     await setupUser(page, '日志测试用户');
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
     // 检查是否有宇宙启动者相关的日志
     const hasBootstrapLog = logs.some(log =>

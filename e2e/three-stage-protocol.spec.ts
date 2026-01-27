@@ -39,8 +39,8 @@ test.describe('版本号消息同步协议', () => {
 
       try {
         // 等待 Peer 连接建立
-        await devices.deviceA.page.waitForTimeout(5000);
-        await devices.deviceB.page.waitForTimeout(5000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
 
         // 切换到聊天页面
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
@@ -49,8 +49,8 @@ test.describe('版本号消息同步协议', () => {
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 额外等待确保聊天页面加载完成
-        await devices.deviceA.page.waitForTimeout(2000);
-        await devices.deviceB.page.waitForTimeout(2000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
 
         // 设备 A 创建与设备 B 的聊天
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
@@ -77,7 +77,7 @@ test.describe('版本号消息同步协议', () => {
         expect(hasMessageInA).toBe(true);
 
         // 等待接收方接收（增加等待时间）
-        await devices.deviceB.page.waitForTimeout(10000);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE * 5);
         await devices.deviceB.page.reload();
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 
@@ -108,8 +108,8 @@ test.describe('版本号消息同步协议', () => {
 
       try {
         // 等待 Peer 连接稳定
-        await devices.deviceA.page.waitForTimeout(5000);
-        await devices.deviceB.page.waitForTimeout(5000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
 
         // 设备 A 创建聊天
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
@@ -126,7 +126,7 @@ test.describe('版本号消息同步协议', () => {
         // 使用重试机制等待消息出现
         let hasMessage = false;
         for (let i = 0; i < 5; i++) {
-          await devices.deviceA.page.waitForTimeout(3000);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
           const messages = await devices.deviceA.page.locator(SELECTORS.messageText).allTextContents();
           hasMessage = messages.some(msg => msg.includes(testMessage));
           if (hasMessage) {
@@ -141,7 +141,7 @@ test.describe('版本号消息同步协议', () => {
         // 使用重试机制等待消息存储到 localStorage
         let messageStatus: any = null;
         for (let i = 0; i < 5; i++) {
-          await devices.deviceA.page.waitForTimeout(2000);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
           messageStatus = await devices.deviceA.page.evaluate((peerId) => {
             const stored = localStorage.getItem('p2p_messages_' + peerId);
             const messages = stored ? JSON.parse(stored) : [];

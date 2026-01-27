@@ -112,11 +112,11 @@ test.describe('在线检查协议', () => {
       const devices = await createTestDevices(browser, '检查方', '被检查方', { startPage: 'center' });
 
       try {
-        await devices.deviceA.page.waitForTimeout(5000);
-        await devices.deviceB.page.waitForTimeout(5000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
         await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
-        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.DISCOVERY + 2000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.DISCOVERY + WAIT_TIMES.LONG);
 
         await assertDeviceExists(devices.deviceA.page, devices.deviceB.userInfo.peerId);
         await assertDeviceOnlineStatus(devices.deviceA.page, devices.deviceB.userInfo.peerId, true);
@@ -130,7 +130,7 @@ test.describe('在线检查协议', () => {
       const devices = await createTestDevices(browser, '状态检查方', '离线设备789', { startPage: 'center' });
 
       try {
-        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
 
         const offlineDevices = {
           'offline-target-789': createDeviceInfo('offline-target-789', '离线设备', {

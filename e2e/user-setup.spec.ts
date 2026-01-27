@@ -47,7 +47,7 @@ test.describe('用户信息设置', () => {
     await okButton.click();
 
     // 等待弹窗关闭（Peer 初始化需要时间）
-    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 60000 }).catch(() => {
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: WAIT_TIMES.PEER_INIT * 20 }).catch(() => {
       // 可能已关闭，继续执行
     });
 
@@ -76,7 +76,7 @@ test.describe('用户信息设置', () => {
     await okButton.click();
 
     // 等待弹窗关闭
-    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 60000 }).catch(() => {
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: WAIT_TIMES.PEER_INIT * 20 }).catch(() => {
       // 可能已关闭，继续执行
     });
 
@@ -103,7 +103,7 @@ test.describe('用户信息设置', () => {
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
 
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
     const peerIdBeforeReload = await page.evaluate(() => {
       const stored = localStorage.getItem('p2p_user_info');
@@ -111,7 +111,7 @@ test.describe('用户信息设置', () => {
     });
 
     await page.reload();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     const peerIdAfterReload = await page.evaluate(() => {
       const stored = localStorage.getItem('p2p_user_info');
@@ -175,7 +175,7 @@ test.describe('用户信息设置', () => {
     await okButton.click();
 
     // 等待弹窗关闭
-    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 60000 }).catch(() => {
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: WAIT_TIMES.PEER_INIT * 20 }).catch(() => {
       // 可能已关闭，继续执行
     });
 

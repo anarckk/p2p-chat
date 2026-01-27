@@ -130,7 +130,7 @@ test.describe('设置页面', () => {
     await switchElement.click();
 
     // 等待开关状态更新
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
     const isNowChecked = await switchElement.isChecked();
     expect(isNowChecked).toBe(true);
 
@@ -178,7 +178,7 @@ test.describe('设置页面', () => {
     await switchElement.click();
 
     // 等待开关状态更新
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
     const isNowChecked = await switchElement.isChecked();
     expect(isNowChecked).toBe(false);
 
@@ -246,7 +246,7 @@ test.describe('设置页面', () => {
     const switchSelector = '.network-acceleration-section .ant-switch';
     const switchElement = page.locator(switchSelector);
     await switchElement.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 验证显示成功提示信息
     const successAlert = page.locator('.network-acceleration-section .ant-alert-info');

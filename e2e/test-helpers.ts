@@ -187,14 +187,14 @@ export async function setUserInfo(
 
   // 检查是否有用户设置弹窗
   try {
-    await page.waitForSelector('.ant-modal-title', { timeout: 3000 });
+    await page.waitForSelector('.ant-modal-title', { timeout: WAIT_TIMES.MODAL });
     // 有弹窗，填写用户名
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     await usernameInput.fill(userInfo.username);
     // 点击确定按钮
     await page.click('.ant-modal .ant-btn-primary');
     // 等待弹窗关闭和 Peer 初始化
-    await page.waitForTimeout(6000);
+    await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
   } catch (error) {
     // 没有弹窗，直接设置用户信息到 localStorage
     await page.evaluate((info) => {
@@ -204,7 +204,7 @@ export async function setUserInfo(
       await page.reload();
       await page.waitForLoadState('domcontentloaded');
       // 等待 Peer 初始化
-      await page.waitForTimeout(6000);
+      await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
     }
   }
 }
@@ -271,7 +271,7 @@ export async function addMessages(
  * 等待 Peer 连接建立
  * 改进：增加超时时间，确保在网络较慢时也能成功连接
  */
-export async function waitForPeerConnected(page: Page, timeout = 20000): Promise<void> {
+export async function waitForPeerConnected(page: Page, timeout = WAIT_TIMES.PEER_INIT * 5): Promise<void> {
   await page.waitForSelector(SELECTORS.centerContainer, { timeout });
   // 等待连接状态变为已连接（使用更精确的选择器）
   try {
@@ -391,7 +391,7 @@ export async function createTestDevices(
     });
   }
   // 额外等待确保 PeerJS 完全初始化
-  await deviceAPage.waitForTimeout(6000);
+  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
 
   // 创建设备 B
   const deviceBUserInfo = createUserInfo(deviceBName);
@@ -417,7 +417,7 @@ export async function createTestDevices(
     });
   }
   // 额外等待确保 PeerJS 完全初始化
-  await deviceBPage.waitForTimeout(6000);
+  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
 
   return {
     deviceA: {
@@ -741,14 +741,14 @@ export async function waitForDeviceCardLegacy(page: any, deviceName: string, tim
 export async function setupUser(page: Page, username: string): Promise<void> {
   // 等待用户设置弹窗出现
   try {
-    await page.waitForSelector('.ant-modal-title', { timeout: 3000 });
+    await page.waitForSelector('.ant-modal-title', { timeout: WAIT_TIMES.MODAL });
     // 填写用户名
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     await usernameInput.fill(username);
     // 点击确定按钮
     await page.click('.ant-modal .ant-btn-primary');
     // 等待弹窗关闭和 Peer 初始化
-    await page.waitForTimeout(6000);
+    await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
   } catch (error) {
     // 弹窗可能已经设置过了，直接设置用户信息到 localStorage
     console.log('[Test] User setup modal not found, setting up via localStorage');
@@ -764,7 +764,7 @@ export async function setupUser(page: Page, username: string): Promise<void> {
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
     // 等待 Peer 初始化
-    await page.waitForTimeout(6000);
+    await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
   }
 }
 

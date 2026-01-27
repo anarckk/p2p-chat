@@ -191,16 +191,16 @@ test.describe('消息状态展示与送达确认', () => {
       const devices = await createTestDevices(browser, '重试测试A', '重试测试B', { startPage: 'center' });
 
       try {
-        await devices.deviceA.page.waitForTimeout(5000);
-        await devices.deviceB.page.waitForTimeout(5000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
 
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-        // 等待聊天创建完成（基于 PeerJS 5秒连接标准）
-        await devices.deviceA.page.waitForTimeout(3000);
+        // 等待聊天创建完成
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
 
         // 检查联系人是否存在
         const contactCount = await devices.deviceA.page.locator(SELECTORS.contactItem).count();
@@ -211,7 +211,7 @@ test.describe('消息状态展示与送达确认', () => {
         await devices.deviceA.page.click(SELECTORS.contactItem);
 
         // 等待聊天加载完成
-        await devices.deviceA.page.waitForTimeout(2000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
         const testMessage = '重试测试消息';
 
@@ -222,7 +222,7 @@ test.describe('消息状态展示与送达确认', () => {
 
         // 填写消息
         await devices.deviceA.page.fill(SELECTORS.messageInput, testMessage);
-        await devices.deviceA.page.waitForTimeout(500);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 检查发送按钮是否存在
         const sendButtonExists = await devices.deviceA.page.locator(SELECTORS.sendButton).count();
@@ -236,7 +236,7 @@ test.describe('消息状态展示与送达确认', () => {
 
         // 使用重试机制检查消息是否存储到 localStorage
         const messageStatus = await retry(async () => {
-          await devices.deviceA.page.waitForTimeout(1000);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
           const status = await devices.deviceA.page.evaluate((peerId) => {
             const stored = localStorage.getItem('p2p_messages_' + peerId);
             const messages = stored ? JSON.parse(stored) : [];
@@ -261,8 +261,8 @@ test.describe('消息状态展示与送达确认', () => {
       const devices = await createTestDevices(browser, '在线方A', '离线方B', { startPage: 'center' });
 
       try {
-        await devices.deviceA.page.waitForTimeout(5000);
-        await devices.deviceB.page.waitForTimeout(5000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
 
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -271,8 +271,8 @@ test.describe('消息状态展示与送达确认', () => {
 
         await createChat(devices.deviceA.page, deviceBPeerId);
 
-        // 等待聊天创建完成（基于 PeerJS 5秒连接标准）
-        await devices.deviceA.page.waitForTimeout(3000);
+        // 等待聊天创建完成
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
 
         await devices.deviceA.page.click(SELECTORS.contactItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -280,13 +280,13 @@ test.describe('消息状态展示与送达确认', () => {
         const testMessage = '离线消息测试';
 
         await devices.deviceA.page.fill(SELECTORS.messageInput, testMessage);
-        await devices.deviceA.page.waitForTimeout(500);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         await devices.deviceA.page.click(SELECTORS.sendButton);
 
         // 使用重试机制检查消息是否存储到 localStorage
         const messageStatus = await retry(async () => {
-          await devices.deviceA.page.waitForTimeout(1000);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
           const status = await devices.deviceA.page.evaluate((peerId) => {
             const stored = localStorage.getItem('p2p_messages_' + peerId);
             const messages = stored ? JSON.parse(stored) : [];

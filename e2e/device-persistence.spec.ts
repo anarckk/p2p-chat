@@ -305,8 +305,8 @@ test.describe('设备持久化功能', () => {
 
       try {
         // 额外等待确保 Peer 连接稳定
-        await devices.deviceA.page.waitForTimeout(3000);
-        await devices.deviceB.page.waitForTimeout(3000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
         // 设备 A 添加设备 B
         await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
@@ -314,8 +314,8 @@ test.describe('设备持久化功能', () => {
 
         // 等待被动发现完成（设备 B 收到设备 A 的发现通知）
         // 增加等待时间以确保被动发现完成
-        await devices.deviceA.page.waitForTimeout(5000);
-        await devices.deviceB.page.waitForTimeout(10000);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.DISCOVERY);
 
         // 使用重试机制检查设备 A 是否出现在设备 B 的 localStorage 中
         let hasDeviceA = false;
@@ -334,7 +334,7 @@ test.describe('设备持久化功能', () => {
           }
 
           console.log(`Attempt ${i + 1}: Device A not found in B's storage, retrying...`);
-          await devices.deviceB.page.waitForTimeout(5000);
+          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
         }
 
         expect(hasDeviceA).toBe(true);

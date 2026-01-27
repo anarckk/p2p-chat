@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import {
   clearAllStorage,
   createUserInfo,
+  WAIT_TIMES,
 } from './test-helpers.js';
 
 test.describe('WeChat 页面', () => {
@@ -19,7 +20,7 @@ test.describe('WeChat 页面', () => {
     }, createUserInfo('测试用户', 'test-peer-id-12345'));
 
     await page.reload();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
   });
 
   test('应该显示页面布局', async ({ page }) => {
@@ -31,7 +32,7 @@ test.describe('WeChat 页面', () => {
       localStorage.removeItem('p2p_contacts');
     });
     await page.reload();
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     const emptyState = page.locator('.empty-contacts');
     await expect(emptyState).toBeVisible();
@@ -40,7 +41,7 @@ test.describe('WeChat 页面', () => {
   test('我发送的消息时间不应该有蓝色背景', async ({ page }) => {
     // 点击添加聊天按钮
     await page.locator('button[aria-label="plus"]').click();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 输入 Peer ID
     const testPeerId = 'peer-test-style-check-' + Date.now();
@@ -48,17 +49,17 @@ test.describe('WeChat 页面', () => {
 
     // 点击创建按钮
     await page.locator('.ant-modal .ant-btn-primary').click();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 点击刚创建的聊天（选择聊天）
     const contactItem = page.locator('.contact-item').first();
     await contactItem.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 输入并发送消息
     await page.locator('input[placeholder="输入消息..."]').fill('测试消息样式');
     await page.locator('button[aria-label="send"]').click();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 检查消息是否存在
     const messageItem = page.locator('.message-item.is-self').first();

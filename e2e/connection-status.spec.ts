@@ -30,7 +30,7 @@ test.describe('发现中心连接状态', () => {
     });
 
     // 额外等待确保连接完成
-    await page.waitForTimeout(WAIT_TIMES.PEER_INIT + 1000);
+    await page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
 
     // 获取 UI 上的连接状态
     const uiConnectionStatus = await page.evaluate(() => {
