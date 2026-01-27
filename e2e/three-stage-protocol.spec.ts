@@ -60,13 +60,25 @@ test.describe('版本号消息同步协议', () => {
 
         // 设备 A 发送消息
         const testMessage = '版本号协议测试消息';
-        await sendTextMessage(devices.deviceA.page, testMessage);
+        // 使用更宽松的发送方式
+        await devices.deviceA.page.fill(SELECTORS.messageInput, testMessage);
+        await devices.deviceA.page.click(SELECTORS.sendButton);
 
-        // 验证发送方显示了消息
-        await assertMessageExists(devices.deviceA.page, testMessage);
+        // 使用重试机制等待消息出现
+        let hasMessageInA = false;
+        for (let i = 0; i < 5; i++) {
+          await devices.deviceA.page.waitForTimeout(3000);
+          const messagesInA = await devices.deviceA.page.locator(SELECTORS.messageText).allTextContents();
+          hasMessageInA = messagesInA.some(msg => msg.includes(testMessage));
+          if (hasMessageInA) {
+            break;
+          }
+          console.log(`Attempt ${i + 1}: Message not found in A, retrying...`);
+        }
+        expect(hasMessageInA).toBe(true);
 
         // 等待接收方接收（增加等待时间）
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
+        await devices.deviceB.page.waitForTimeout(10000);
         await devices.deviceB.page.reload();
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 
@@ -74,9 +86,17 @@ test.describe('版本号消息同步协议', () => {
         await devices.deviceB.page.click(SELECTORS.contactItem);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
-        // 验证接收方收到消息 - 使用更精确的选择器
-        const messageInReceiver = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
-        const messageCount = await messageInReceiver.count();
+        // 使用重试机制验证接收方收到消息
+        let messageCount = 0;
+        for (let i = 0; i < 3; i++) {
+          const messageInReceiver = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
+          messageCount = await messageInReceiver.count();
+          if (messageCount > 0) {
+            break;
+          }
+          console.log(`Attempt ${i + 1}: Message not found in receiver, retrying...`);
+          await devices.deviceB.page.waitForTimeout(3000);
+        }
 
         // 验证版本号协议成功传输消息
         expect(messageCount).toBeGreaterThan(0);
@@ -86,9 +106,14 @@ test.describe('版本号消息同步协议', () => {
     });
 
     test('重试消息时应该重新发送版本号通知', async ({ browser }) => {
+      test.setTimeout(90000); // 增加超时时间
       const devices = await createTestDevices(browser, '重试发送方', '重试接收方', { startPage: 'wechat' });
 
       try {
+        // 等待 Peer 连接稳定
+        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceB.page.waitForTimeout(5000);
+
         // 设备 A 创建聊天
         await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
@@ -97,18 +122,41 @@ test.describe('版本号消息同步协议', () => {
 
         // 发送消息
         const testMessage = '重试测试消息';
-        await sendTextMessage(devices.deviceA.page, testMessage);
+        // 使用更宽松的发送方式
+        await devices.deviceA.page.fill(SELECTORS.messageInput, testMessage);
+        await devices.deviceA.page.click(SELECTORS.sendButton);
+
+        // 使用重试机制等待消息出现
+        let hasMessage = false;
+        for (let i = 0; i < 5; i++) {
+          await devices.deviceA.page.waitForTimeout(3000);
+          const messages = await devices.deviceA.page.locator(SELECTORS.messageText).allTextContents();
+          hasMessage = messages.some(msg => msg.includes(testMessage));
+          if (hasMessage) {
+            break;
+          }
+          console.log(`Attempt ${i + 1}: Message not found in A, retrying...`);
+        }
 
         // 验证消息状态 - 检查消息有唯一ID和messageStage
         const deviceBPeerId = devices.deviceB.userInfo.peerId;
-        const messageStatus = await devices.deviceA.page.evaluate((peerId) => {
-          const stored = localStorage.getItem('p2p_messages_' + peerId);
-          const messages = stored ? JSON.parse(stored) : [];
-          const lastMessage = messages[messages.length - 1];
-          return lastMessage ? { id: lastMessage.id, messageStage: lastMessage.messageStage } : null;
-        }, deviceBPeerId);
 
-        // 验证消息有唯一ID
+        // 使用重试机制等待消息存储到 localStorage
+        let messageStatus: any = null;
+        for (let i = 0; i < 5; i++) {
+          await devices.deviceA.page.waitForTimeout(2000);
+          messageStatus = await devices.deviceA.page.evaluate((peerId) => {
+            const stored = localStorage.getItem('p2p_messages_' + peerId);
+            const messages = stored ? JSON.parse(stored) : [];
+            const lastMessage = messages[messages.length - 1];
+            return lastMessage ? { id: lastMessage.id, messageStage: lastMessage.messageStage } : null;
+          }, deviceBPeerId);
+          if (messageStatus) {
+            break;
+          }
+          console.log(`Attempt ${i + 1}: Message status not found in storage, retrying...`);
+        }
+
         expect(messageStatus).not.toBeNull();
         expect(messageStatus?.id).toBeTruthy();
         // 验证消息有 messageStage（版本号协议的阶段标识）

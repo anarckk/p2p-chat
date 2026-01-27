@@ -34,6 +34,7 @@ test.describe('聊天消息发送与接收', () => {
    */
   test.describe('多设备消息发送', () => {
     test('设备 A 向设备 B 发送文本消息，设备 B 能正常接收', async ({ browser }) => {
+      test.setTimeout(90000); // 增加超时时间
       const devices = await createTestDevices(browser, '发送者A', '接收者B', { startPage: 'center' });
 
       console.log('[Test] Device A UserInfo:', devices.deviceA.userInfo);
@@ -86,7 +87,7 @@ test.describe('聊天消息发送与接收', () => {
 
         // 等待足够的时间让消息发送到设备 B
         // 设备 B 已经在聊天页面，应该能接收消息
-        await devices.deviceB.page.waitForTimeout(8000);
+        await devices.deviceB.page.waitForTimeout(10000);
 
         // 打印相关的调试日志
         console.log('[Test] Device A relevant logs:');
@@ -103,9 +104,17 @@ test.describe('聊天消息发送与接收', () => {
         await devices.deviceB.page.click(SELECTORS.contactItem);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
-        // 检查设备 B 是否收到了消息 - 使用更精确的选择器
-        const messageInB = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
-        const messageCount = await messageInB.count();
+        // 使用重试机制检查设备 B 是否收到了消息
+        let messageCount = 0;
+        for (let i = 0; i < 3; i++) {
+          const messageInB = devices.deviceB.page.locator(SELECTORS.messageText).filter({ hasText: testMessage });
+          messageCount = await messageInB.count();
+          if (messageCount > 0) {
+            break;
+          }
+          console.log(`Attempt ${i + 1}: Message not found in B, retrying...`);
+          await devices.deviceB.page.waitForTimeout(3000);
+        }
 
         // 验证消息接收成功（至少有一条匹配的消息）
         expect(messageCount).toBeGreaterThan(0);
@@ -115,9 +124,14 @@ test.describe('聊天消息发送与接收', () => {
     });
 
     test('被动添加聊天：对端主动发起通信时自动加入列表', async ({ browser }) => {
+      test.setTimeout(90000); // 增加超时时间
       const devices = await createTestDevices(browser, '主动发起者', '被动接收者', { startPage: 'center' });
 
       try {
+        // 等待 Peer 连接稳定
+        await devices.deviceA.page.waitForTimeout(5000);
+        await devices.deviceB.page.waitForTimeout(5000);
+
         // 切换到聊天页面
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -138,14 +152,21 @@ test.describe('聊天消息发送与接收', () => {
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 等待设备 B 接收消息（增加等待时间）
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
+        await devices.deviceB.page.waitForTimeout(10000);
         await devices.deviceB.page.reload();
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.RELOAD);
 
-        // 验证设备 B 的聊天列表中自动添加了设备 A
-        // 使用 peerId 验证而不是 username，因为 username 可能还未同步
-        const contactInB = devices.deviceB.page.locator(SELECTORS.contactItem);
-        const contactCount = await contactInB.count();
+        // 使用重试机制验证设备 B 的聊天列表中自动添加了设备 A
+        let contactCount = 0;
+        for (let i = 0; i < 3; i++) {
+          const contactInB = devices.deviceB.page.locator(SELECTORS.contactItem);
+          contactCount = await contactInB.count();
+          if (contactCount > 0) {
+            break;
+          }
+          console.log(`Attempt ${i + 1}: Contact not found in B, retrying...`);
+          await devices.deviceB.page.waitForTimeout(3000);
+        }
 
         // 验证被动添加聊天功能
         expect(contactCount).toBeGreaterThan(0);

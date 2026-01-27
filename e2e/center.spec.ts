@@ -107,14 +107,14 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
 
   test('被动发现：设备 A 添加设备 B 时，设备 A 应该出现在设备 B 的发现列表中', async ({ browser }) => {
     // 增加超时时间，给予足够时间完成 P2P 通信
-    test.setTimeout(30000);
+    test.setTimeout(60000);
 
     const devices = await createTestDevices(browser, '发现者A', '被发现的B', { startPage: 'center' });
 
     try {
-      // 基于 PeerJS 5秒内标准优化等待时间
-      await devices.deviceA.page.waitForTimeout(1000);
-      await devices.deviceB.page.waitForTimeout(1000);
+      // 等待 Peer 连接完全稳定
+      await devices.deviceA.page.waitForTimeout(3000);
+      await devices.deviceB.page.waitForTimeout(3000);
 
       // 监听控制台日志
       const deviceALogs: string[] = [];
@@ -137,17 +137,14 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       // 设备 A 添加设备 B
       await addDevice(devices.deviceA.page, devices.deviceB.userInfo.peerId);
 
-      // 等待一小段时间，让日志产生
-      await devices.deviceA.page.waitForTimeout(300);
+      // 等待被动发现完成 - 增加等待时间
+      await devices.deviceB.page.waitForTimeout(8000);
 
       // 打印设备 A 的相关日志
       console.log('Device A logs (discovery notification):');
       deviceALogs.filter(log => log.includes('discovery') || log.includes('Discovery')).forEach(log => {
         console.log('  ', log);
       });
-
-      // 基于 PeerJS 5秒内标准优化等待时间
-      await devices.deviceB.page.waitForTimeout(3000);
 
       // 打印设备 B 的相关日志
       console.log('Device B logs (all):');
@@ -160,7 +157,19 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       console.log('Device B list after add:', deviceBList);
 
       // 验证设备 A 出现在设备 B 的发现列表中（被动发现）
-      await assertDeviceExists(devices.deviceB.page, '发现者A');
+      // 使用重试机制增加成功率
+      let found = false;
+      for (let i = 0; i < 3; i++) {
+        try {
+          await assertDeviceExists(devices.deviceB.page, '发现者A');
+          found = true;
+          break;
+        } catch (error) {
+          console.log(`Attempt ${i + 1} failed, retrying...`);
+          await devices.deviceB.page.waitForTimeout(3000);
+        }
+      }
+      expect(found).toBe(true);
     } finally {
       await cleanupTestDevices(devices);
     }

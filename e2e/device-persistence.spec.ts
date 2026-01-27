@@ -305,28 +305,38 @@ test.describe('设备持久化功能', () => {
 
       try {
         // 额外等待确保 Peer 连接稳定
-        await devices.deviceA.page.waitForTimeout(7000);
-        await devices.deviceB.page.waitForTimeout(7000);
+        await devices.deviceA.page.waitForTimeout(3000);
+        await devices.deviceB.page.waitForTimeout(3000);
 
         // 设备 A 添加设备 B
         await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
         await devices.deviceA.page.click(SELECTORS.addButton);
 
         // 等待被动发现完成（设备 B 收到设备 A 的发现通知）
-        // 基于 PeerJS 5秒标准 + 被动发现处理时间
-        await devices.deviceA.page.waitForTimeout(7000);
+        // 增加等待时间以确保被动发现完成
+        await devices.deviceA.page.waitForTimeout(5000);
         await devices.deviceB.page.waitForTimeout(10000);
 
-        // 验证设备 B 的 localStorage 中保存了设备 A
-        const storedDevices = await devices.deviceB.page.evaluate(() => {
-          const stored = localStorage.getItem('discovered_devices');
-          return stored ? JSON.parse(stored) : {};
-        });
+        // 使用重试机制检查设备 A 是否出现在设备 B 的 localStorage 中
+        let hasDeviceA = false;
+        for (let i = 0; i < 3; i++) {
+          const storedDevices = await devices.deviceB.page.evaluate(() => {
+            const stored = localStorage.getItem('discovered_devices');
+            return stored ? JSON.parse(stored) : {};
+          });
 
-        // 设备 A 应该出现在设备 B 的存储中
-        const hasDeviceA = Object.values(storedDevices).some(
-          (device: any) => device.peerId === devices.deviceA.userInfo.peerId || device.username === '主动发现者'
-        );
+          hasDeviceA = Object.values(storedDevices).some(
+            (device: any) => device.peerId === devices.deviceA.userInfo.peerId || device.username === '主动发现者'
+          );
+
+          if (hasDeviceA) {
+            break;
+          }
+
+          console.log(`Attempt ${i + 1}: Device A not found in B's storage, retrying...`);
+          await devices.deviceB.page.waitForTimeout(5000);
+        }
+
         expect(hasDeviceA).toBe(true);
       } finally {
         await cleanupTestDevices(devices);

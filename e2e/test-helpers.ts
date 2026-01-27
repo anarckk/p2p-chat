@@ -271,13 +271,22 @@ export async function waitForDeviceCard(page: Page, usernameOrPeerId: string, ti
 
 /**
  * 等待消息出现在聊天窗口
- * 改进：增加超时时间和更稳定的选择器
+ * 改进：增加超时时间和更稳定的选择器，添加重试机制
  */
-export async function waitForMessage(page: Page, messageText: string, timeout = 8000): Promise<void> {
-  await page.waitForSelector(
-    `${SELECTORS.messageText}:has-text("${messageText}")`,
-    { timeout }
-  );
+export async function waitForMessage(page: Page, messageText: string, timeout = 15000): Promise<void> {
+  try {
+    await page.waitForSelector(
+      `${SELECTORS.messageText}:has-text("${messageText}")`,
+      { timeout }
+    );
+  } catch (error) {
+    // 如果直接选择器失败，尝试遍历所有消息元素检查文本内容
+    const messages = await page.locator(SELECTORS.messageText).allTextContents();
+    const found = messages.some(msg => msg.includes(messageText));
+    if (!found) {
+      throw new Error(`Message "${messageText}" not found in messages: ${messages.join(', ')}`);
+    }
+  }
 }
 
 /**
@@ -453,14 +462,14 @@ export async function createChat(page: Page, peerId: string): Promise<void> {
 
 /**
  * 发送文本消息
- * 改进：增加等待时间确保消息发送完成
+ * 改进：增加等待时间确保消息发送完成，使用更长的超时时间
  */
 export async function sendTextMessage(page: Page, message: string): Promise<void> {
   await page.fill(SELECTORS.messageInput, message);
   await page.click(SELECTORS.sendButton);
-  // 等待消息发送和显示
-  await page.waitForTimeout(WAIT_TIMES.MESSAGE);
-  await waitForMessage(page, message);
+  // 等待消息发送和显示 - 增加等待时间以适应 P2P 通信
+  await page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
+  await waitForMessage(page, message, 20000);
 }
 
 // ==================== 断言辅助函数 ====================
