@@ -22,6 +22,12 @@ test.describe('宇宙启动者', () => {
     await clearAllStorage(page);
     await page.reload();
 
+    // 监听控制台日志
+    const logs: string[] = [];
+    page.on('console', msg => {
+      logs.push(msg.text());
+    });
+
     // 设置用户
     await setupUser(page, '启动者测试用户');
 
@@ -36,6 +42,15 @@ test.describe('宇宙启动者', () => {
     // 验证连接状态（使用更精确的选择器，使用 first() 解决多个元素问题）
     const connectedStatus = page.locator('.ant-badge-status-processing').first();
     await expect(connectedStatus).toBeVisible();
+
+    // 等待足够时间让 tryBecomeBootstrap 完成（最多3秒超时判断）
+    await page.waitForTimeout(4000);
+
+    // 验证控制台日志中有"成为宇宙启动者"的日志
+    const hasBootstrapSuccessLog = logs.some(log =>
+      log.includes('Became the universe bootstrap')
+    );
+    expect(hasBootstrapSuccessLog).toBe(true);
   });
 
   test('后续设备应该能向宇宙启动者请求设备列表', async ({ page, context }) => {
@@ -209,17 +224,17 @@ test.describe('宇宙启动者', () => {
 
     // 设置用户
     await setupUser(page, '日志测试用户');
-    await page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.LONG);
+
+    // 等待足够时间让 tryBecomeBootstrap 完成
+    await page.waitForTimeout(4000);
 
     // 检查是否有宇宙启动者相关的日志
     const hasBootstrapLog = logs.some(log =>
-      log.includes('UNIVERSE') ||
-      log.includes('Bootstrap') ||
-      log.includes('bootstrap')
+      log.includes('Became the universe bootstrap') ||
+      log.includes('Bootstrap already exists') ||
+      log.includes('UNIVERSE-BOOTSTRAP')
     );
 
-    // 注意：由于网络条件不同，这个测试可能会失败
-    // 只要有尝试连接的日志就算通过
-    expect(logs.length).toBeGreaterThan(0);
+    expect(hasBootstrapLog).toBe(true);
   });
 });

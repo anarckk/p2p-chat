@@ -20,6 +20,7 @@ const {
   queryUsername,
   checkOnline,
   requestAllDeviceLists,
+  tryBecomeBootstrap,
 } = peerManager;
 
 const queryPeerIdInput = ref('');
@@ -77,6 +78,9 @@ async function checkDeviceOnline(device: OnlineDevice): Promise<boolean> {
 }
 
 onMounted(async () => {
+  // 尝试成为宇宙启动者
+  tryBecomeBootstrap();
+
   // 从 localStorage 加载已保存的设备列表
   deviceStore.loadDevices();
 
