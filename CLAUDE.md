@@ -58,6 +58,10 @@ sx-peerjs-http-util/
         │   └── deviceStore.ts - 设备持久化 store（设备列表 localStorage 持久化、3天未在线自动删除、10分钟定时心跳检查）
         ├── composables/
         │   └── usePeerManager.ts - Peer 管理逻辑（基于版本号的三段式通信、送达确认、发现中心、消息重试、被动发现自动刷新、在线检查协议处理、deviceStore 集成、连接状态实时监听、10秒自动重连机制、设备互相发现、"宇宙启动者"机制、网络加速）
+        │       ├── 11-12 - 新增 bootstrapPeerInstance 模块变量，保持固定 ID 的启动者连接
+        │       ├── 834-937 - tryBecomeBootstrap() 函数，成为启动者后保持 UNIVERSE-BOOTSTRAP-PEER-ID-001 连接，监听并响应设备列表请求
+        │       ├── 939-1041 - requestBootstrapDeviceList() 函数，创建临时 Peer 连接向启动者请求设备列表
+        │       └── 1033-1038 - destroy() 函数，清理启动者连接
         ├── types/
         │   └── index.ts - TypeScript 类型定义（消息类型、协议类型、基于版本号的三段式通信协议、在线检查协议、OnlineDevice 扩展 isOnline/firstDiscovered）
         └── util/
@@ -78,7 +82,7 @@ sx-peerjs-http-util/
         ├── chat-badge.spec.ts - 聊天中标识 E2E 测试（"已加入聊天"标识、设备可见性、在线状态同时显示）
         ├── connection-status.spec.ts - 发现中心连接状态 E2E 测试
         ├── device-discovery.spec.ts - 设备互相发现 E2E 测试
-        ├── universe-bootstrap.spec.ts - "宇宙启动者"机制 E2E 测试
+        ├── universe-bootstrap.spec.ts - "宇宙启动者"机制 E2E 测试（验证启动者保持连接、设备列表请求协议响应、多设备互相发现）
         └── settings.spec.ts - 设置页面 E2E 测试（用户名、头像、网络加速开关）
 
 ---
@@ -136,10 +140,10 @@ sx-peerjs-http-util/
 - **在线状态**: 实时显示设备在线/离线状态
 
 #### "宇宙启动者"机制
-- **固定 PeerId**: 首次打开后尝试用固定 peerId（如 peer-ABCxxxxxxx）连接
-- **成为启动者**: 连接成功则成为"宇宙启动者"，等待其他设备请求在线设备列表
-- **请求启动者**: 连接失败则向"宇宙启动者"请求在线设备列表并更新自身
-- **响应请求**: 作为"宇宙启动者"响应其他设备的在线设备列表请求
+- **固定 PeerId**: 首次打开后尝试用固定 peerId `UNIVERSE-BOOTSTRAP-PEER-ID-001` 连接
+- **成为启动者**: 连接成功则成为"宇宙启动者"，**保持固定 ID 的 Peer 连接**，持续监听其他设备的设备列表请求
+- **请求启动者**: 连接失败则创建临时 Peer 连接，向"宇宙启动者"请求在线设备列表并更新自身
+- **响应请求**: 作为"宇宙启动者"收到 `device_list_request` 时，返回 `device_list_response` 包含已知的所有设备列表
 
 #### 设备状态标识
 - **在线**: 设备可通信
