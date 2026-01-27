@@ -451,7 +451,7 @@ export class PeerHttpUtil {
         console.error('[PeerHttp] Connection timeout for:', peerId);
         conn.close();
         reject(new Error('Connection timeout'));
-      }, 10000);
+      }, 20000); // 增加到 20 秒，给予更多时间建立连接
 
       conn.on('open', () => {
         console.log('[PeerHttp] Connection opened to:', peerId);

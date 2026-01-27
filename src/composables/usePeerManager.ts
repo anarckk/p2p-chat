@@ -327,6 +327,15 @@ export function usePeerManager() {
             avatar,
           });
         }
+        // 同时更新发现中心的设备信息
+        deviceStore.addOrUpdateDevice({
+          peerId: _from,
+          username,
+          avatar,
+          lastHeartbeat: Date.now(),
+          firstDiscovered: Date.now(),
+          isOnline: true,
+        });
       }
     };
 

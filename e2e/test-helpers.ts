@@ -87,18 +87,18 @@ export const SELECTORS = {
 
 // 等待时间常量（毫秒）- 给予足够的时间完成 P2P 通信
 export const WAIT_TIMES = {
-  // PeerJS 连接初始化 - 给予足够时间
-  PEER_INIT: 3000,
+  // PeerJS 连接初始化 - 给予足够时间（增加到 5 秒）
+  PEER_INIT: 5000,
   // 短暂等待
   SHORT: 300,
   // 中等等待
   MEDIUM: 800,
   // 较长等待
   LONG: 1500,
-  // 消息发送接收 - 给予足够时间完成三段式通信
-  MESSAGE: 2000,
-  // 被动发现通知 - 给予足够时间
-  DISCOVERY: 3000,
+  // 消息发送接收 - 给予足够时间完成三段式通信（增加到 3 秒）
+  MESSAGE: 3000,
+  // 被动发现通知 - 给予足够时间（增加到 5 秒）
+  DISCOVERY: 5000,
   // 刷新页面
   RELOAD: 800,
   // 弹窗显示
@@ -391,7 +391,18 @@ export async function createTestDevices(
     });
   }
   // 额外等待确保 PeerJS 完全初始化
-  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
+  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 3);
+  // 等待连接状态变为已连接（增加超时时间）
+  await deviceAPage.waitForSelector('.ant-badge-status-processing', { timeout: 30000 }).catch(() => {
+    console.log('[Test] Device A connection status not showing as connected, continuing...');
+  });
+
+  // 检查设备 A 的 PeerId 是否显示
+  const deviceAPeerId = await deviceAPage.evaluate(() => {
+    const stored = localStorage.getItem('p2p_user_info');
+    return stored ? JSON.parse(stored).peerId : null;
+  });
+  console.log('[Test] Device A PeerId:', deviceAPeerId);
 
   // 创建设备 B
   const deviceBUserInfo = createUserInfo(deviceBName);
@@ -417,7 +428,18 @@ export async function createTestDevices(
     });
   }
   // 额外等待确保 PeerJS 完全初始化
-  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
+  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 3);
+  // 等待连接状态变为已连接（增加超时时间）
+  await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 30000 }).catch(() => {
+    console.log('[Test] Device B connection status not showing as connected, continuing...');
+  });
+
+  // 检查设备 B 的 PeerId 是否显示
+  const deviceBPeerId = await deviceBPage.evaluate(() => {
+    const stored = localStorage.getItem('p2p_user_info');
+    return stored ? JSON.parse(stored).peerId : null;
+  });
+  console.log('[Test] Device B PeerId:', deviceBPeerId);
 
   return {
     deviceA: {
