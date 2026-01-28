@@ -191,7 +191,7 @@ test.describe('聊天消息发送与接收', () => {
 
       // 等待用户设置弹窗消失（如果存在）
       try {
-        await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 3000 });
+        await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 2000 });
       } catch (error) {
         // 弹窗可能已经不存在了，继续执行
         console.log('[Test] No modal to close, continuing...');
@@ -224,7 +224,7 @@ test.describe('聊天消息发送与接收', () => {
 
       // 点击创建（使用弹窗内的主按钮）
       const okButton = modal.locator('.ant-btn-primary');
-      await expect(okButton).toBeVisible({ timeout: 5000 });
+      await expect(okButton).toBeVisible({ timeout: 3000 });
       await okButton.click();
 
       // 等待更长时间确保聊天创建完成
@@ -274,7 +274,7 @@ test.describe('聊天消息发送与接收', () => {
 
       // 等待用户设置弹窗消失（如果存在）
       try {
-        await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 3000 });
+        await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 2000 });
       } catch (error) {
         console.log('[Test] No modal to close, continuing...');
       }
@@ -297,7 +297,7 @@ test.describe('聊天消息发送与接收', () => {
 
       // 点击创建
       const okButton = modal.locator('.ant-btn-primary');
-      await expect(okButton).toBeVisible({ timeout: 5000 });
+      await expect(okButton).toBeVisible({ timeout: 3000 });
       await okButton.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
@@ -433,7 +433,7 @@ test.describe('聊天消息发送与接收', () => {
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 等待联系人列表出现
-      await page.waitForSelector(SELECTORS.contactItem, { timeout: 10000 }).catch(() => {
+      await page.waitForSelector(SELECTORS.contactItem, { timeout: 6000 }).catch(() => {
         console.log('[Test] No contact items found, continuing...');
       });
 
@@ -467,7 +467,7 @@ test.describe('聊天消息发送与接收', () => {
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 等待联系人列表出现
-      await page.waitForSelector(SELECTORS.contactItem, { timeout: 10000 }).catch(() => {
+      await page.waitForSelector(SELECTORS.contactItem, { timeout: 6000 }).catch(() => {
         console.log('[Test] No contact items found after reload, skipping click...');
       });
 

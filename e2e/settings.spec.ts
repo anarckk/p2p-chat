@@ -78,7 +78,7 @@ test.describe('设置页面', () => {
     await saveButton.click();
 
     // 等待保存成功提示
-    await page.waitForSelector('.ant-message-success', { timeout: 5000 });
+    await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
     // 验证用户名已更新
     const userInfo = await page.evaluate(() => {
@@ -140,7 +140,7 @@ test.describe('设置页面', () => {
     await saveButton.click();
 
     // 等待保存成功提示
-    await page.waitForSelector('.ant-message-success', { timeout: 5000 });
+    await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
     // 验证网络加速状态已保存
     const networkAccelerationStatus = await page.evaluate(() => {
@@ -188,7 +188,7 @@ test.describe('设置页面', () => {
     await saveButton.click();
 
     // 等待保存成功提示
-    await page.waitForSelector('.ant-message-success', { timeout: 5000 });
+    await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
     // 验证网络加速状态已保存
     const networkAccelerationStatus = await page.evaluate(() => {
@@ -220,7 +220,7 @@ test.describe('设置页面', () => {
     await saveButton.click();
 
     // 等待保存成功
-    await page.waitForSelector('.ant-message-success', { timeout: 5000 });
+    await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
     // 刷新页面
     await page.reload();

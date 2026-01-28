@@ -85,20 +85,20 @@ export const SELECTORS = {
   disconnectedBadge: '.ant-badge-status-error',
 } as const;
 
-// 等待时间常量（毫秒）- 给予足够的时间完成 P2P 通信
+// 等待时间常量（毫秒）- 本地 Peer Server 环境下连接很快
 export const WAIT_TIMES = {
-  // PeerJS 连接初始化 - 给予足够时间（增加到 5 秒）
-  PEER_INIT: 5000,
+  // PeerJS 连接初始化 - 本地环境连接迅速（减少到 2 秒）
+  PEER_INIT: 2000,
   // 短暂等待
   SHORT: 300,
   // 中等等待
   MEDIUM: 800,
   // 较长等待
   LONG: 1500,
-  // 消息发送接收 - 给予足够时间完成三段式通信（增加到 3 秒）
-  MESSAGE: 3000,
-  // 被动发现通知 - 给予足够时间（增加到 5 秒）
-  DISCOVERY: 5000,
+  // 消息发送接收 - 本地环境下通信快速（减少到 2 秒）
+  MESSAGE: 2000,
+  // 被动发现通知 - 本地环境下发现快速（减少到 2 秒）
+  DISCOVERY: 2000,
   // 刷新页面
   RELOAD: 800,
   // 弹窗显示
@@ -271,9 +271,9 @@ export async function addMessages(
 
 /**
  * 等待 Peer 连接建立
- * 改进：增加超时时间，确保在网络较慢时也能成功连接
+ * 本地环境下 Peer Server 连接快速，使用较短的超时时间
  */
-export async function waitForPeerConnected(page: Page, timeout = WAIT_TIMES.PEER_INIT * 5): Promise<void> {
+export async function waitForPeerConnected(page: Page, timeout = WAIT_TIMES.PEER_INIT * 3): Promise<void> {
   await page.waitForSelector(SELECTORS.centerContainer, { timeout });
   // 等待连接状态变为已连接（使用更精确的选择器）
   try {
@@ -288,7 +288,7 @@ export async function waitForPeerConnected(page: Page, timeout = WAIT_TIMES.PEER
 /**
  * 等待设备卡片出现
  */
-export async function waitForDeviceCard(page: Page, usernameOrPeerId: string, timeout = 5000): Promise<void> {
+export async function waitForDeviceCard(page: Page, usernameOrPeerId: string, timeout = 6000): Promise<void> {
   await page.waitForSelector(
     `${SELECTORS.deviceCard}:has-text("${usernameOrPeerId}")`,
     { timeout }
@@ -297,9 +297,9 @@ export async function waitForDeviceCard(page: Page, usernameOrPeerId: string, ti
 
 /**
  * 等待消息出现在聊天窗口
- * 改进：增加超时时间和更稳定的选择器，添加重试机制
+ * 本地环境下通信快速，使用较短的超时时间
  */
-export async function waitForMessage(page: Page, messageText: string, timeout = 15000): Promise<void> {
+export async function waitForMessage(page: Page, messageText: string, timeout = 8000): Promise<void> {
   try {
     await page.waitForSelector(
       `${SELECTORS.messageText}:has-text("${messageText}")`,
@@ -326,9 +326,9 @@ export async function waitForModal(page: Page, timeout = 3000): Promise<string> 
 
 /**
  * 等待成功消息出现
- * 改进：增加超时时间和重试机制
+ * 本地环境下响应快速
  */
-export async function waitForSuccessMessage(page: Page, timeout = 5000): Promise<void> {
+export async function waitForSuccessMessage(page: Page, timeout = 3000): Promise<void> {
   await page.waitForSelector(SELECTORS.successMessage, { timeout });
 }
 
@@ -384,20 +384,20 @@ export async function createTestDevices(
   // 重新加载页面以应用用户信息
   await deviceAPage.reload();
   // 等待页面加载完成，PeerJS 初始化
-  await deviceAPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 15000 });
+  await deviceAPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 8000 });
   // 等待 PeerJS 初始化（使用 PeerId 出现作为标志）
   if (startPage === 'center') {
-    await deviceAPage.waitForSelector('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography', { timeout: 20000 }).catch(() => {
+    await deviceAPage.waitForSelector('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography', { timeout: 10000 }).catch(() => {
       // 如果找不到 PeerId，继续测试
       console.log('[Test] Device A PeerId not ready, continuing...');
     });
   }
   // 额外等待确保 PeerJS 完全初始化
-  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 4);
+  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
 
-  // 等待连接状态变为已连接（增加超时时间）
+  // 等待连接状态变为已连接（本地环境超时时间减少）
   // 并且等待 PeerId 在页面上显示（说明 PeerJS 已连接）
-  await deviceAPage.waitForSelector('.ant-badge-status-processing', { timeout: 30000 }).catch(() => {
+  await deviceAPage.waitForSelector('.ant-badge-status-processing', { timeout: 8000 }).catch(() => {
     console.log('[Test] Device A connection status not showing as connected, continuing...');
   });
 
@@ -430,20 +430,20 @@ export async function createTestDevices(
   // 重新加载页面以应用用户信息
   await deviceBPage.reload();
   // 等待页面加载完成，PeerJS 初始化
-  await deviceBPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 15000 });
+  await deviceBPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 8000 });
   // 等待 PeerJS 初始化（使用 PeerId 出现作为标志）
   if (startPage === 'center') {
-    await deviceBPage.waitForSelector('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography', { timeout: 20000 }).catch(() => {
+    await deviceBPage.waitForSelector('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography', { timeout: 10000 }).catch(() => {
       // 如果找不到 PeerId，继续测试
       console.log('[Test] Device B PeerId not ready, continuing...');
     });
   }
   // 额外等待确保 PeerJS 完全初始化
-  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 4);
+  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
 
-  // 等待连接状态变为已连接（增加超时时间）
+  // 等待连接状态变为已连接（本地环境超时时间减少）
   try {
-    await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 45000 });
+    await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 8000 });
     console.log('[Test] Device B connection status: connected');
   } catch (error) {
     // 检查页面是否正确加载
@@ -541,24 +541,25 @@ export async function createChat(page: Page, peerId: string): Promise<void> {
 
 /**
  * 发送文本消息
- * 改进：增加等待时间确保消息发送完成，使用更长的超时时间
+ * 本地环境下通信快速，使用较短的超时时间
  */
 export async function sendTextMessage(page: Page, message: string): Promise<void> {
   await page.fill(SELECTORS.messageInput, message);
   await page.click(SELECTORS.sendButton);
-  // 等待消息发送和显示 - 增加等待时间以适应 P2P 通信
-  await page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
-  await waitForMessage(page, message, 20000);
+  // 等待消息发送和显示 - 本地环境下快速
+  await page.waitForTimeout(WAIT_TIMES.MESSAGE);
+  await waitForMessage(page, message, 8000);
 }
 
 // ==================== 断言辅助函数 ====================
 
 /**
  * 断言设备卡片存在
+ * 本地环境下响应快速
  */
 export async function assertDeviceExists(page: Page, usernameOrPeerId: string): Promise<void> {
   const card = page.locator(SELECTORS.deviceCard).filter({ hasText: usernameOrPeerId });
-  await expect(card).toBeVisible({ timeout: 20000 });
+  await expect(card).toBeVisible({ timeout: 8000 });
 }
 
 /**
@@ -571,7 +572,7 @@ export async function assertDeviceNotExists(page: Page, usernameOrPeerId: string
 
 /**
  * 断言设备在线状态
- * 改进：更可靠的断言逻辑和更长的超时时间
+ * 本地环境下响应快速
  */
 export async function assertDeviceOnlineStatus(
   page: Page,
@@ -580,7 +581,7 @@ export async function assertDeviceOnlineStatus(
 ): Promise<void> {
   // 首先找到设备卡片
   const card = page.locator(SELECTORS.deviceCard).filter({ hasText: usernameOrPeerId });
-  await expect(card).toBeVisible({ timeout: 15000 });
+  await expect(card).toBeVisible({ timeout: 8000 });
 
   // 根据在线状态检查相应的标签
   if (isOnline) {
@@ -692,7 +693,7 @@ export async function waitForCondition(
   condition: () => Promise<boolean>,
   options?: { timeout?: number; interval?: number; context?: string }
 ): Promise<boolean> {
-  const timeout = options?.timeout || 15000;
+  const timeout = options?.timeout || 8000;
   const interval = options?.interval || 500;
   const context = options?.context || 'Condition';
 
@@ -765,7 +766,7 @@ export async function waitForElement(page: any, selector: string, timeout: numbe
 /**
  * 等待消息出现在聊天中（向后兼容）
  */
-export async function waitForMessageLegacy(page: any, messageText: string, timeout: number = 10000): Promise<boolean> {
+export async function waitForMessageLegacy(page: any, messageText: string, timeout: number = 8000): Promise<boolean> {
   try {
     await page.waitForSelector(`.message-text:has-text("${messageText}")`, { timeout });
     return true;

@@ -171,7 +171,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
 
       await retry(async () => {
         // 检查设备 B 是否收到了发现通知
-        await devices.deviceB.page.waitForTimeout(3000);
+        await devices.deviceB.page.waitForTimeout(1500);
 
         const foundNotification = allDeviceBLogs.some(log => log.includes('Received discovery notification'));
         if (!foundNotification) {
@@ -239,7 +239,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
 
       // 验证设备 B 的卡片包含 Peer ID（使用 peerId 进行查找）
       const deviceBCard = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.peerId });
-      await expect(deviceBCard).toBeVisible({ timeout: 15000 });
+      await expect(deviceBCard).toBeVisible({ timeout: 8000 });
 
       // 验证卡片中有 Peer ID 文本（小字显示）
       const peerIdText = deviceBCard.locator('.ant-typography-secondary');
@@ -343,7 +343,7 @@ test.describe('设备用户名显示', () => {
 
       // 最终验证：设备 B 的用户名应该显示在设备 A 的发现中心
       const deviceBCard = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.username });
-      await expect(deviceBCard).toBeVisible({ timeout: 10000 });
+      await expect(deviceBCard).toBeVisible({ timeout: 6000 });
     } finally {
       await cleanupTestDevices(devices);
     }
@@ -385,7 +385,7 @@ test.describe('设备用户名显示', () => {
 
       // 最终验证
       const deviceACard = devices.deviceB.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceA.userInfo.username });
-      await expect(deviceACard).toBeVisible({ timeout: 10000 });
+      await expect(deviceACard).toBeVisible({ timeout: 6000 });
     } finally {
       await cleanupTestDevices(devices);
     }
@@ -410,8 +410,8 @@ test.describe('设备用户名显示', () => {
 
       // 额外等待确保两个设备都已完全连接到 Peer Server
       // 增加等待时间以避免 "Cannot connect to new Peer after disconnecting from server" 错误
-      await devices.deviceA.page.waitForTimeout(10000);
-      await devices.deviceB.page.waitForTimeout(10000);
+      await devices.deviceA.page.waitForTimeout(4000);
+      await devices.deviceB.page.waitForTimeout(4000);
 
       // 检查设备A的连接状态
       const deviceAConnected = await devices.deviceA.page.locator('.ant-badge-status-processing').count() > 0;
@@ -424,8 +424,8 @@ test.describe('设备用户名显示', () => {
       // 如果任一设备未连接，再等待一段时间
       if (!deviceAConnected || !deviceBConnected) {
         console.log('[Test] One or both devices not connected, waiting more...');
-        await devices.deviceA.page.waitForTimeout(5000);
-        await devices.deviceB.page.waitForTimeout(5000);
+        await devices.deviceA.page.waitForTimeout(2000);
+        await devices.deviceB.page.waitForTimeout(2000);
       }
 
       // 设备 A 添加设备 B
@@ -509,7 +509,7 @@ test.describe('设备用户名显示', () => {
 
       // 验证刷新后用户名仍然显示正确
       const deviceBCard = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.username });
-      await expect(deviceBCard).toBeVisible({ timeout: 10000 });
+      await expect(deviceBCard).toBeVisible({ timeout: 6000 });
 
       // 验证卡片标题包含用户名（注意：用户名和 PeerId 可能都显示在标题中）
       const cardTitle = deviceBCard.locator('.ant-card-meta-title');

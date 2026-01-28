@@ -24,7 +24,7 @@ test.describe('发现中心连接状态', () => {
     // 等待 PeerId 显示（说明 PeerJS 已连接）
     await page.waitForSelector(
       '.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography',
-      { timeout: 15000 }
+      { timeout: 8000 }
     ).catch(() => {
       console.log('[Test] PeerId not ready, continuing...');
     });

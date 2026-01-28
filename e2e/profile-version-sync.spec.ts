@@ -51,7 +51,7 @@ test.describe('个人信息版本同步', () => {
 
         // 验证设备 A 出现在设备 B 的发现中心
         const deviceACardInB = devices.deviceB.page.locator(SELECTORS.deviceCard).filter({ hasText: '原始用户A' });
-        await expect(deviceACardInB).toBeVisible({ timeout: 15000 });
+        await expect(deviceACardInB).toBeVisible({ timeout: 8000 });
 
         console.log('[Test] Device B sees Device A with username: 原始用户A');
 
@@ -69,7 +69,7 @@ test.describe('个人信息版本同步', () => {
         await saveButton.click();
 
         // 等待保存成功提示
-        await devices.deviceA.page.waitForSelector('.ant-message-success', { timeout: 5000 });
+        await devices.deviceA.page.waitForSelector('.ant-message-success', { timeout: 3000 });
         console.log('[Test] Device A updated username to: 更新后的用户A');
 
         // 切换回发现中心
@@ -129,7 +129,7 @@ test.describe('个人信息版本同步', () => {
 
         const saveButton = devices.deviceA.page.locator('button[aria-label="save-settings-button"]');
         await saveButton.click();
-        await devices.deviceA.page.waitForSelector('.ant-message-success', { timeout: 5000 });
+        await devices.deviceA.page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
         await devices.deviceA.page.click('.ant-menu-item:has-text("发现中心")');
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -181,7 +181,7 @@ test.describe('个人信息版本同步', () => {
 
         // 验证设备 A 出现在设备 B 的发现中心
         const deviceACardInB = devices.deviceB.page.locator(SELECTORS.deviceCard).filter({ hasText: '头像测试A' });
-        await expect(deviceACardInB).toBeVisible({ timeout: 15000 });
+        await expect(deviceACardInB).toBeVisible({ timeout: 8000 });
 
         // 获取设备 A 的头像元素（应该是首字母头像）
         const deviceAAvatarBefore = deviceACardInB.locator('.ant-avatar');
@@ -267,7 +267,7 @@ test.describe('个人信息版本同步', () => {
       await saveButton.click();
 
       // 等待保存成功提示
-      await page.waitForSelector('.ant-message-success', { timeout: 5000 });
+      await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
       // 获取修改后的版本号
       const userInfoAfter = await page.evaluate(() => {
@@ -369,7 +369,7 @@ test.describe('个人信息版本同步', () => {
 
         const saveButton = devices.deviceA.page.locator('button[aria-label="save-settings-button"]');
         await saveButton.click();
-        await devices.deviceA.page.waitForSelector('.ant-message-success', { timeout: 5000 });
+        await devices.deviceA.page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
         await devices.deviceA.page.click('.ant-menu-item:has-text("发现中心")');
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);

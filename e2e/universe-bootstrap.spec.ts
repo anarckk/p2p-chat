@@ -52,7 +52,7 @@ test.describe('宇宙启动者', () => {
     await expect(connectedStatus).toBeVisible();
 
     // 等待 tryBecomeBootstrap 完成
-    await page.waitForTimeout(4000);
+    await page.waitForTimeout(2000);
 
     // 验证关键日志：应该包含固定 ID 相关的信息
     const hasFixedIdLog = logs.some(log =>
@@ -101,7 +101,7 @@ test.describe('宇宙启动者', () => {
       }
 
       // 等待启动者机制完成
-      await page.waitForTimeout(4000);
+      await page.waitForTimeout(2000);
       await page2.waitForTimeout(4000);
 
       // 至少有一个设备应该有固定 ID 相关的日志
@@ -145,7 +145,7 @@ test.describe('宇宙启动者', () => {
     await setupUser(page, '日志测试用户');
 
     // 等待启动者机制完成
-    await page.waitForTimeout(4000);
+    await page.waitForTimeout(2000);
 
     // 验证固定 ID 相关的日志存在
     const relevantLogs = logs.filter(log =>
@@ -180,7 +180,7 @@ test.describe('宇宙启动者', () => {
     await setupUser(page, '启动者功能测试');
 
     // 等待启动者机制完成
-    await page.waitForTimeout(4000);
+    await page.waitForTimeout(2000);
 
     // 验证启动者监听日志
     const hasListeningLog = logs.some(log =>
@@ -216,7 +216,7 @@ test.describe('宇宙启动者', () => {
     await setupUser(page, '完整日志测试');
 
     // 等待启动者机制完成
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(3000);
 
     // 收集所有宇宙启动者相关的日志
     const universeLogs = logs.filter(log =>
@@ -275,7 +275,7 @@ test.describe('宇宙启动者', () => {
         await pageC.waitForLoadState('domcontentloaded');
         await setupUser(pageC, '设备C');
 
-        await pageC.waitForTimeout(5000);
+        await pageC.waitForTimeout(3000);
 
         // 验证设备C请求了设备列表
         const hasRequestLog = logsC.some(log =>
@@ -332,7 +332,7 @@ test.describe('宇宙启动者', () => {
         await pageC.waitForLoadState('domcontentloaded');
         await setupUser(pageC, '设备C');
 
-        await pageC.waitForTimeout(5000);
+        await pageC.waitForTimeout(3000);
 
         // 验证启动者A收到了设备列表请求
         const hasRequestReceivedLog = logsA.some(log =>
@@ -391,7 +391,7 @@ test.describe('宇宙启动者', () => {
         await page3.goto('/center');
         await page3.waitForLoadState('domcontentloaded');
         await setupUser(page3, '设备3');
-        await page3.waitForTimeout(5000);
+        await page3.waitForTimeout(3000);
 
         // 验证设备3发现了设备2（通过启动者1的设备列表）
         await assertDeviceExists(page3, '设备2');
@@ -404,7 +404,7 @@ test.describe('宇宙启动者', () => {
           await page4.goto('/center');
           await page4.waitForLoadState('domcontentloaded');
           await setupUser(page4, '设备4');
-          await page4.waitForTimeout(5000);
+          await page4.waitForTimeout(3000);
 
           // 验证设备4也发现了设备2（通过启动者1的设备列表）
           await assertDeviceExists(page4, '设备2');
@@ -450,7 +450,7 @@ test.describe('宇宙启动者', () => {
         await pageB.goto('/center');
         await pageB.waitForLoadState('domcontentloaded');
         await setupUser(pageB, '设备B');
-        await pageB.waitForTimeout(5000);
+        await pageB.waitForTimeout(3000);
 
         // 验证设备B收到了设备列表响应（即使是空的）
         // 注意：空设备列表可能不会产生特定的日志，所以这里仅作观察
@@ -491,7 +491,7 @@ test.describe('宇宙启动者', () => {
     await setupUser(page, '超时测试用户');
 
     // 等待启动者机制完成（包括可能的超时）
-    await page.waitForTimeout(15000);
+    await page.waitForTimeout(6000);
 
     // 验证系统没有崩溃，至少有一些日志输出
     const relevantLogs = logs.filter(log =>
@@ -536,7 +536,7 @@ test.describe('宇宙启动者', () => {
         await pageC.goto('/center');
         await pageC.waitForLoadState('domcontentloaded');
         await setupUser(pageC, '设备C');
-        await pageC.waitForTimeout(5000);
+        await pageC.waitForTimeout(3000);
 
         // 验证设备C的发现中心包含设备B（通过启动者A获取）
         // 注意：启动者A不会把自己放到设备列表中

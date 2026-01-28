@@ -254,7 +254,7 @@ test.describe('版本号消息同步协议', () => {
       await setContactList(page, contacts);
 
       // 等待联系人列表出现
-      await page.waitForSelector(SELECTORS.contactItem, { timeout: 10000 }).catch(() => {
+      await page.waitForSelector(SELECTORS.contactItem, { timeout: 6000 }).catch(() => {
         console.log('[Test] No contact items found, skipping...');
       });
 
@@ -335,7 +335,7 @@ test.describe('版本号消息同步协议', () => {
       await setContactList(page, contacts);
 
       // 等待联系人列表出现
-      await page.waitForSelector(SELECTORS.contactItem, { timeout: 10000 }).catch(() => {
+      await page.waitForSelector(SELECTORS.contactItem, { timeout: 6000 }).catch(() => {
         console.log('[Test] No contact items found, skipping...');
       });
 

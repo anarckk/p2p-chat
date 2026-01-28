@@ -159,7 +159,7 @@ test.describe('聊天中标识', () => {
 
         // 验证设备 B 出现在设备 A 的发现中心
         const deviceBCardInA = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.peerId });
-        await expect(deviceBCardInA).toBeVisible({ timeout: 15000 });
+        await expect(deviceBCardInA).toBeVisible({ timeout: 8000 });
 
         // 切换到聊天页面
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
@@ -390,7 +390,7 @@ test.describe('聊天中标识', () => {
         // 验证设备 B 出现在设备 A 的发现中心
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         const deviceBCardInCenter = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.peerId });
-        await expect(deviceBCardInCenter).toBeVisible({ timeout: 15000 });
+        await expect(deviceBCardInCenter).toBeVisible({ timeout: 8000 });
 
         // 切换到聊天页面
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);

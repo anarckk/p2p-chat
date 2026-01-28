@@ -21,7 +21,7 @@ test('调试：检查 PeerJS 连接状态', async ({ browser }) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, deviceAUserInfo);
   await deviceAPage.reload();
-  await deviceAPage.waitForSelector('.center-container', { timeout: 15000 });
+  await deviceAPage.waitForSelector('.center-container', { timeout: 8000 });
 
   // 创建设备 B
   const deviceBUserInfo = createUserInfo('调试设备B', 'debug-device-b');
@@ -33,7 +33,7 @@ test('调试：检查 PeerJS 连接状态', async ({ browser }) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, deviceBUserInfo);
   await deviceBPage.reload();
-  await deviceBPage.waitForSelector('.center-container', { timeout: 15000 });
+  await deviceBPage.waitForSelector('.center-container', { timeout: 8000 });
 
   // 等待 PeerJS 初始化
   await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 3);
@@ -78,8 +78,8 @@ test('调试：检查 PeerJS 连接状态', async ({ browser }) => {
   console.log('[Debug] Device B connection status:', deviceBConnectionStatus);
 
   // 等待更长时间，看看连接状态是否会改变
-  await deviceAPage.waitForTimeout(30000);
-  await deviceBPage.waitForTimeout(30000);
+  await deviceAPage.waitForTimeout(10000);
+  await deviceBPage.waitForTimeout(10000);
 
   // 再次检查连接状态
   const deviceAConnectionStatusAfter = await deviceAPage.evaluate(() => {
