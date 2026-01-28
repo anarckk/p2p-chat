@@ -1034,12 +1034,8 @@ export function usePeerManager() {
     commLog.universeBootstrap.requestList({ to: bootstrapPeerId });
 
     return new Promise((resolve) => {
-      if (!peerInstance) {
-        resolve();
-        return;
-      }
-
       // 创建一个临时 Peer 连接向启动者请求设备列表
+      // 注意：不需要依赖主 peerInstance，因为这是独立的临时连接
       let tempPeer: any = null;
       let conn: any = null;
       let timeoutId: number | null = null;
