@@ -20,6 +20,7 @@ let onlineCheckQueryHandler: ((protocol: any, from: string) => void) | null = nu
 let onlineCheckResponseHandler: ((protocol: any, from: string) => void) | null = null;
 let userInfoQueryHandler: ((protocol: any, from: string) => void) | null = null;
 let userInfoResponseHandler: ((protocol: any, from: string) => void) | null = null;
+let userInfoUpdateHandler: ((protocol: any, from: string) => void) | null = null;
 let relayMessageHandler: ((protocol: any, from: string) => void) | null = null;
 let relayResponseHandler: ((protocol: any, from: string) => void) | null = null;
 let networkAccelerationStatusHandler: ((protocol: any, from: string) => void) | null = null;
@@ -147,8 +148,14 @@ export function usePeerManager() {
         peerId = `peer_${timestamp}_${randomStr}`;
       }
 
-      console.log('[Peer] Initializing with PeerId:', peerId);
-      peerInstance = new PeerHttpUtil(peerId);
+      console.log('[Peer] Initializing with PeerId:', peerId, 'at', new Date().toISOString());
+
+      // PeerJS 配置，增加调试信息
+      const peerOptions = {
+        debug: 2, // 增加调试级别
+      };
+
+      peerInstance = new PeerHttpUtil(peerId, peerOptions);
 
       // 用于跟踪是否已经 resolve/reject
       let settled = false;
@@ -491,6 +498,50 @@ export function usePeerManager() {
 
     peerInstance.onProtocol('user_info_query', userInfoQueryHandler);
     peerInstance.onProtocol('user_info_response', userInfoResponseHandler);
+
+    // 处理用户信息更新通知
+    userInfoUpdateHandler = (protocol: any, from: string) => {
+      if (protocol.type === 'user_info_update') {
+        const { username, avatar, version } = protocol;
+        console.log('[Peer] Received user info update from:', from, 'username:', username, 'version:', version);
+
+        // 更新设备信息
+        const existingDevice = deviceStore.getDevice(from);
+        if (existingDevice) {
+          // 只在版本号更新时才更新（避免回退）
+          if (!existingDevice.userInfoVersion || version > existingDevice.userInfoVersion) {
+            deviceStore.addOrUpdateDevice({
+              ...existingDevice,
+              username,
+              avatar,
+              userInfoVersion: version,
+              lastHeartbeat: Date.now(),
+            });
+
+            // 同时更新聊天列表中的联系人信息
+            const existingContact = chatStore.getContact(from);
+            if (existingContact) {
+              chatStore.addOrUpdateContact({
+                peerId: from,
+                username,
+                avatar,
+                online: true,
+                lastSeen: Date.now(),
+                unreadCount: existingContact.unreadCount || 0,
+                chatVersion: existingContact.chatVersion || 0,
+              });
+            }
+
+            // 触发自定义事件，通知 UI 自动刷新
+            window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+
+            console.log('[Peer] User info updated for device:', from);
+          }
+        }
+      }
+    };
+
+    peerInstance.onProtocol('user_info_update' as any, userInfoUpdateHandler);
 
     // 处理网络加速状态同步
     networkAccelerationStatusHandler = (protocol: any, from: string) => {
@@ -1125,6 +1176,32 @@ export function usePeerManager() {
     await Promise.allSettled(promises);
   }
 
+  /**
+   * 广播用户信息更新给所有在线设备
+   */
+  async function broadcastUserInfoUpdate(): Promise<void> {
+    if (!peerInstance) {
+      return;
+    }
+
+    const devices = deviceStore.allDevices;
+    const { username, avatar, version } = userStore.userInfo;
+
+    console.log('[Peer] Broadcasting user info update to', devices.length, 'devices:', { username, version });
+
+    const promises = devices.map((device) => {
+      if (device.isOnline) {
+        return peerInstance!.sendUserInfoUpdate(device.peerId, username, avatar, version).catch((error) => {
+          console.warn('[Peer] Failed to send user info update to', device.peerId, error);
+        });
+      }
+      return Promise.resolve();
+    });
+
+    await Promise.allSettled(promises);
+    console.log('[Peer] User info update broadcast completed');
+  }
+
   // ==================== 设备互相发现 ====================
 
   /**
@@ -1235,5 +1312,7 @@ export function usePeerManager() {
     // 设备互相发现
     requestDeviceList,
     requestAllDeviceLists,
+    // 用户信息广播
+    broadcastUserInfoUpdate,
   };
 }

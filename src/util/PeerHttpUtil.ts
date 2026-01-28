@@ -203,6 +203,10 @@ export class PeerHttpUtil {
         // 响应用户完整信息
         this.handleUserInfoResponse(protocol as any, from);
         break;
+      case 'user_info_update' as any:
+        // 用户信息更新通知
+        this.handleUserInfoUpdate(protocol as any, from);
+        break;
       case 'relay_message':
         // 网络加速：请求中转消息
         this.handleRelayMessage(protocol as any, from);
@@ -806,6 +810,58 @@ export class PeerHttpUtil {
   }
 
   /**
+   * 处理用户信息更新通知（主动推送）
+   */
+  private handleUserInfoUpdate(
+    protocol: { username: string; avatar: string | null; version: number },
+    from: string,
+  ) {
+    console.log('[PeerHttp] Received user info update from:', from, 'username:', protocol.username, 'version:', protocol.version);
+
+    // 更新已发现的设备信息
+    const existing = this.discoveredDevices.get(from);
+
+    if (existing) {
+      // 只在版本号更新时才更新（避免回退）
+      if (!existing.userInfoVersion || protocol.version > existing.userInfoVersion) {
+        existing.username = protocol.username;
+        existing.avatar = protocol.avatar;
+        existing.userInfoVersion = protocol.version;
+        existing.lastHeartbeat = Date.now();
+
+        console.log('[PeerHttp] Updated user info from:', from, 'new username:', protocol.username);
+
+        commLog.sync.updateInfo({
+          peerId: from,
+          username: protocol.username,
+          version: protocol.version,
+        });
+      } else {
+        console.log('[PeerHttp] Ignoring outdated user info update from:', from, 'their version:', protocol.version, 'our version:', existing.userInfoVersion);
+      }
+    } else {
+      // 如果设备不存在，添加到已发现列表
+      this.discoveredDevices.set(from, {
+        peerId: from,
+        username: protocol.username,
+        avatar: protocol.avatar,
+        userInfoVersion: protocol.version,
+        lastHeartbeat: Date.now(),
+        firstDiscovered: Date.now(),
+        isOnline: true,
+      });
+
+      console.log('[PeerHttp] Added new device from user info update:', from);
+    }
+
+    // 触发用户信息更新事件
+    this.emitProtocol('user_info_update' as any, {
+      ...protocol,
+      from,
+    } as any);
+  }
+
+  /**
    * 在线检查：查询指定设备是否在线
    * @param peerId - 目标节点的 ID
    * @param _username - 当前用户名（用于响应，已废弃，保留参数兼容性）
@@ -1140,6 +1196,25 @@ export class PeerHttpUtil {
       timestamp: Date.now(),
       enabled: this.networkAccelerationEnabled,
     });
+  }
+
+  /**
+   * 发送用户信息更新通知
+   * @param peerId - 接收方的 PeerId
+   * @param username - 用户名
+   * @param avatar - 头像（base64）
+   * @param version - 个人信息版本号
+   */
+  async sendUserInfoUpdate(peerId: string, username: string, avatar: string | null, version: number): Promise<void> {
+    await this.sendProtocol(peerId, {
+      type: 'user_info_update' as any,
+      from: this.getId()!,
+      to: peerId,
+      timestamp: Date.now(),
+      username,
+      avatar,
+      version,
+    } as any);
   }
 
   /**

@@ -393,11 +393,20 @@ export async function createTestDevices(
     });
   }
   // 额外等待确保 PeerJS 完全初始化
-  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 3);
+  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 4);
+
   // 等待连接状态变为已连接（增加超时时间）
+  // 并且等待 PeerId 在页面上显示（说明 PeerJS 已连接）
   await deviceAPage.waitForSelector('.ant-badge-status-processing', { timeout: 30000 }).catch(() => {
     console.log('[Test] Device A connection status not showing as connected, continuing...');
   });
+
+  // 再次验证 PeerId 存在且非空
+  const peerIdCheck = await deviceAPage.evaluate(() => {
+    const stored = localStorage.getItem('p2p_user_info');
+    return stored ? JSON.parse(stored).peerId : null;
+  });
+  console.log('[Test] Device A PeerId check:', peerIdCheck);
 
   // 检查设备 A 的 PeerId 是否显示
   const deviceAPeerId = await deviceAPage.evaluate(() => {
@@ -429,12 +438,34 @@ export async function createTestDevices(
       console.log('[Test] Device B PeerId not ready, continuing...');
     });
   }
-  // 额外等待确保 PeerJS 完全初始化（减少等待时间避免超时）
-  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT);
+  // 额外等待确保 PeerJS 完全初始化
+  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 4);
+
   // 等待连接状态变为已连接（增加超时时间）
-  await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 20000 }).catch(() => {
+  try {
+    await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 45000 });
+    console.log('[Test] Device B connection status: connected');
+  } catch (error) {
+    // 检查页面是否正确加载
+    const pageTitle = await deviceBPage.title();
+    const url = deviceBPage.url();
+    console.log('[Test] Device B connection timeout - Page title:', pageTitle, 'URL:', url);
+
+    // 检查控制台是否有错误
+    const logs = await deviceBPage.evaluate(() => {
+      return (window as any).testLogs || [];
+    });
+    console.log('[Test] Device B console logs:', logs);
+
     console.log('[Test] Device B connection status not showing as connected, continuing...');
+  }
+
+  // 再次验证 PeerId 存在且非空
+  const peerIdCheckB = await deviceBPage.evaluate(() => {
+    const stored = localStorage.getItem('p2p_user_info');
+    return stored ? JSON.parse(stored).peerId : null;
   });
+  console.log('[Test] Device B PeerId check:', peerIdCheckB);
 
   // 检查设备 B 的 PeerId 是否显示
   const deviceBPeerId = await deviceBPage.evaluate(() => {

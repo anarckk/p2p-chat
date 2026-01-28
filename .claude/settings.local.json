@@ -29,7 +29,10 @@
       "mcp__playwright__browser_close",
       "Bash(timeout:*)",
       "Bash(exit:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(netstat:*)",
+      "Bash(tee:*)",
+      "Bash(npx:*)"
     ]
   }
 }

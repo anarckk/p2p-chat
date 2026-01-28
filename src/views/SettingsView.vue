@@ -12,6 +12,7 @@ const peerManager = usePeerManager();
 const {
   setNetworkAccelerationEnabled,
   broadcastNetworkAccelerationStatus,
+  broadcastUserInfoUpdate,
 } = peerManager;
 
 // 用户名
@@ -99,11 +100,21 @@ async function handleSave() {
   isSaving.value = true;
 
   try {
+    // 检查用户名或头像是否有变更
+    const hasUsernameChange = username.value.trim() !== originalUsername.value;
+    const hasAvatarChange = avatarPreview.value !== userStore.userInfo.avatar;
+
     // 保存用户信息
     userStore.saveUserInfo({
       username: username.value.trim(),
       avatar: avatarPreview.value,
     });
+
+    // 如果用户名或头像有变更，广播给所有在线设备
+    if (hasUsernameChange || hasAvatarChange) {
+      await broadcastUserInfoUpdate();
+      console.log('[Settings] User info update broadcasted to all devices');
+    }
 
     // 保存网络加速开关
     if (networkAcceleration.value !== originalNetworkAcceleration.value) {

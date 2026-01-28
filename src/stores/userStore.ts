@@ -54,7 +54,14 @@ export const useUserStore = defineStore('user', () => {
 
     const hasChange = hasUsernameChange || hasAvatarChange;
 
-    userInfo.value = { ...userInfo.value, ...info };
+    // 合并信息，但不要覆盖已有的 peerId（除非明确传入了新的 peerId）
+    const { peerId, ...restInfo } = info;
+    userInfo.value = {
+      ...userInfo.value,
+      ...restInfo,
+      // 只有当明确传入 peerId 且不为 null 时才更新 peerId
+      ...(peerId !== undefined && peerId !== null ? { peerId } : {}),
+    };
 
     // 如果有实质性变更，版本号+1
     if (hasChange) {

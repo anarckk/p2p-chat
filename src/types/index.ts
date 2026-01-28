@@ -19,6 +19,7 @@ export type ProtocolMessageType =
   | 'online_check_response'    // 在线检查：响应在线状态
   | 'user_info_query'          // 查询用户完整信息（包含版本号）
   | 'user_info_response'       // 响应用户完整信息
+  | 'user_info_update'         // 用户信息更新通知：主动推送用户信息更新
   | 'relay_message'            // 网络加速：请求中转消息
   | 'relay_response'           // 网络加速：中转响应
   | 'network_acceleration_status' // 网络加速：状态同步

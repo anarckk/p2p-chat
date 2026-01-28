@@ -158,15 +158,14 @@ async function handleUserSetup() {
   isSubmitting.value = true;
 
   try {
-    // 保存用户信息（包含头像）
+    // 先初始化 Peer（会生成并保存 PeerId），等待连接完成
+    await init();
+
+    // 保存用户信息（包含头像，但不覆盖 PeerId）
     userStore.saveUserInfo({
       username: usernameInput.value.trim(),
       avatar: avatarUrl.value || null,
-      peerId: null,
     });
-
-    // 初始化 Peer（会生成并保存 PeerId），等待连接完成
-    await init();
 
     // 关闭弹窗
     isUserSetupModalVisible.value = false;
@@ -177,7 +176,21 @@ async function handleUserSetup() {
     message.success('设置完成');
   } catch (error) {
     console.error('User setup failed:', error);
-    message.error('设置失败，请重试');
+
+    // 即使 Peer 连接失败，也允许继续使用（用户信息已保存）
+    // 保存用户信息（包含头像）
+    userStore.saveUserInfo({
+      username: usernameInput.value.trim(),
+      avatar: avatarUrl.value || null,
+    });
+
+    // 关闭弹窗
+    isUserSetupModalVisible.value = false;
+    usernameInput.value = '';
+    avatarUrl.value = '';
+    fileList.value = [];
+
+    message.warning('Peer 连接失败，某些功能可能不可用');
   } finally {
     isSubmitting.value = false;
   }

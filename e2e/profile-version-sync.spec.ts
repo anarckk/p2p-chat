@@ -250,7 +250,7 @@ test.describe('个人信息版本同步', () => {
         const stored = localStorage.getItem('p2p_user_info');
         return stored ? JSON.parse(stored) : null;
       });
-      const versionBefore = userInfoBefore?.profileVersion || 0;
+      const versionBefore = userInfoBefore?.version || 0;
       console.log('[Test] Profile version before:', versionBefore);
 
       // 切换到设置页面
@@ -274,7 +274,7 @@ test.describe('个人信息版本同步', () => {
         const stored = localStorage.getItem('p2p_user_info');
         return stored ? JSON.parse(stored) : null;
       });
-      const versionAfter = userInfoAfter?.profileVersion;
+      const versionAfter = userInfoAfter?.version;
       console.log('[Test] Profile version after:', versionAfter);
 
       // 验证版本号增加了

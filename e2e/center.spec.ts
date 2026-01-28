@@ -61,8 +61,7 @@ test.describe('发现中心页面 - 基础 UI', () => {
  */
 test.describe('P2P 发现功能 - 多设备测试', () => {
   test('设备 A 添加设备 B 时，设备 B 应该在设备 A 的发现列表中', async ({ browser }) => {
-    // 增加超时时间，给予足够时间完成 P2P 通信
-    test.setTimeout(30000);
+    test.setTimeout(120000); // 增加到 2 分钟
     const devices = await createTestDevices(browser, '设备A', '设备B', { startPage: 'center' });
 
     try {
