@@ -62,8 +62,7 @@ export class PeerHttpUtil {
    */
   constructor(peerId: string | null = null, options: any = {}) {
     const peerOptions = { debug: 1, ...options };
-    console.log(peerOptions);
-    this.peer = peerId ? new Peer(peerId) : new Peer();
+    this.peer = peerId ? new Peer(peerId, peerOptions) : new Peer(peerOptions);
 
     // 监听连接打开事件
     this.peer.on('open', (id: string) => {
