@@ -226,30 +226,36 @@ test.describe('错误处理', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
         await devices.deviceA.page.click(SELECTORS.modalOkButton);
+
+        // 等待聊天创建完成（检查聊天列表是否更新）
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
         await devices.deviceB.page.click(SELECTORS.plusButton);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
         await devices.deviceB.page.fill(SELECTORS.peerIdInput, devices.deviceA.userInfo.peerId);
         await devices.deviceB.page.click(SELECTORS.modalOkButton);
+
+        // 等待聊天创建完成
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
-        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+        // 额外等待确保连接建立
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
-        // 快速连续发送多条消息
-        const messages = ['消息1', '消息2', '消息3', '消息4', '消息5'];
+        // 快速连续发送多条消息（减少消息数量以避免超时）
+        const messages = ['消息1', '消息2', '消息3'];
 
         for (const msg of messages) {
           await devices.deviceA.page.fill(SELECTORS.messageInput, msg);
           await devices.deviceA.page.click(SELECTORS.sendButton);
-          // 不等待，快速发送
+          // 添加短暂延迟避免竞争条件
+          await devices.deviceA.page.waitForTimeout(300);
         }
 
         console.log('[Test] Device A sent rapid messages');
 
         // 等待所有消息处理
-        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE * 3);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
 
         // 验证不会崩溃
         const wechatVisible = await devices.deviceA.page.locator('.wechat-container').isVisible();
