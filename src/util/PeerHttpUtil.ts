@@ -739,7 +739,11 @@ export class PeerHttpUtil {
     commLog.heartbeat.check({ to: from, version: protocol.userInfoVersion });
     // 需要获取当前用户信息来响应，通过事件传递出去
     // 同时携带对方的版本号，用于检查是否需要更新对方信息
-    this.emitProtocol('online_check_query', { from, userInfoVersion: protocol.userInfoVersion } as any);
+    this.emitProtocol('online_check_query', {
+      from,
+      userInfoVersion: protocol.userInfoVersion,
+      type: 'online_check_query'
+    } as any);
   }
 
   /**

@@ -953,10 +953,14 @@ export function usePeerManager() {
         userStore.userInfo.avatar,
         userStore.userInfo.version,
       );
-      if (result !== null) {
+      if (result !== null && result.isOnline) {
         commLog.heartbeat.online({ from: peerId });
+        return true;
       }
-      return result !== null;
+      if (result !== null && !result.isOnline) {
+        commLog.heartbeat.offline({ peerId });
+      }
+      return result !== null && result.isOnline;
     } catch (error) {
       console.error('[Peer] Check online error: ' + String(error));
       commLog.heartbeat.offline({ peerId });

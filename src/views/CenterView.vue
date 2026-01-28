@@ -248,15 +248,61 @@ function copyPeerId(id: string) {
 }
 
 /**
- * 刷新发现列表（设备互相发现）
+ * 刷新发现列表（设备互相发现 + 在线状态检查）
  */
 async function refreshDiscovery() {
-  // 向所有在线设备请求设备列表
-  await requestAllDeviceLists();
+  // 记录刷新开始
+  console.log('[Center] Refresh discovery started');
 
-  // 重新加载设备状态
-  deviceStore.updateOnlineStatus();
-  message.success(`已刷新，当前发现 ${storedDevices.value.length} 个设备`);
+  // 检查是否已连接
+  if (!isConnected.value) {
+    console.warn('[Center] Not connected to Peer Server');
+    // 仍然继续执行，但记录警告
+  }
+
+  // 检查用户信息是否已设置
+  if (!userStore.myPeerId) {
+    console.warn('[Center] User info not set');
+    // 仍然继续执行，但记录警告
+  }
+
+  try {
+    // 1. 向所有设备请求设备列表（设备互相发现）
+    await requestAllDeviceLists();
+  } catch (error) {
+    console.error('[Center] Request device lists error:', error);
+  }
+
+  // 2. 主动检查每个设备的在线状态（除了自己）
+  const devicesToCheck = storedDevices.value.filter(
+    (d) => d.peerId !== userStore.myPeerId
+  );
+
+  let onlineCount = 0;
+  const checkPromises = devicesToCheck.map(async (device) => {
+    try {
+      const isOnline = await checkOnline(device.peerId);
+      if (isOnline) {
+        onlineCount++;
+      }
+      // 更新设备的在线状态
+      deviceStore.updateDeviceOnlineStatus(device.peerId, isOnline);
+      return { peerId: device.peerId, isOnline };
+    } catch (error) {
+      // 单个设备检查失败不应影响其他设备
+      console.warn('[Center] Check online failed for ' + device.peerId + ':', error);
+      return { peerId: device.peerId, isOnline: false };
+    }
+  });
+
+  await Promise.allSettled(checkPromises);
+
+  console.log('[Center] Refresh completed: ' + storedDevices.value.length + ' devices, ' + onlineCount + ' online');
+
+  // 注意：不调用 updateOnlineStatus()，因为它会根据 lastHeartbeat 重新计算状态，
+  // 可能会覆盖 checkOnline() 的实际检查结果
+
+  message.success(`已刷新，当前发现 ${storedDevices.value.length} 个设备，其中 ${onlineCount} 个在线`);
 }
 </script>
 

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, triggerRef } from 'vue';
 import type { OnlineDevice } from '../types';
 
 const DEVICE_STORAGE_KEY = 'discovered_devices';
@@ -117,6 +117,22 @@ export const useDeviceStore = defineStore('device', () => {
       device.lastHeartbeat = Date.now();
       device.isOnline = true;
       saveDevices();
+    }
+  }
+
+  /**
+   * 更新设备在线状态
+   */
+  function updateDeviceOnlineStatus(peerId: string, isOnline: boolean) {
+    const device = devices.value.get(peerId);
+    if (device) {
+      device.isOnline = isOnline;
+      if (isOnline) {
+        device.lastHeartbeat = Date.now();
+      }
+      saveDevices();
+      // 手动触发响应式更新
+      triggerRef(devices);
     }
   }
 
@@ -274,6 +290,7 @@ export const useDeviceStore = defineStore('device', () => {
     addOrUpdateDevice,
     getDevice,
     updateHeartbeat,
+    updateDeviceOnlineStatus,
     addDevices,
     removeDevice,
     cleanupExpiredDevices,
