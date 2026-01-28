@@ -12,12 +12,10 @@ import { test, expect } from '@playwright/test';
 import {
   SELECTORS,
   WAIT_TIMES,
-  createUserInfo,
   clearAllStorage,
   createTestDevices,
   cleanupTestDevices,
   retry,
-  waitForMessage,
 } from './test-helpers.js';
 import path from 'path';
 import fs from 'fs';
@@ -143,15 +141,14 @@ test.describe('真实文件传输', () => {
           // 验证设备 B 收到了图片消息
           await retry(async () => {
             const imageMessages = await devices.deviceB.page.locator('.message-item.has-image, .message-item .message-image').count();
-            if (imageMessages === 0) {
-              // 打印调试信息
-              const allMessages = await devices.deviceB.page.locator('.message-item').allTextContents();
-              console.log('[Test] Device B messages:', allMessages);
-              throw new Error('No image message received on Device B');
-            }
+            expect(imageMessages, 'Device B should receive image message').toBeGreaterThan(0);
           }, { maxAttempts: 5, delay: 3000, context: 'Device B receive image message' });
 
           console.log('[Test] Device B received image message');
+
+          // 验证图片消息在设备 A 上显示为已送达
+          const sentImageStatus = await devices.deviceA.page.locator('.message-item.has-image, .message-item .message-image').locator('.message-status').last().textContent();
+          expect(sentImageStatus).toContain('已送达');
 
           // 清理测试文件
           await cleanupTestFile(testImagePath);
@@ -215,14 +212,14 @@ test.describe('真实文件传输', () => {
           // 验证设备 B 能看到图片消息
           await retry(async () => {
             const imageMessages = await devices.deviceB.page.locator('.message-item.has-image, .message-item .message-image, .message-image img').count();
-            if (imageMessages === 0) {
-              throw new Error('No image message received');
-            }
+            expect(imageMessages, 'Device B should receive image message').toBeGreaterThan(0);
           }, { maxAttempts: 5, delay: 3000, context: 'Verify image message received' });
 
           // 验证图片消息的状态（已送达）
           const lastMessage = devices.deviceB.page.locator('.message-item').last();
           const messageStatus = await lastMessage.locator('.message-status').textContent();
+
+          expect(messageStatus).toContain('已送达');
 
           console.log('[Test] Last message status:', messageStatus);
 
@@ -301,11 +298,7 @@ test.describe('真实文件传输', () => {
           // 验证设备 B 收到了文件消息
           await retry(async () => {
             const fileMessages = await devices.deviceB.page.locator('.message-item.has-file, .message-item .message-file').count();
-            if (fileMessages === 0) {
-              const allMessages = await devices.deviceB.page.locator('.message-item').allTextContents();
-              console.log('[Test] Device B messages:', allMessages);
-              throw new Error('No file message received on Device B');
-            }
+            expect(fileMessages, 'Device B should receive file message').toBeGreaterThan(0);
           }, { maxAttempts: 5, delay: 3000, context: 'Device B receive file message' });
 
           console.log('[Test] Device B received file message');
@@ -314,9 +307,11 @@ test.describe('真实文件传输', () => {
           const fileNameElement = devices.deviceB.page.locator('.message-file-name, .file-name').filter({ hasText: testFileName });
           const fileNameVisible = await fileNameElement.isVisible().catch(() => false);
 
-          if (fileNameVisible) {
-            console.log('[Test] File name displayed correctly:', testFileName);
-          }
+          expect(fileNameVisible, `File name "${testFileName}" should be displayed`).toBe(true);
+
+          // 验证文件消息在设备 A 上显示为已送达
+          const sentFileStatus = await devices.deviceA.page.locator('.message-item.has-file, .message-item .message-file').locator('.message-status').last().textContent();
+          expect(sentFileStatus).toContain('已送达');
 
           await cleanupTestFile(testFilePath);
         } else {
@@ -377,14 +372,14 @@ test.describe('真实文件传输', () => {
           // 验证设备 B 能看到文件消息
           await retry(async () => {
             const fileMessages = await devices.deviceB.page.locator('.message-item.has-file, .message-item .message-file').count();
-            if (fileMessages === 0) {
-              throw new Error('No file message received');
-            }
+            expect(fileMessages, 'Device B should receive file message').toBeGreaterThan(0);
           }, { maxAttempts: 5, delay: 3000, context: 'Verify file message received' });
 
           // 验证文件消息状态
           const lastMessage = devices.deviceB.page.locator('.message-item').last();
           const messageStatus = await lastMessage.locator('.message-status').textContent();
+
+          expect(messageStatus).toContain('已送达');
 
           console.log('[Test] Last message status:', messageStatus);
 
@@ -462,12 +457,14 @@ test.describe('真实文件传输', () => {
           // 验证设备 B 收到了文件消息
           await retry(async () => {
             const fileMessages = await devices.deviceB.page.locator('.message-item.has-file, .message-item .message-file').count();
-            if (fileMessages === 0) {
-              throw new Error('No file message received on Device B');
-            }
+            expect(fileMessages, 'Device B should receive large file message').toBeGreaterThan(0);
           }, { maxAttempts: 8, delay: 5000, context: 'Device B receive large file' });
 
           console.log('[Test] Device B received large file message');
+
+          // 验证大文件消息已送达
+          const largeFileStatus = await devices.deviceA.page.locator('.message-item.has-file, .message-item .message-file').locator('.message-status').last().textContent();
+          expect(largeFileStatus).toContain('已送达');
 
           await cleanupTestFile(testFilePath);
         } else {
@@ -532,12 +529,16 @@ test.describe('真实文件传输', () => {
           // 验证设备 B 收到了文件消息
           await retry(async () => {
             const fileMessages = await devices.deviceB.page.locator('.message-item.has-file, .message-item .message-file').count();
-            if (fileMessages === 0) {
-              throw new Error('No file message received on Device B');
-            }
+            expect(fileMessages, 'Device B should receive file with special characters').toBeGreaterThan(0);
           }, { maxAttempts: 5, delay: 3000, context: 'Device B receive special char file' });
 
           console.log('[Test] Device B received file with special characters');
+
+          // 验证特殊字符文件名显示正确
+          const specialFileNameElement = devices.deviceB.page.locator('.message-file-name, .file-name').filter({ hasText: testFileName });
+          const specialFileNameVisible = await specialFileNameElement.isVisible().catch(() => false);
+
+          expect(specialFileNameVisible, `Special character file name "${testFileName}" should be displayed`).toBe(true);
 
           await cleanupTestFile(testFilePath);
         } else {
@@ -591,7 +592,7 @@ test.describe('真实文件传输', () => {
         if (fileButtonVisible) {
           // 检查发送前的状态
           const messageInputVisible = await devices.deviceA.page.locator(SELECTORS.messageInput).isVisible();
-          expect(messageInputVisible).toBe(true);
+          expect(messageInputVisible, 'Message input should be visible before sending').toBe(true);
 
           await fileUploadButton.click();
           await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -616,7 +617,15 @@ test.describe('真实文件传输', () => {
           // 检查发送完成后的状态
           const sentStatus = await devices.deviceA.page.locator('.message-status.sent, .message-status:has-text("已送达")').count();
 
+          expect(sentStatus, 'File message should show as delivered').toBeGreaterThan(0);
+
           console.log('[Test] Sent status count:', sentStatus);
+
+          // 验证设备 B 也收到了文件消息
+          await retry(async () => {
+            const fileMessages = await devices.deviceB.page.locator('.message-item.has-file, .message-item .message-file').count();
+            expect(fileMessages, 'Device B should receive file message').toBeGreaterThan(0);
+          }, { maxAttempts: 5, delay: 3000, context: 'Verify status test file received' });
 
           await cleanupTestFile(testFilePath);
         } else {
