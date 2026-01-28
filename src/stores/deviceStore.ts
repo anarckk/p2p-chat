@@ -31,6 +31,8 @@ export const useDeviceStore = defineStore('device', () => {
         const parsed = JSON.parse(stored);
         devices.value = new Map(Object.entries(parsed));
         console.log(`[DeviceStore] Loaded ${devices.value.size} devices from storage`);
+        // 加载后更新设备的在线状态
+        updateOnlineStatus();
       }
     } catch (e) {
       console.error('[DeviceStore] Failed to load devices:', e);
@@ -203,6 +205,8 @@ export const useDeviceStore = defineStore('device', () => {
       device.isOnline = now - device.lastHeartbeat < OFFLINE_THRESHOLD;
     });
     saveDevices();
+    // 手动触发响应式更新
+    triggerRef(devices);
   }
 
   /**

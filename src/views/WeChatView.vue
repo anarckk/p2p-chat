@@ -38,16 +38,27 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const currentContact = computed(() => {
   if (!chatStore.currentChatPeerId) return null;
-  return chatStore.getContact(chatStore.currentChatPeerId);
+  const contact = chatStore.getContact(chatStore.currentChatPeerId);
+  if (!contact) return null;
+
+  // 从 deviceStore 获取最新的设备状态
+  const device = deviceStore.getDevice(chatStore.currentChatPeerId);
+
+  // 返回联系人信息，如果设备存在则使用设备的在线状态
+  return {
+    ...contact,
+    online: device ? device.isOnline : contact.online,
+    lastSeen: device ? device.lastHeartbeat : contact.lastSeen,
+  };
 });
 
 /**
  * 自动发现的聊天列表
- * 将发现中心的在线设备自动合并到聊天列表中
+ * 将发现中心的设备自动合并到聊天列表中
  */
 const autoDiscoveredContacts = computed(() => {
-  // 获取发现中心的在线设备（排除自己）
-  const onlineDevices = deviceStore.onlineDevices.filter(
+  // 获取发现中心的所有设备（排除自己）
+  const allDevices = deviceStore.allDevices.filter(
     (d) => d.peerId !== userStore.myPeerId
   );
 
@@ -59,14 +70,14 @@ const autoDiscoveredContacts = computed(() => {
     contactMap.set(contact.peerId, contact);
   });
 
-  // 然后添加在线设备（如果不在联系人列表中）
-  onlineDevices.forEach((device) => {
+  // 然后添加设备（如果不在联系人列表中）
+  allDevices.forEach((device) => {
     if (!contactMap.has(device.peerId)) {
       contactMap.set(device.peerId, {
         peerId: device.peerId,
         username: device.username,
         avatar: device.avatar,
-        online: device.isOnline || true,
+        online: device.isOnline ?? false,
         lastSeen: device.lastHeartbeat,
         unreadCount: 0,
         chatVersion: 0,
@@ -74,7 +85,7 @@ const autoDiscoveredContacts = computed(() => {
     } else {
       // 更新现有联系人的在线状态和用户信息
       const existing = contactMap.get(device.peerId)!;
-      existing.online = device.isOnline || true;
+      existing.online = device.isOnline ?? false;
       existing.lastSeen = device.lastHeartbeat;
       existing.username = device.username;
       existing.avatar = device.avatar;
