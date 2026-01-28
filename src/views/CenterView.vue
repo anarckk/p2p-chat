@@ -20,6 +20,7 @@ const {
   queryUsername,
   checkOnline,
   requestAllDeviceLists,
+  requestDeviceList,
   tryBecomeBootstrap,
 } = peerManager;
 
@@ -196,6 +197,15 @@ async function addDeviceManually() {
   // 显示成功消息（设备已添加，即使查询用户名失败也算成功）
   message.success(`已添加设备 ${peerId}`);
   queryPeerIdInput.value = '';
+
+  // 设备互相发现：向新添加的设备询问其设备列表
+  requestDeviceList(peerId).then((devices) => {
+    if (devices.length > 0) {
+      console.log('[Center] Discovered ' + devices.length + ' devices from ' + peerId);
+    }
+  }).catch((error) => {
+    console.error('[Center] Request device list error:', error);
+  });
 
   // 异步查询对端的用户名（不阻塞UI）
   console.log('[Center] About to query username for:', peerId);

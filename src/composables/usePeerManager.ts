@@ -27,6 +27,9 @@ let networkAccelerationStatusHandler: ((protocol: any, from: string) => void) | 
 let deviceListRequestHandler: ((protocol: any, from: string) => void) | null = null;
 let deviceListResponseHandler: ((protocol: any, from: string) => void) | null = null;
 
+// 设备互相发现：正在处理的设备集合（避免无限递归）
+const processingDeviceListRequests = new Set<string>();
+
 // 自动重连相关
 let reconnectTimer: number | null = null;
 let isReconnecting = false;
@@ -331,6 +334,15 @@ export function usePeerManager() {
         // 发送响应，包含我的用户名和头像
         // 这样对端就能知道我的用户信息，而不需要额外查询
         peerInstance?.sendDiscoveryResponse(from, userStore.userInfo.username || '', userStore.userInfo.avatar);
+
+        // 设备互相发现：向新发现的设备询问其设备列表
+        requestDeviceList(from).then((devices) => {
+          if (devices.length > 0) {
+            console.log('[Peer] Discovered ' + devices.length + ' devices from ' + from);
+          }
+        }).catch((error) => {
+          console.error('[Peer] Request device list error after discovery notification:', error);
+        });
       }
     };
 
@@ -569,7 +581,38 @@ export function usePeerManager() {
         commLog.deviceDiscovery.responseReceived({ deviceCount: devices?.length || 0 });
         // 合并到 deviceStore
         if (devices && devices.length > 0) {
+          // 设备互相发现：先找出新设备，再添加到 deviceStore
+          const newDevices: OnlineDevice[] = [];
+          devices.forEach((device: OnlineDevice) => {
+            const isNewDevice = !deviceStore.getDevice(device.peerId);
+            if (isNewDevice && !processingDeviceListRequests.has(device.peerId)) {
+              newDevices.push(device);
+            }
+          });
+
+          // 添加所有设备到 deviceStore
           deviceStore.addDevices(devices);
+
+          // 对新设备递归发起设备列表请求
+          newDevices.forEach((device: OnlineDevice) => {
+            // 标记为正在处理，避免无限递归
+            processingDeviceListRequests.add(device.peerId);
+            commLog.deviceDiscovery.newDevice({ peerId: device.peerId, username: device.username });
+
+            requestDeviceList(device.peerId)
+              .then((discoveredDevices) => {
+                if (discoveredDevices.length > 0) {
+                  console.log('[Peer] Discovered ' + discoveredDevices.length + ' more devices from ' + device.peerId);
+                }
+              })
+              .catch((error) => {
+                console.error('[Peer] Recursive device list request error:', error);
+              })
+              .finally(() => {
+                // 处理完成后移除标记
+                processingDeviceListRequests.delete(device.peerId);
+              });
+          });
         }
       }
     };
