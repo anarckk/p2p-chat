@@ -57,19 +57,34 @@ test.describe('个人信息版本同步', () => {
 
         // 设备 A 切换到设置页面修改用户名
         await devices.deviceA.page.click('.ant-menu-item:has-text("设置")');
-        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+        await devices.deviceA.page.waitForURL('/settings', { timeout: 5000 });
+        await devices.deviceA.page.waitForLoadState('domcontentloaded');
 
         // 修改用户名
         const usernameInput = devices.deviceA.page.locator('.settings-container input[maxlength="20"]');
+        await usernameInput.waitFor({ state: 'visible' });
         await usernameInput.clear();
         await usernameInput.fill('更新后的用户A');
+        console.log('[Test] Device A filled username');
 
         // 保存设置
         const saveButton = devices.deviceA.page.locator('button[aria-label="save-settings-button"]');
+        await saveButton.waitFor({ state: 'visible' });
         await saveButton.click();
+        console.log('[Test] Device A clicked save button');
 
-        // 等待保存成功提示
-        await devices.deviceA.page.waitForSelector('.ant-message-success', { timeout: 3000 });
+        // 等待保存操作完成（验证数据已保存到 localStorage）
+        await devices.deviceA.page.waitForTimeout(1000);
+        const userInfo = await devices.deviceA.page.evaluate(() => {
+          const stored = localStorage.getItem('p2p_user_info');
+          return stored ? JSON.parse(stored) : null;
+        });
+
+        // 验证用户名已更新
+        if (!userInfo || userInfo.username !== '更新后的用户A') {
+          throw new Error(`Username not updated. Expected: 更新后的用户A, Got: ${userInfo?.username}`);
+        }
+
         console.log('[Test] Device A updated username to: 更新后的用户A');
 
         // 切换回发现中心
@@ -361,15 +376,33 @@ test.describe('个人信息版本同步', () => {
 
         // 设备 A 修改用户名
         await devices.deviceA.page.click('.ant-menu-item:has-text("设置")');
-        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+        await devices.deviceA.page.waitForURL('/settings', { timeout: 5000 });
+        await devices.deviceA.page.waitForLoadState('domcontentloaded');
 
         const usernameInput = devices.deviceA.page.locator('.settings-container input[maxlength="20"]');
+        await usernameInput.waitFor({ state: 'visible' });
         await usernameInput.clear();
         await usernameInput.fill('定时更新用户A');
+        console.log('[Test] Device A filled username');
 
         const saveButton = devices.deviceA.page.locator('button[aria-label="save-settings-button"]');
+        await saveButton.waitFor({ state: 'visible' });
         await saveButton.click();
-        await devices.deviceA.page.waitForSelector('.ant-message-success', { timeout: 3000 });
+        console.log('[Test] Device A clicked save button');
+
+        // 等待保存操作完成（验证数据已保存到 localStorage）
+        await devices.deviceA.page.waitForTimeout(1000);
+        const userInfo = await devices.deviceA.page.evaluate(() => {
+          const stored = localStorage.getItem('p2p_user_info');
+          return stored ? JSON.parse(stored) : null;
+        });
+
+        // 验证用户名已更新
+        if (!userInfo || userInfo.username !== '定时更新用户A') {
+          throw new Error(`Username not updated. Expected: 定时更新用户A, Got: ${userInfo?.username}`);
+        }
+
+        console.log('[Test] Device A updated username to: 定时更新用户A');
 
         await devices.deviceA.page.click('.ant-menu-item:has-text("发现中心")');
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);

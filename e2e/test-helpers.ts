@@ -927,16 +927,29 @@ export async function waitForDeviceCardLegacy(page: any, deviceName: string, tim
  * @param username 用户名
  */
 export async function setupUser(page: Page, username: string): Promise<void> {
+  console.log('[Test] setupUser starting for:', username);
   // 等待用户设置弹窗出现
   try {
+    console.log('[Test] Waiting for modal...');
     await page.waitForSelector('.ant-modal-title', { timeout: WAIT_TIMES.MODAL });
+    console.log('[Test] Modal found, filling username...');
     // 填写用户名
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
     await usernameInput.fill(username);
+    console.log('[Test] Username filled, clicking confirm button...');
     // 点击确定按钮
     await page.click('.ant-modal .ant-btn-primary');
-    // 等待弹窗关闭和 Peer 初始化
+    console.log('[Test] Confirm button clicked, waiting for modal to close...');
+    // 等待弹窗关闭
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 8000 }).catch(() => {
+      console.log('[Test] Modal still visible after clicking confirm, continuing...');
+    });
+    // 等待弹窗完全消失
+    await page.waitForTimeout(500);
+    console.log('[Test] Modal closed, waiting for Peer init...');
+    // 等待 Peer 初始化
     await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
+    console.log('[Test] setupUser completed');
   } catch (error) {
     // 弹窗可能已经设置过了，直接设置用户信息到 localStorage
     console.log('[Test] User setup modal not found, setting up via localStorage');

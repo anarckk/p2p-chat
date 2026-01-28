@@ -49,9 +49,9 @@ async function createThreeTestDevices(
   const deviceAPage = await deviceAContext.newPage();
   await deviceAPage.goto(url);
   await deviceAPage.waitForLoadState('domcontentloaded');
-  await deviceAPage.evaluate(([info, createUserInfo]) => {
+  await deviceAPage.evaluate((info) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
-  }, [deviceAUserInfo, createUserInfo]);
+  }, deviceAUserInfo);
   await deviceAPage.reload();
   await deviceAPage.waitForSelector(pageSelector, { timeout: 8000 });
   await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
@@ -62,9 +62,9 @@ async function createThreeTestDevices(
   const deviceBPage = await deviceBContext.newPage();
   await deviceBPage.goto(url);
   await deviceBPage.waitForLoadState('domcontentloaded');
-  await deviceBPage.evaluate(([info, createUserInfo]) => {
+  await deviceBPage.evaluate((info) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
-  }, [deviceBUserInfo, createUserInfo]);
+  }, deviceBUserInfo);
   await deviceBPage.reload();
   await deviceBPage.waitForSelector(pageSelector, { timeout: 8000 });
   await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
@@ -75,9 +75,9 @@ async function createThreeTestDevices(
   const deviceCPage = await deviceCContext.newPage();
   await deviceCPage.goto(url);
   await deviceCPage.waitForLoadState('domcontentloaded');
-  await deviceCPage.evaluate(([info, createUserInfo]) => {
+  await deviceCPage.evaluate((info) => {
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
-  }, [deviceCUserInfo, createUserInfo]);
+  }, deviceCUserInfo);
   await deviceCPage.reload();
   await deviceCPage.waitForSelector(pageSelector, { timeout: 8000 });
   await deviceCPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
@@ -114,6 +114,15 @@ test.describe('网络加速功能', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/center');
     await clearAllStorage(page);
+
+    // 处理首次进入的用户名输入弹窗
+    await page.waitForTimeout(WAIT_TIMES.MODAL);
+    const modalExists = await page.locator('.ant-modal').count();
+    if (modalExists > 0) {
+      await page.fill('.ant-modal input[type="text"]', '测试用户');
+      await page.click('.ant-modal .ant-btn-primary');
+      await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+    }
   });
 
   /**
@@ -129,23 +138,24 @@ test.describe('网络加速功能', () => {
       const networkSwitch = page.locator('.settings-container .ant-switch');
 
       // 检查当前状态
-      const isOffBefore = await networkSwitch.evaluate((el: HTMLElement) =>
-        el.classList.contains('ant-switch-unchecked')
-      );
+      const ariaCheckedBefore = await networkSwitch.getAttribute('aria-checked');
+      const isCheckedBefore = ariaCheckedBefore === 'true';
 
-      if (isOffBefore) {
+      if (!isCheckedBefore) {
         // 点击开启网络加速
         await networkSwitch.click();
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
 
+        // 点击保存按钮
+        await page.click('button[aria-label="save-settings-button"]');
         // 等待保存成功提示
         await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
       }
 
       // 验证开关已开启
-      const isChecked = await networkSwitch.evaluate((el: HTMLElement) =>
-        el.classList.contains('ant-switch-checked')
-      );
-      expect(isChecked).toBe(true);
+      const ariaCheckedAfter = await networkSwitch.getAttribute('aria-checked');
+      expect(ariaCheckedAfter).toBe('true');
     });
 
     test('应该能关闭网络加速', async ({ page }) => {
@@ -157,25 +167,28 @@ test.describe('网络加速功能', () => {
       const networkSwitch = page.locator('.settings-container .ant-switch');
 
       // 确保开关是开启状态
-      const isChecked = await networkSwitch.evaluate((el: HTMLElement) =>
-        el.classList.contains('ant-switch-checked')
-      );
+      const ariaChecked = await networkSwitch.getAttribute('aria-checked');
+      const isChecked = ariaChecked === 'true';
 
       if (!isChecked) {
         // 先开启
         await networkSwitch.click();
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
+        await page.click('button[aria-label="save-settings-button"]');
         await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
       }
 
       // 点击关闭网络加速
       await networkSwitch.click();
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
+      await page.click('button[aria-label="save-settings-button"]');
       await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证开关已关闭
-      const isOffAfter = await networkSwitch.evaluate((el: HTMLElement) =>
-        el.classList.contains('ant-switch-unchecked')
-      );
-      expect(isOffAfter).toBe(true);
+      const ariaCheckedAfter = await networkSwitch.getAttribute('aria-checked');
+      expect(ariaCheckedAfter).toBe('false');
     });
 
     test('网络加速状态应该持久化', async ({ page }) => {
@@ -186,8 +199,20 @@ test.describe('网络加速功能', () => {
       // 找到网络加速开关
       const networkSwitch = page.locator('.settings-container .ant-switch');
 
+      // 先关闭网络加速（如果开启的话）
+      const ariaChecked = await networkSwitch.getAttribute('aria-checked');
+      const isChecked = ariaChecked === 'true';
+      if (isChecked) {
+        await networkSwitch.click();
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
+        await page.click('button[aria-label="save-settings-button"]');
+        await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+      }
+
       // 开启网络加速
       await networkSwitch.click();
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
+      await page.click('button[aria-label="save-settings-button"]');
       await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
       // 刷新页面
@@ -195,10 +220,8 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 验证开关状态仍然开启
-      const isChecked = await networkSwitch.evaluate((el: HTMLElement) =>
-        el.classList.contains('ant-switch-checked')
-      );
-      expect(isChecked).toBe(true);
+      const ariaCheckedAfter = await networkSwitch.getAttribute('aria-checked');
+      expect(ariaCheckedAfter).toBe('true');
     });
   });
 
@@ -371,6 +394,8 @@ test.describe('网络加速功能', () => {
       // 开启网络加速
       const networkSwitch = page.locator('.settings-container .ant-switch');
       await networkSwitch.click();
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
+      await page.click('button[aria-label="save-settings-button"]');
       await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
       // 刷新页面
@@ -378,10 +403,8 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 验证状态保持
-      const isChecked = await networkSwitch.evaluate((el: HTMLElement) =>
-        el.classList.contains('ant-switch-checked')
-      );
-      expect(isChecked).toBe(true);
+      const ariaChecked = await networkSwitch.getAttribute('aria-checked');
+      expect(ariaChecked).toBe('true');
     });
 
     test('跨页面网络加速状态应该同步', async ({ page }) => {
@@ -391,6 +414,8 @@ test.describe('网络加速功能', () => {
 
       const networkSwitch = page.locator('.settings-container .ant-switch');
       await networkSwitch.click();
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
+      await page.click('button[aria-label="save-settings-button"]');
       await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
       // 切换到发现中心
@@ -402,10 +427,8 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证状态仍然开启
-      const isChecked = await networkSwitch.evaluate((el: HTMLElement) =>
-        el.classList.contains('ant-switch-checked')
-      );
-      expect(isChecked).toBe(true);
+      const ariaChecked = await networkSwitch.getAttribute('aria-checked');
+      expect(ariaChecked).toBe('true');
     });
   });
 
@@ -420,17 +443,20 @@ test.describe('网络加速功能', () => {
       const networkSwitch = page.locator('.settings-container .ant-switch');
 
       // 确保开关是关闭状态
-      const isOffBefore = await networkSwitch.evaluate((el: HTMLElement) =>
-        el.classList.contains('ant-switch-unchecked')
-      );
+      const ariaChecked = await networkSwitch.getAttribute('aria-checked');
+      const isChecked = ariaChecked === 'true';
 
-      if (!isOffBefore) {
+      if (isChecked) {
         await networkSwitch.click();
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
+        await page.click('button[aria-label="save-settings-button"]');
         await page.waitForSelector('.ant-message-success', { timeout: 3000 });
       }
 
       // 开启网络加速
       await networkSwitch.click();
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
+      await page.click('button[aria-label="save-settings-button"]');
       await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
       // 检查是否有相应的提示信息
@@ -445,17 +471,20 @@ test.describe('网络加速功能', () => {
       const networkSwitch = page.locator('.settings-container .ant-switch');
 
       // 确保开关是开启状态
-      const isChecked = await networkSwitch.evaluate((el: HTMLElement) =>
-        el.classList.contains('ant-switch-checked')
-      );
+      const ariaChecked = await networkSwitch.getAttribute('aria-checked');
+      const isChecked = ariaChecked === 'true';
 
       if (!isChecked) {
         await networkSwitch.click();
+        await page.waitForTimeout(WAIT_TIMES.SHORT);
+        await page.click('button[aria-label="save-settings-button"]');
         await page.waitForSelector('.ant-message-success', { timeout: 3000 });
       }
 
       // 关闭网络加速
       await networkSwitch.click();
+      await page.waitForTimeout(WAIT_TIMES.SHORT);
+      await page.click('button[aria-label="save-settings-button"]');
       await page.waitForSelector('.ant-message-success', { timeout: 3000 });
 
       // 检查是否有相应的提示信息

@@ -17,17 +17,53 @@ import {
   cleanupTestDevices,
 } from './test-helpers.js';
 
-test.describe('错误处理', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/center');
-    await clearAllStorage(page);
+// 辅助函数：设置用户信息
+async function setupUserForTest(page: any) {
+  // 先导航到 /wechat 页面
+  await page.goto('/wechat', { waitUntil: 'domcontentloaded' });
+
+  // 清理所有 storage
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
   });
+
+  // 导航到 /center 再回到 /wechat，触发弹窗
+  await page.goto('/center', { waitUntil: 'domcontentloaded' });
+  await page.goto('/wechat', { waitUntil: 'domcontentloaded' });
+
+  // 等待用户设置弹窗
+  await page.waitForSelector('.ant-modal', { timeout: 8000 });
+
+  // 填写用户名
+  const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
+  await usernameInput.fill('错误测试用户');
+
+  // 点击确定按钮
+  await page.click('.ant-modal .ant-btn-primary');
+
+  // 等待弹窗关闭
+  await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 8000 }).catch(() => {
+    console.log('[Test] Modal still visible after clicking confirm, continuing...');
+  });
+}
+
+test.describe('错误处理', () => {
+  // 不使用 beforeEach，在每个测试中单独设置
+
 
   /**
    * 无效 PeerId 错误处理测试
    */
   test.describe('无效 PeerId 处理', () => {
     test('添加不存在的设备应该显示错误提示', async ({ page }) => {
+      // 设置用户信息
+      await setupUserForTest(page);
+
+      // 导航到发现中心页面
+      await page.goto('/center');
+      await page.waitForLoadState('domcontentloaded');
+
       // 等待页面加载
       await page.waitForSelector(SELECTORS.centerContainer, { timeout: 8000 });
       await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
@@ -57,7 +93,14 @@ test.describe('错误处理', () => {
     });
 
     test('添加空 PeerId 应该被拒绝', async ({ page }) => {
-      await page.waitForSelector(SELECTORS.centerContainer, { timeout: 8000 });
+      // 设置用户信息
+      await setupUserForTest(page);
+
+      // 导航到发现中心页面
+      await page.goto('/center');
+      await page.waitForLoadState('domcontentloaded');
+
+      // 等待页面加载完成
       await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
       // 尝试添加空 PeerId
@@ -75,6 +118,13 @@ test.describe('错误处理', () => {
     });
 
     test('添加格式错误的 PeerId 应该被处理', async ({ page }) => {
+      // 设置用户信息
+      await setupUserForTest(page);
+
+      // 导航到发现中心页面
+      await page.goto('/center');
+      await page.waitForLoadState('domcontentloaded');
+
       await page.waitForSelector(SELECTORS.centerContainer, { timeout: 8000 });
       await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
@@ -346,8 +396,12 @@ test.describe('错误处理', () => {
    */
   test.describe('超时处理', () => {
     test('长时间无响应应该有适当的处理', async ({ page }) => {
+      // 设置用户信息
+      await setupUserForTest(page);
+
+      // 导航到发现中心页面
       await page.goto('/center');
-      await clearAllStorage(page);
+      await page.waitForLoadState('domcontentloaded');
 
       // 等待页面加载
       await page.waitForSelector(SELECTORS.centerContainer, { timeout: 8000 });
@@ -380,8 +434,12 @@ test.describe('错误处理', () => {
    */
   test.describe('并发操作错误处理', () => {
     test('同时进行多项操作应该不会导致错误', async ({ page }) => {
+      // 设置用户信息
+      await setupUserForTest(page);
+
+      // 导航到发现中心页面
       await page.goto('/center');
-      await clearAllStorage(page);
+      await page.waitForLoadState('domcontentloaded');
 
       await page.waitForSelector(SELECTORS.centerContainer, { timeout: 8000 });
       await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
@@ -416,8 +474,12 @@ test.describe('错误处理', () => {
    */
   test.describe('边界值错误处理', () => {
     test('超长 PeerId 应该被正确处理', async ({ page }) => {
+      // 设置用户信息
+      await setupUserForTest(page);
+
+      // 导航到发现中心页面
       await page.goto('/center');
-      await clearAllStorage(page);
+      await page.waitForLoadState('domcontentloaded');
 
       await page.waitForSelector(SELECTORS.centerContainer, { timeout: 8000 });
       await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
@@ -439,8 +501,12 @@ test.describe('错误处理', () => {
     });
 
     test('特殊字符 PeerId 应该被正确处理', async ({ page }) => {
+      // 设置用户信息
+      await setupUserForTest(page);
+
+      // 导航到发现中心页面
       await page.goto('/center');
-      await clearAllStorage(page);
+      await page.waitForLoadState('domcontentloaded');
 
       await page.waitForSelector(SELECTORS.centerContainer, { timeout: 8000 });
       await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
