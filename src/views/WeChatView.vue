@@ -53,52 +53,32 @@ const currentContact = computed(() => {
 });
 
 /**
- * 自动发现的聊天列表
- * 将发现中心的设备自动合并到聊天列表中
+ * 聊天列表（仅包含已创建聊天的联系人）
+ * 注意：不在 chatStore 中的设备（仅在发现中心的）不应出现在聊天列表中
  */
-const autoDiscoveredContacts = computed(() => {
-  // 获取发现中心的所有设备（排除自己）
-  const allDevices = deviceStore.allDevices.filter(
-    (d) => d.peerId !== userStore.myPeerId
-  );
-
-  // 合并已有联系人和自动发现的设备
-  const contactMap = new Map<string, Contact>();
-
-  // 首先添加已有联系人
-  chatStore.sortedContacts.forEach((contact) => {
-    contactMap.set(contact.peerId, contact);
-  });
-
-  // 然后添加设备（如果不在联系人列表中）
-  allDevices.forEach((device) => {
-    if (!contactMap.has(device.peerId)) {
-      contactMap.set(device.peerId, {
-        peerId: device.peerId,
-        username: device.username,
-        avatar: device.avatar,
+const chatListContacts = computed(() => {
+  // 仅显示已有的聊天联系人，并用设备状态更新在线信息
+  const contacts = chatStore.sortedContacts.map((contact) => {
+    // 从 deviceStore 获取最新的设备状态（如果存在）
+    const device = deviceStore.getDevice(contact.peerId);
+    if (device) {
+      // 更新联系人的在线状态和用户信息
+      return {
+        ...contact,
         online: device.isOnline ?? false,
         lastSeen: device.lastHeartbeat,
-        unreadCount: 0,
-        chatVersion: 0,
-      });
-    } else {
-      // 更新现有联系人的在线状态和用户信息
-      const existing = contactMap.get(device.peerId)!;
-      existing.online = device.isOnline ?? false;
-      existing.lastSeen = device.lastHeartbeat;
-      existing.username = device.username;
-      existing.avatar = device.avatar;
+        username: device.username,
+        avatar: device.avatar,
+      };
     }
+    return contact;
   });
 
-  // 转换为数组并排序
-  return Array.from(contactMap.values()).sort((a, b) => {
-    // 在线优先
+  // 排序：在线优先，然后按最后活跃时间
+  return contacts.sort((a, b) => {
     if (a.online !== b.online) {
       return a.online ? -1 : 1;
     }
-    // 按最后活跃时间排序
     return b.lastSeen - a.lastSeen;
   });
 });
@@ -467,16 +447,16 @@ function renderMessageContent(msg: ChatMessage) {
         </div>
 
         <div class="contacts-list">
-          <div v-if="autoDiscoveredContacts.length === 0" class="empty-contacts">
-            <a-empty description="暂无在线设备">
+          <div v-if="chatListContacts.length === 0" class="empty-contacts">
+            <a-empty description="暂无聊天">
               <template #description>
-                <span style="color: #999">在发现中心添加设备或点击 + 号手动添加</span>
+                <span style="color: #999">点击 + 号添加聊天，或在发现中心查看可用设备</span>
               </template>
             </a-empty>
           </div>
 
           <div
-            v-for="contact in autoDiscoveredContacts"
+            v-for="contact in chatListContacts"
             :key="contact.peerId"
             class="contact-item"
             :class="{ active: chatStore.currentChatPeerId === contact.peerId }"
