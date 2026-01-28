@@ -949,7 +949,7 @@ export function usePeerManager() {
 
       // 尝试创建 peer
       try {
-        bootstrapPeerInstance = new Peer(UNIVERSE_BOOTSTRAP_ID);
+        bootstrapPeerInstance = new Peer(UNIVERSE_BOOTSTRAP_ID, { host: 'localhost', port: 9000, path: '/peerjs' });
 
         bootstrapPeerInstance.on('open', (id: string) => {
           // 连接成功，说明我们是第一个启动者
@@ -1068,7 +1068,7 @@ export function usePeerManager() {
 
       try {
         // 创建临时 Peer 连接
-        tempPeer = new Peer();
+        tempPeer = new Peer({ host: 'localhost', port: 9000, path: '/peerjs' });
 
         tempPeer.on('open', (myId: string) => {
           console.log('[Peer] Temp peer connected with ID:', myId);

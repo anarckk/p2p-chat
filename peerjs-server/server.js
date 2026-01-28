@@ -5,8 +5,8 @@ const peerServer = PeerServer({
   path: '/peerjs',
   ssl: false,  // 如果需要 HTTPS 设为 true
   proxied: false,  // 如果通过代理设为 true
-  allow_discovery: false,  // 是否允许发现其他 peer
-  key: 'peerjs',  // API 密钥（可选）
+  allow_discovery: true,  // 是否允许发现其他 peer
+  // key: '',  // API 密钥（可选）
   
   // CORS 配置
   corsOptions: {

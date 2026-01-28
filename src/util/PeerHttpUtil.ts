@@ -61,7 +61,7 @@ export class PeerHttpUtil {
    * @param options - PeerJS 配置选项
    */
   constructor(peerId: string | null = null, options: any = {}) {
-    const peerOptions = { debug: 1, ...options };
+    const peerOptions = { debug: 1, host: 'localhost', port: 9000, path: '/peerjs', ...options };
     this.peer = peerId ? new Peer(peerId, peerOptions) : new Peer(peerOptions);
 
     // 监听连接打开事件
