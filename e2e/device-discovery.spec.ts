@@ -1,9 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   setupUser,
-  clearAllStorage,
   getPeerIdFromStorage,
-  getPeerIdFromElement,
   WAIT_TIMES,
 } from './test-helpers.js';
 
@@ -19,7 +17,12 @@ test.describe('设备互相发现', () => {
 
   test('刷新按钮应该能触发设备互相发现', async ({ page, context }) => {
     // 创建第二个浏览器上下文模拟第二个设备
-    const browser2 = await context.browser()?.newContext();
+    const browser = context.browser();
+    if (!browser) {
+      test.skip();
+      return;
+    }
+    const browser2 = await browser.newContext();
     const page2 = await browser2.newPage();
 
     try {
@@ -43,12 +46,12 @@ test.describe('设备互相发现', () => {
       }
 
       // 设备 A 手动添加设备 B
-      const queryInput = page.locator('input[placeholder*="输入对方 Peer ID"]');
+      const queryInput = page.locator('input[placeholder*="Peer ID"]');
       await queryInput.fill(peerIdB);
       await page.locator('button[aria-label="add-device"]').click();
 
       // 设备 B 手动添加设备 A
-      const queryInput2 = page2.locator('input[placeholder*="输入对方 Peer ID"]');
+      const queryInput2 = page2.locator('input[placeholder*="Peer ID"]');
       await queryInput2.fill(peerIdA);
       await page2.locator('button[aria-label="add-device"]').click();
 
@@ -69,7 +72,12 @@ test.describe('设备互相发现', () => {
   });
 
   test('设备互相发现应该能发现新设备', async ({ page, context }) => {
-    const browser2 = await context.browser()?.newContext();
+    const browser = context.browser();
+    if (!browser) {
+      test.skip();
+      return;
+    }
+    const browser2 = await browser.newContext();
     const page2 = await browser2.newPage();
 
     try {
@@ -92,12 +100,12 @@ test.describe('设备互相发现', () => {
       }
 
       // 设备 A 添加设备 B
-      const queryInput = page.locator('input[placeholder*="输入对方 Peer ID"]');
+      const queryInput = page.locator('input[placeholder*="Peer ID"]');
       await queryInput.fill(peerIdB);
       await page.locator('button[aria-label="add-device"]').click();
 
       // 设备 B 添加设备 C（模拟第三个设备）
-      const queryInput2 = page2.locator('input[placeholder*="输入对方 Peer ID"]');
+      const queryInput2 = page2.locator('input[placeholder*="Peer ID"]');
       queryInput2.fill('peer_c_mock_id_' + Date.now());
       await page2.locator('button[aria-label="add-device"]').click();
 
@@ -115,7 +123,12 @@ test.describe('设备互相发现', () => {
   });
 
   test('刷新时应该向所有在线设备发送设备列表请求', async ({ page, context }) => {
-    const browser2 = await context.browser()?.newContext();
+    const browser = context.browser();
+    if (!browser) {
+      test.skip();
+      return;
+    }
+    const browser2 = await browser.newContext();
     const page2 = await browser2.newPage();
 
     try {
@@ -137,11 +150,11 @@ test.describe('设备互相发现', () => {
       }
 
       // 互相添加设备
-      const queryInput = page.locator('input[placeholder*="输入对方 Peer ID"]');
+      const queryInput = page.locator('input[placeholder*="Peer ID"]');
       await queryInput.fill(peerIdB);
       await page.locator('button[aria-label="add-device"]').click();
 
-      const queryInput2 = page2.locator('input[placeholder*="输入对方 Peer ID"]');
+      const queryInput2 = page2.locator('input[placeholder*="Peer ID"]');
       await queryInput2.fill(peerIdA);
       await page2.locator('button[aria-label="add-device"]').click();
 
@@ -183,7 +196,12 @@ test.describe('设备互相发现', () => {
   });
 
   test('刷新应该更新设备的在线状态', async ({ page, context }) => {
-    const browser2 = await context.browser()?.newContext();
+    const browser = context.browser();
+    if (!browser) {
+      test.skip();
+      return;
+    }
+    const browser2 = await browser.newContext();
     const page2 = await browser2.newPage();
 
     try {
@@ -205,7 +223,7 @@ test.describe('设备互相发现', () => {
       }
 
       // 互相添加设备
-      const queryInput = page.locator('input[placeholder*="输入对方 Peer ID"]');
+      const queryInput = page.locator('input[placeholder*="Peer ID"]');
       await queryInput.fill(peerIdB);
       await page.locator('button[aria-label="add-device"]').click();
 

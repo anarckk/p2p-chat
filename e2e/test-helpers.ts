@@ -38,25 +38,26 @@ export const SELECTORS = {
   // 导航菜单
   wechatMenuItem: '.ant-menu-item:has-text("聊天")',
   centerMenuItem: '.ant-menu-item:has-text("发现中心")',
+  settingsMenuItem: '.ant-menu-item:has-text("设置")',
 
   // 通用
   centerContainer: '.center-container',
   deviceCard: '.device-card',
   deviceCardMe: '.device-card.is-me',
   deviceCardOffline: '.device-card.is-offline',
+  wechatContainer: '.wechat-container',
+  settingsContainer: '.settings-container',
 
   // 发现中心 - 使用更精确的选择器
-  peerIdInput: 'input[placeholder*="Peer ID"]',
-  // 查询按钮：使用 aria-label
-  queryButton: 'button[aria-label="query-devices-button"]',
-  // 添加按钮：使用 aria-label
-  addButton: 'button[aria-label="add-device"]',
-  refreshButton: 'button[aria-label="refresh-discovery"]',
+  peerIdInput: 'input[placeholder*="Peer ID"], input[placeholder*="peer"], input[placeholder*="设备"]',
+  queryButton: 'button[aria-label="query-devices-button"], button:has-text("查询")',
+  addButton: 'button[aria-label="add-device"], button:has-text("添加")',
+  refreshButton: 'button[aria-label="refresh-discovery"], button:has-text("刷新")',
 
   // 聊天
-  plusButton: 'button[aria-label="plus"]',
-  sendButton: 'button[aria-label="send"]',
-  messageInput: 'input[placeholder*="输入消息"]',
+  plusButton: 'button[aria-label="plus"], .ant-float-btn:has-text("+")',
+  sendButton: 'button[aria-label="send"], button:has-text("发送")',
+  messageInput: 'input[placeholder*="输入消息"], input[placeholder*="message"], textarea[placeholder*="输入消息"]',
   contactItem: '.contact-item',
   messageItem: '.message-item',
   messageSelf: '.message-item.is-self',
@@ -65,10 +66,20 @@ export const SELECTORS = {
   messageStatus: '.message-status',
   emptyContacts: '.empty-contacts',
 
+  // 文件上传
+  imageUploadButton: 'button[aria-label="image-upload"], button[aria-label="上传图片"]',
+  fileUploadButton: 'button[aria-label="file-upload"], button[aria-label="上传文件"]',
+
   // 弹窗
   modalTitle: '.ant-modal-title',
+  modalContent: '.ant-modal-content',
   modalOkButton: '.ant-modal .ant-btn-primary',
   modalCancelButton: '.ant-modal .ant-btn-default',
+
+  // 设置页面
+  usernameInput: 'input[maxlength="20"], input[placeholder*="用户名"]',
+  networkAccelerationSwitch: '.settings-container .ant-switch',
+  saveSettingsButton: 'button[aria-label="save-settings-button"], button:has-text("保存")',
 
   // 消息提示 - 使用更稳定的选择器
   successMessage: '.ant-message-success, .ant-message .anticon-check-circle',
@@ -79,10 +90,23 @@ export const SELECTORS = {
   onlineTag: '.ant-tag.ant-tag-success',
   offlineTag: '.ant-tag.ant-tag-default',
   chatTag: '.ant-tag.ant-tag-green',
+  meTag: '.ant-tag:has-text("我")',
+
+  // 消息状态
+  sendingStatus: '.message-status.sending, .message-status:has-text("发送中")',
+  sentStatus: '.message-status.sent, .message-status:has-text("已送达")',
+  failedStatus: '.message-status.failed, .message-status:has-text("发送失败")',
+
+  // 文件消息
+  imageMessage: '.message-item.has-image, .message-item .message-image',
+  fileMessage: '.message-item.has-file, .message-item .message-file',
+  fileName: '.message-file-name, .file-name',
 
   // 连接状态
   connectedBadge: '.ant-badge-status-processing',
   disconnectedBadge: '.ant-badge-status-error',
+  peerIdDisplay: '.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography',
+  connectionStatus: '.ant-descriptions-item-label:has-text("连接状态") + .ant-descriptions-item-content',
 } as const;
 
 // 等待时间常量（毫秒）- 本地 Peer Server 环境下连接很快
@@ -684,7 +708,7 @@ export async function retry<T>(
 }
 
 /**
- * 等待条件满足
+ * 等待条件满足（智能等待，带详细日志）
  * @param condition 条件函数
  * @param options 等待选项
  * @returns 条件是否满足
@@ -698,20 +722,136 @@ export async function waitForCondition(
   const context = options?.context || 'Condition';
 
   const startTime = Date.now();
+  let attempts = 0;
 
   while (Date.now() - startTime < timeout) {
+    attempts++;
     try {
       if (await condition()) {
+        console.log(`[Test] ${context} satisfied after ${attempts} attempts (${Date.now() - startTime}ms)`);
         return true;
       }
-    } catch {
+    } catch (error) {
       // 忽略条件函数中的错误，继续重试
+      if (attempts % 5 === 0) {
+        console.log(`[Test] ${context} attempt ${attempts} failed with error: ${(error as Error).message}`);
+      }
     }
     await new Promise(resolve => setTimeout(resolve, interval));
   }
 
-  console.log(`[Test] ${context} timeout after ${timeout}ms`);
+  console.log(`[Test] ${context} timeout after ${attempts} attempts (${timeout}ms)`);
   return false;
+}
+
+/**
+ * 等待元素出现（智能等待）
+ * @param page 页面实例
+ * @param selector 选择器
+ * @param options 等待选项
+ * @returns 元素是否出现
+ */
+export async function waitForElement(
+  page: Page,
+  selector: string,
+  options?: { timeout?: number; state?: 'visible' | 'attached' | 'hidden' | 'detached' }
+): Promise<boolean> {
+  const timeout = options?.timeout || 8000;
+  const state = options?.state || 'visible';
+
+  try {
+    await page.waitForSelector(selector, { timeout, state });
+    return true;
+  } catch (error) {
+    console.log(`[Test] Element ${selector} not found within ${timeout}ms`);
+    return false;
+  }
+}
+
+/**
+ * 等待元素消失（智能等待）
+ * @param page 页面实例
+ * @param selector 选择器
+ * @param timeout 超时时间
+ * @returns 元素是否消失
+ */
+export async function waitForElementToDisappear(
+  page: Page,
+  selector: string,
+  timeout = 5000
+): Promise<boolean> {
+  try {
+    await page.waitForSelector(selector, { timeout, state: 'hidden' });
+    return true;
+  } catch (error) {
+    // 检查元素是否真的不存在
+    const count = await page.locator(selector).count();
+    if (count === 0) {
+      return true;
+    }
+    console.log(`[Test] Element ${selector} still visible after ${timeout}ms`);
+    return false;
+  }
+}
+
+/**
+ * 等待文本内容出现在元素中（智能等待）
+ * @param page 页面实例
+ * @param selector 选择器
+ * @param text 期望的文本内容
+ * @param timeout 超时时间
+ * @returns 文本是否出现
+ */
+export async function waitForTextContent(
+  page: Page,
+  selector: string,
+  text: string,
+  timeout = 8000
+): Promise<boolean> {
+  return waitForCondition(async () => {
+    const element = page.locator(selector).first();
+    const content = await element.textContent();
+    return content !== null && content.includes(text);
+  }, { timeout, interval: 300, context: `Wait for text "${text}" in ${selector}` });
+}
+
+/**
+ * 等待元素数量达到预期值（智能等待）
+ * @param page 页面实例
+ * @param selector 选择器
+ * @param expectedCount 预期数量
+ * @param timeout 超时时间
+ * @returns 数量是否达到预期
+ */
+export async function waitForElementCount(
+  page: Page,
+  selector: string,
+  expectedCount: number,
+  timeout = 8000
+): Promise<boolean> {
+  return waitForCondition(async () => {
+    const count = await page.locator(selector).count();
+    return count >= expectedCount;
+  }, { timeout, interval: 300, context: `Wait for ${expectedCount} elements matching ${selector}` });
+}
+
+/**
+ * 等待网络空闲（智能等待）
+ * @param page 页面实例
+ * @param timeout 超时时间
+ * @returns 网络是否空闲
+ */
+export async function waitForNetworkIdle(
+  page: Page,
+  timeout = 5000
+): Promise<boolean> {
+  try {
+    await page.waitForLoadState('networkidle', { timeout });
+    return true;
+  } catch (error) {
+    console.log('[Test] Network not idle within timeout');
+    return false;
+  }
 }
 
 // ==================== 向后兼容的辅助函数 ====================
@@ -753,14 +893,6 @@ export async function setMessagesLegacy(page: any, peerId: string, messages: any
   await page.evaluate((pid: any, msgs: any) => {
     localStorage.setItem(`p2p_messages_${pid}`, JSON.stringify(msgs));
   }, peerId, messages);
-}
-
-/**
- * 等待元素出现并返回该元素（向后兼容）
- */
-export async function waitForElement(page: any, selector: string, timeout: number = 5000): Promise<any> {
-  await page.waitForSelector(selector, { timeout, state: 'visible' });
-  return page.locator(selector);
 }
 
 /**
