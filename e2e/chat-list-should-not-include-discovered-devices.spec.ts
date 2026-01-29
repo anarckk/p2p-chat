@@ -19,7 +19,7 @@ import {
  */
 test.describe('聊天列表应该不包含发现中心的设备', () => {
   test('在发现中心添加设备后，该设备不应该出现在聊天列表中', async ({ browser }) => {
-    test.setTimeout(120000);
+    test.setTimeout(30000);
     const devices = await createTestDevices(browser, '聊天测试A', '聊天测试B', { startPage: 'center' });
 
     try {
@@ -105,7 +105,7 @@ test.describe('聊天列表应该不包含发现中心的设备', () => {
   });
 
   test('主动创建聊天后，设备才应该出现在聊天列表中', async ({ browser }) => {
-    test.setTimeout(120000);
+    test.setTimeout(30000);
     const devices = await createTestDevices(browser, '主动聊天A', '主动聊天B', { startPage: 'wechat' });
 
     try {
@@ -156,7 +156,7 @@ test.describe('聊天列表应该不包含发现中心的设备', () => {
   });
 
   test('被动接收消息后，发送方应该出现在聊天列表中', async ({ browser }) => {
-    test.setTimeout(120000);
+    test.setTimeout(30000);
 
     // 设备 A 启动在聊天页面
     const devices = await createTestDevices(browser, '消息接收方A', '消息发送方B', { startPage: 'wechat' });

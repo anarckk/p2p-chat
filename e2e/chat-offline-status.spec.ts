@@ -15,8 +15,7 @@ import {
  */
 test.describe('聊天离线状态测试', () => {
   test('设备下线后，发现中心和聊天列表都要显示离线状态', async ({ browser }) => {
-    // 增加测试超时时间，因为需要等待心跳超时（65秒）
-    test.setTimeout(120000);
+    test.setTimeout(30000);
     // 创建两个浏览器 session
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();
@@ -162,8 +161,7 @@ test.describe('聊天离线状态测试', () => {
   });
 
   test('设备下线后重新上线，状态应该正确更新', async ({ browser }) => {
-    // 增加测试超时时间，因为需要等待心跳超时和重新上线检测
-    test.setTimeout(120000);
+    test.setTimeout(30000);
     // 创建两个浏览器 session
     let contextA = await browser.newContext();
     const contextB = await browser.newContext();

@@ -17,7 +17,7 @@ import {
 
 test.describe('聊天图片发送功能', () => {
   test('用户 A 发送图片给用户 B，用户 B 能收到并显示图片', async ({ browser }) => {
-    test.setTimeout(120000); // 增加超时时间
+    test.setTimeout(30000);
     // 创建两个测试设备（从发现中心开始，确保 Peer 连接稳定）
     const devices = await createTestDevices(browser, '设备A', '设备B', { startPage: 'center' });
 
@@ -167,7 +167,7 @@ test.describe('聊天图片发送功能', () => {
   });
 
   test('用户发送图片后，消息状态显示为已送达', async ({ browser }) => {
-    test.setTimeout(120000); // 增加超时时间
+    test.setTimeout(30000);
     // 创建两个测试设备（从发现中心开始，确保 Peer 连接稳定）
     const devices = await createTestDevices(browser, '发送方', '接收方', { startPage: 'center' });
 
@@ -250,7 +250,7 @@ test.describe('聊天图片发送功能', () => {
   });
 
   test('发送多张图片，所有图片都能正确传输', async ({ browser }) => {
-    test.setTimeout(180000); // 增加超时时间（发送多张图片需要更长时间）
+    test.setTimeout(30000);
     // 创建两个测试设备（从发现中心开始，确保 Peer 连接稳定）
     const devices = await createTestDevices(browser, '多图发送者', '多图接收者', { startPage: 'center' });
 

@@ -13,7 +13,7 @@ import {
  * 3. 发现的设备会合并到本地设备列表
  */
 test.describe('设备互相发现', () => {
-  test.setTimeout(120000);
+  test.setTimeout(30000);
 
   test('刷新按钮应该能触发设备互相发现', async ({ page, context }) => {
     // 创建第二个浏览器上下文模拟第二个设备

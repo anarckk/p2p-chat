@@ -21,6 +21,7 @@ const originalUsername = ref('');
 // 头像
 const avatarPreview = ref<string | null>(null);
 const avatarFile = ref<File | null>(null);
+const avatarRemoved = ref(false);
 
 // 网络加速
 const networkAcceleration = ref(false);
@@ -50,11 +51,24 @@ onMounted(async () => {
 // 监听用户信息加载完成后，初始化表单
 watch(userInfoLoaded, (loaded) => {
   if (loaded) {
+    console.log('[SettingsView] userInfo.avatar:', userStore.userInfo.avatar);
     // 加载用户信息
     username.value = userStore.userInfo.username || '';
     originalUsername.value = username.value;
-    avatarPreview.value = userStore.userInfo.avatar;
-
+    avatarPreview.value = userStore.userInfo.avatar || undefined;
+    // 确保avatarPreview要么是有效字符串，要么是undefined（不是null）
+    if (avatarPreview.value === null) {
+      avatarPreview.value = undefined;
+    }
+    console.log('[SettingsView] avatarPreview set to:', avatarPreview.value);
+    
+    // 确保avatarPreview要么是有效字符串，要么是null/undefined
+    if (avatarPreview.value === null || avatarPreview.value === undefined) {
+      avatarPreview.value = null;
+    }
+    
+    console.log('[SettingsView] final avatarPreview:', avatarPreview.value, 'type:', typeof avatarPreview.value);
+    
     // 加载网络加速开关状态
     networkAcceleration.value = userStore.loadNetworkAcceleration();
     originalNetworkAcceleration.value = networkAcceleration.value;
@@ -71,7 +85,7 @@ watch(userInfoLoaded, (loaded) => {
 // 是否有修改
 const hasChanges = computed(() => {
   return username.value !== originalUsername.value ||
-    avatarFile.value !== null ||
+    avatarFile.value !== null || avatarRemoved.value ||
     networkAcceleration.value !== originalNetworkAcceleration.value ||
     networkLogging.value !== originalNetworkLogging.value;
 });
@@ -113,6 +127,7 @@ function handleFileChange(info: any) {
 
 // 移除头像
 function removeAvatar() {
+  avatarRemoved.value = true;
   avatarPreview.value = null;
   avatarFile.value = null;
 }
@@ -168,6 +183,7 @@ async function handleSave() {
     avatarFile.value = null;
 
     showInlineMessage('设置已保存', 'success');
+    avatarRemoved.value = false;
   } catch (error) {
     console.error('[Settings] Save error:', error);
     showInlineMessage('保存失败', 'error');
@@ -263,6 +279,7 @@ function clearInlineMessage() {
                     size="small"
                     danger
                     @click="removeAvatar"
+                    aria-label="remove-avatar-button"
                   >
                     移除
                   </a-button>

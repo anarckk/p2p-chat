@@ -53,9 +53,9 @@ const storedDevices = computed(() => deviceStore.allDevices);
 
 // 我的设备信息
 const myDeviceInfo = computed((): (OnlineDevice | null) => {
-  if (!userStore.myPeerId) return null;
+  if (!userStore.userInfo.username) { return null; }
   return {
-    peerId: userStore.myPeerId as string,
+    peerId: userStore.myPeerId || 'connecting...',
     username: userStore.userInfo.username || userStore.myPeerId,
     avatar: userStore.userInfo.avatar,
     lastHeartbeat: Date.now(),
@@ -109,6 +109,16 @@ async function checkDeviceOnline(device: OnlineDevice): Promise<boolean> {
 }
 
 onMounted(async () => {
+  // 确保用户信息已加载
+  await userStore.loadUserInfo();
+  
+  // 调试日志：打印用户信息
+  console.log('[Center] User info loaded:', {
+    username: userStore.userInfo.username,
+    avatarLength: userStore.userInfo.avatar?.length || 0,
+    myPeerId: userStore.myPeerId,
+  });
+
   // 性能监控：记录组件挂载开始时间
   const mountStartTime = performance.now();
   console.log('[Center-Performance] ===== 组件开始挂载 =====');
@@ -529,8 +539,8 @@ async function refreshDiscovery() {
                   hoverable
                   size="small"
                   class="device-card"
-                  :class="{ 'is-me': item.peerId === userStore.myPeerId, 'is-offline': !item.isOnline }"
-                  @click="item.peerId !== userStore.myPeerId && handleDeviceClick(item)"
+                  :class="{ 'is-me': item.peerId === userStore.myPeerId || item.peerId === 'connecting...', 'is-offline': !item.isOnline }"
+                  @click="item.peerId !== userStore.myPeerId && item.peerId !== 'connecting...' && handleDeviceClick(item)"
                 >
                   <a-card-meta>
                     <template #avatar>
@@ -542,7 +552,7 @@ async function refreshDiscovery() {
                       {{ item.username }}
                       <a-tag v-if="item.peerId === userStore.myPeerId" color="blue" size="small">我</a-tag>
                       <a-tag v-if="item.peerId === userStore.myPeerId && isBootstrap" color="purple" size="small">宇宙启动者</a-tag>
-                      <template v-if="item.peerId !== userStore.myPeerId">
+                      <template v-if="item.peerId !== userStore.myPeerId && item.peerId !== 'connecting...'">
                         <a-tag v-if="item.isBootstrap" color="purple" size="small">宇宙启动者</a-tag>
                         <a-tag v-if="isInChat(item.peerId)" color="green" size="small">聊天中</a-tag>
                         <a-tag v-if="item.isOnline" color="success" size="small">在线</a-tag>

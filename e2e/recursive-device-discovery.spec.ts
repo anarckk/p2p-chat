@@ -16,7 +16,7 @@ import {
 } from './test-helpers.js';
 
 test.describe('设备互相发现递归机制', () => {
-  test.setTimeout(180000);
+  test.setTimeout(30000);
 
   test('被动发现后应该自动触发设备列表请求', async ({ page, context }) => {
     const browser = context.browser();

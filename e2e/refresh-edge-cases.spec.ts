@@ -19,7 +19,7 @@ import {
 } from './test-helpers.js';
 
 test.describe('刷新功能边缘场景', () => {
-  test.setTimeout(180000);
+  test.setTimeout(30000);
 
   test('空设备列表时刷新不应该报错', async ({ page }) => {
     await page.goto('/center');

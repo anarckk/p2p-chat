@@ -16,7 +16,7 @@ import {
 } from './test-helpers.js';
 
 test.describe('刷新在线状态', () => {
-  test.setTimeout(180000);
+  test.setTimeout(30000);
 
   test('刷新后离线设备不会产生控制台错误', async ({ page, context }) => {
     const browser = context.browser();

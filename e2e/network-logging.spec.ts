@@ -20,7 +20,7 @@ import {
  * 9. 日志应该分页显示
  */
 test.describe('网络数据日志功能', () => {
-  test.setTimeout(90000);
+  test.setTimeout(30000);
 
   test.beforeEach(async ({ page }) => {
     // 不清理存储，让用户设置自然进行
@@ -374,7 +374,7 @@ test.describe('网络数据日志功能', () => {
  * 网络数据日志记录功能测试（需要两个浏览器 session）
  */
 test.describe('网络数据日志记录功能', () => {
-  test.setTimeout(120000);
+  test.setTimeout(30000);
 
   test('开启日志记录后应该记录网络通信数据', async ({ browser }) => {
     // 创建两个浏览器上下文

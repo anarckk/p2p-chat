@@ -15,7 +15,7 @@ import {
  * 5. 网络加速状态持久化到 LocalStorage
  */
 test.describe('设置页面', () => {
-  test.setTimeout(90000);
+  test.setTimeout(30000);
 
   test.beforeEach(async ({ page }) => {
     // 不清理存储，让用户设置自然进行

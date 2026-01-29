@@ -12,7 +12,7 @@ import {
  * 3. PeerId 在页面切换时保持不变
  */
 test.describe('用户信息设置', () => {
-  test.setTimeout(90000);
+  test.setTimeout(30000);
 
   test('首次进入应用应该显示用户设置弹窗', async ({ page }) => {
     await page.goto('/wechat');

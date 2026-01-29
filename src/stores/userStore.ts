@@ -53,10 +53,29 @@ export const useUserStore = defineStore('user', () => {
         isSetup.value = !!parsed.username;
 
         // 从 IndexedDB 加载头像
-        if (parsed.peerId) {
-          const avatarData = await indexedDBStorage.get('avatars', MY_AVATAR_ID);
-          if (avatarData && avatarData.avatar) {
-            userInfo.value.avatar = avatarData.avatar;
+        const avatarData = await indexedDBStorage.get('avatars', MY_AVATAR_ID);
+        if (avatarData && avatarData.avatar) {
+          userInfo.value.avatar = avatarData.avatar;
+        } else {
+          // 回退：如果 IndexedDB 中没有头像，尝试从旧的 localStorage key 加载
+          const oldData = localStorage.getItem(USER_INFO_KEY);
+          if (oldData) {
+            try {
+              const oldParsed = JSON.parse(oldData);
+              if (oldParsed.avatar) {
+                userInfo.value.avatar = oldParsed.avatar;
+                console.log('[UserStore] Loaded avatar from fallback (old localStorage key)');
+                // 迁移到 IndexedDB
+                await indexedDBStorage.set('avatars', {
+                  id: MY_AVATAR_ID,
+                  peerId: MY_AVATAR_ID,
+                  avatar: oldParsed.avatar,
+                });
+                console.log('[UserStore] Migrated avatar to IndexedDB');
+              }
+            } catch (e) {
+              console.error('[UserStore] Failed to load avatar from fallback:', e);
+            }
           }
         }
       } catch (e) {
