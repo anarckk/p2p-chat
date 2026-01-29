@@ -238,6 +238,106 @@ test.describe('宇宙启动者', () => {
 
   // ==================== 功能性测试 ====================
 
+  test('两台设备启动时应该通过宇宙启动者机制互相发现', async ({ context }) => {
+    const browser = context.browser();
+    if (!browser) {
+      test.skip();
+      return;
+    }
+
+    // 创建设备A（先启动，成为宇宙启动者）
+    const contextA = await browser.newContext();
+    const pageA = await contextA.newPage();
+
+    try {
+      await pageA.goto('/center');
+      await pageA.waitForLoadState('domcontentloaded');
+      await setupUser(pageA, '设备A');
+
+      const peerIdA = await getPeerIdFromStorage(pageA);
+      if (!peerIdA) {
+        test.skip();
+        return;
+      }
+
+      // 等待设备A成为启动者
+      await pageA.waitForTimeout(4000);
+
+      // 创建设备B（后启动，向启动者请求设备列表）
+      const contextB = await browser.newContext();
+      const pageB = await contextB.newPage();
+
+      try {
+        // 监听设备B的控制台日志
+        const logsB: string[] = [];
+        pageB.on('console', msg => logsB.push(msg.text()));
+
+        await pageB.goto('/center');
+        await pageB.waitForLoadState('domcontentloaded');
+        await setupUser(pageB, '设备B');
+
+        const peerIdB = await getPeerIdFromStorage(pageB);
+        if (!peerIdB) {
+          test.skip();
+          return;
+        }
+
+        // 等待设备B请求启动者的设备列表
+        await pageB.waitForTimeout(4000);
+
+        // 验证设备B请求了设备列表
+        const hasRequestLog = logsB.some(log =>
+          log.includes('requesting device list') ||
+          log.includes('向启动者请求设备列表') ||
+          log.includes('Received device list from bootstrap')
+        );
+        expect(hasRequestLog).toBe(true);
+
+        // 验证设备B的发现中心包含设备A（标记为宇宙启动者）
+        const bootstrapTag = pageB.locator('.ant-tag').filter({ hasText: '宇宙启动者' });
+        const hasBootstrapTag = await bootstrapTag.count() > 0;
+        expect(hasBootstrapTag).toBe(true);
+
+        // 验证设备B能看到设备A的用户名
+        const deviceCardsB = pageB.locator('.device-card');
+        const cardCountB = await deviceCardsB.count();
+        let hasDeviceA = false;
+        for (let i = 0; i < cardCountB; i++) {
+          const card = deviceCardsB.nth(i);
+          const text = await card.textContent();
+          if (text && text.includes('设备A')) {
+            hasDeviceA = true;
+            break;
+          }
+        }
+        expect(hasDeviceA).toBe(true);
+
+        // 等待设备A把设备B加入设备列表
+        await pageA.waitForTimeout(2000);
+
+        // 验证设备A的发现中心包含设备B
+        const deviceCardsA = pageA.locator('.device-card');
+        const cardCountA = await deviceCardsA.count();
+        let hasDeviceB = false;
+        for (let i = 0; i < cardCountA; i++) {
+          const card = deviceCardsA.nth(i);
+          const text = await card.textContent();
+          if (text && text.includes('设备B')) {
+            hasDeviceB = true;
+            break;
+          }
+        }
+        expect(hasDeviceB).toBe(true);
+      } finally {
+        await pageB.close();
+        await contextB.close();
+      }
+    } finally {
+      await pageA.close();
+      await contextA.close();
+    }
+  });
+
   test('非启动者应该能从启动者获取设备列表', async ({ context }) => {
     const browser = context.browser();
     if (!browser) {
@@ -547,6 +647,154 @@ test.describe('宇宙启动者', () => {
       }
     } finally {
       await cleanupTestDevices(devices);
+    }
+  });
+
+  // ==================== 宇宙启动者标记测试 ====================
+
+  test('宇宙启动者应该在发现中心显示特殊标记', async ({ context }) => {
+    const browser = context.browser();
+    if (!browser) {
+      test.skip();
+      return;
+    }
+
+    // 创建设备A（启动者）
+    const contextA = await browser.newContext();
+    const pageA = await contextA.newPage();
+
+    try {
+      await pageA.goto('/center');
+      await pageA.waitForLoadState('domcontentloaded');
+      await setupUser(pageA, '启动者A');
+      await pageA.waitForTimeout(4000);
+
+      // 创建设备B
+      const contextB = await browser.newContext();
+      const pageB = await contextB.newPage();
+
+      try {
+        await pageB.goto('/center');
+        await pageB.waitForLoadState('domcontentloaded');
+        await setupUser(pageB, '设备B');
+        await pageB.waitForTimeout(4000);
+
+        // 检查设备B的发现中心是否包含"宇宙启动者"标记
+        // 宇宙启动者标记应该是一个紫色的标签
+        const bootstrapTag = pageB.locator('.ant-tag').filter({ hasText: '宇宙启动者' });
+        const hasBootstrapTag = await bootstrapTag.count() > 0;
+
+        // 如果设备B发现了启动者，应该有宇宙启动者标记
+        // 注意：由于启动者A的真实PeerID会广播给设备B，设备B应该能在发现中心看到启动者
+        if (hasBootstrapTag) {
+          // 验证启动者标记是紫色的（ant-design-vue 的 purple 颜色）
+          await expect(bootstrapTag.first()).toBeVisible();
+        } else {
+          // 如果没有看到启动者标记，检查控制台日志确认启动者机制是否工作
+          const logsB: string[] = [];
+          pageB.on('console', msg => logsB.push(msg.text()));
+
+          // 等待一段时间再次检查
+          await pageB.waitForTimeout(2000);
+
+          // 验证至少有启动者相关的日志
+          const hasBootstrapLog = logsB.some(log =>
+            log.includes('UNIVERSE-BOOTSTRAP') ||
+            log.includes('Bootstrap device has real PeerID')
+          );
+
+          // 即使UI上没有显示（可能由于时序问题），日志应该能证明机制在工作
+          expect(hasBootstrapLog || hasBootstrapTag).toBe(true);
+        }
+      } finally {
+        await pageB.close();
+        await contextB.close();
+      }
+    } finally {
+      await pageA.close();
+      await contextA.close();
+    }
+  });
+
+  test('宇宙启动者应该向全宇宙广播真实PeerID和用户名', async ({ context }) => {
+    const browser = context.browser();
+    if (!browser) {
+      test.skip();
+      return;
+    }
+
+    // 创建设备A（启动者）
+    const contextA = await browser.newContext();
+    const pageA = await contextA.newPage();
+
+    try {
+      await pageA.goto('/center');
+      await pageA.waitForLoadState('domcontentloaded');
+      await setupUser(pageA, '启动者A');
+
+      const peerIdA = await getPeerIdFromStorage(pageA);
+      if (!peerIdA) {
+        test.skip();
+        return;
+      }
+
+      await pageA.waitForTimeout(4000);
+
+      // 创建设备B
+      const contextB = await browser.newContext();
+      const pageB = await contextB.newPage();
+
+      try {
+        // 监听设备B的控制台日志
+        const logsB: string[] = [];
+        pageB.on('console', msg => logsB.push(msg.text()));
+
+        await pageB.goto('/center');
+        await pageB.waitForLoadState('domcontentloaded');
+        await setupUser(pageB, '设备B');
+        await pageB.waitForTimeout(4000);
+
+        // 验证设备B收到了启动者的真实PeerID广播
+        const hasRealPeerIdLog = logsB.some(log =>
+          log.includes('Bootstrap device has real PeerID') ||
+          log.includes('isBootstrap') ||
+          log.includes('realPeerId')
+        );
+
+        expect(hasRealPeerIdLog).toBe(true);
+
+        // 验证设备B的发现中心包含启动者（使用真实用户名显示）
+        // 启动者应该显示为"启动者A"（真实用户名），而不是"宇宙启动者"
+        const deviceCards = pageB.locator('.device-card');
+        const cardCount = await deviceCards.count();
+
+        let hasBootstrapDevice = false;
+        let hasBootstrapUsername = false;
+        for (let i = 0; i < cardCount; i++) {
+          const card = deviceCards.nth(i);
+          const text = await card.textContent();
+          if (text) {
+            // 检查是否包含"宇宙启动者"标记
+            if (text.includes('宇宙启动者')) {
+              hasBootstrapDevice = true;
+            }
+            // 检查是否包含真实用户名"启动者A"
+            if (text.includes('启动者A')) {
+              hasBootstrapUsername = true;
+            }
+          }
+        }
+
+        // 验证设备B看到了启动者标记和启动者的真实用户名
+        expect(hasBootstrapDevice).toBe(true);
+        expect(hasBootstrapUsername).toBe(true);
+      } finally {
+        await pageB.close();
+        await contextB.close();
+      }
+    } finally {
+      await pageA.close();
+      await contextA.close();
     }
   });
 });

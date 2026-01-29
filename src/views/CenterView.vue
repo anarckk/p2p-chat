@@ -14,6 +14,7 @@ const deviceStore = useDeviceStore();
 const peerManager = usePeerManager();
 const {
   isConnected,
+  isBootstrap,
   queryDiscoveredDevices,
   addDiscoveredDevice,
   sendDiscoveryNotification,
@@ -31,10 +32,10 @@ const isQuerying = ref(false);
 const storedDevices = computed(() => deviceStore.allDevices);
 
 // 我的设备信息
-const myDeviceInfo = computed(() => {
+const myDeviceInfo = computed((): (OnlineDevice | null) => {
   if (!userStore.myPeerId) return null;
   return {
-    peerId: userStore.myPeerId,
+    peerId: userStore.myPeerId as string,
     username: userStore.userInfo.username || userStore.myPeerId,
     avatar: userStore.userInfo.avatar,
     lastHeartbeat: Date.now(),
@@ -57,7 +58,7 @@ const sortedDevices = computed(() => {
         username: myDeviceInfo.value.username,
         avatar: myDeviceInfo.value.avatar,
         lastHeartbeat: Date.now(),
-      };
+      } as OnlineDevice;
     } else {
       // 如果不存在，添加自己
       allDevices.push(myDeviceInfo.value);
@@ -415,7 +416,9 @@ async function refreshDiscovery() {
                     <template #title>
                       {{ item.username }}
                       <a-tag v-if="item.peerId === userStore.myPeerId" color="blue" size="small">我</a-tag>
-                      <template v-else>
+                      <a-tag v-if="item.peerId === userStore.myPeerId && isBootstrap" color="purple" size="small">宇宙启动者</a-tag>
+                      <template v-if="item.peerId !== userStore.myPeerId">
+                        <a-tag v-if="item.isBootstrap" color="purple" size="small">宇宙启动者</a-tag>
                         <a-tag v-if="isInChat(item.peerId)" color="green" size="small">聊天中</a-tag>
                         <a-tag v-if="item.isOnline" color="success" size="small">在线</a-tag>
                         <a-tag v-else color="default" size="small">离线</a-tag>

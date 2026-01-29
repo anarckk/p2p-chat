@@ -38,6 +38,9 @@ const RECONNECT_INTERVAL = 10000; // 10秒重连间隔
 // 连接状态：模块级别的 ref，确保所有调用共享同一个响应式状态
 const isConnected = ref(false);
 
+// 宇宙启动者状态：模块级别的 ref
+const isBootstrap = ref(false);
+
 export function usePeerManager() {
   const chatStore = useChatStore();
   const userStore = useUserStore();
@@ -990,6 +993,7 @@ export function usePeerManager() {
       const successTimeout = setTimeout(() => {
         commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
         console.log('[Peer] Became the universe bootstrap! Keeping connection...');
+        isBootstrap.value = true;
         // 不销毁连接，保持启动者状态
         resolve(true);
       }, 3000);
@@ -1003,13 +1007,28 @@ export function usePeerManager() {
           clearTimeout(successTimeout);
           commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
           console.log('[Peer] Became the universe bootstrap! ID:', id);
+          isBootstrap.value = true;
 
           // 监听设备列表请求
           bootstrapPeerInstance!.on('connection', (conn: any) => {
             conn.on('data', (data: any) => {
               if (data && data.type === 'device_list_request') {
-                console.log('[Peer-Bootstrap] Received device list request from:', data.from);
+                console.log('[Peer-Bootstrap] Received device list request from:', data.from, 'realPeerId:', data.realPeerId);
                 commLog.deviceDiscovery.requestReceived({ from: data.from });
+
+                // 如果请求者携带了真实 Peer ID，将其加入设备列表
+                if (data.realPeerId && data.realPeerId !== userStore.myPeerId) {
+                  const requesterDevice: OnlineDevice = {
+                    peerId: data.realPeerId,
+                    username: data.username || data.realPeerId,
+                    avatar: data.avatar || null,
+                    lastHeartbeat: Date.now(),
+                    firstDiscovered: Date.now(),
+                    isOnline: true,
+                  };
+                  deviceStore.addOrUpdateDevice(requesterDevice);
+                  console.log('[Peer-Bootstrap] Added requester to device list:', data.realPeerId);
+                }
 
                 // 响应我的设备列表
                 const devices = deviceStore.allDevices;
@@ -1019,6 +1038,10 @@ export function usePeerManager() {
                   to: data.from,
                   timestamp: Date.now(),
                   devices,
+                  isBootstrap: true,
+                  realPeerId: userStore.myPeerId, // 宇宙启动者的真实 PeerID
+                  username: userStore.userInfo.username, // 宇宙启动者的真实用户名
+                  avatar: userStore.userInfo.avatar, // 宇宙启动者的头像
                 };
 
                 conn.send(response);
@@ -1041,6 +1064,7 @@ export function usePeerManager() {
           clearTimeout(successTimeout);
           commLog.universeBootstrap.failed({ error: error?.type });
           console.log('[Peer] Bootstrap already exists, requesting device list...');
+          isBootstrap.value = false;
 
           // 清理失败的连接
           if (bootstrapPeerInstance) {
@@ -1063,6 +1087,7 @@ export function usePeerManager() {
         bootstrapPeerInstance.on('close', () => {
           console.log('[Peer-Bootstrap] Connection closed');
           bootstrapPeerInstance = null;
+          isBootstrap.value = false;
         });
       } catch (error) {
         clearTimeout(successTimeout);
@@ -1122,12 +1147,15 @@ export function usePeerManager() {
           conn.on('open', () => {
             console.log('[Peer] Connected to bootstrap, requesting device list...');
 
-            // 发送设备列表请求
+            // 发送设备列表请求（携带真实 Peer ID）
             const request = {
               type: 'device_list_request',
               from: myId,
               to: bootstrapPeerId,
               timestamp: Date.now(),
+              realPeerId: userStore.myPeerId, // 真实 Peer ID
+              username: userStore.userInfo.username, // 用户名
+              avatar: userStore.userInfo.avatar, // 头像
             };
 
             conn.send(request);
@@ -1141,6 +1169,23 @@ export function usePeerManager() {
               // 合并到 deviceStore
               if (data.devices && data.devices.length > 0) {
                 deviceStore.addDevices(data.devices);
+              }
+
+              // 如果响应者是宇宙启动者，添加启动者设备到发现中心（使用真实 PeerID）
+              if (data.isBootstrap && data.realPeerId) {
+                console.log('[Peer] Bootstrap device has real PeerID:', data.realPeerId);
+                // 将宇宙启动者添加到设备列表，标记为启动者
+                const bootstrapDevice: OnlineDevice = {
+                  peerId: data.realPeerId, // 使用真实 PeerID
+                  username: data.username || '宇宙启动者', // 使用真实用户名
+                  avatar: data.avatar || null, // 使用真实头像
+                  lastHeartbeat: Date.now(),
+                  firstDiscovered: Date.now(),
+                  isOnline: true,
+                  isBootstrap: true,
+                  realPeerId: bootstrapPeerId, // 记录固定 ID
+                };
+                deviceStore.addOrUpdateDevice(bootstrapDevice);
               }
 
               cleanup();
@@ -1333,6 +1378,7 @@ export function usePeerManager() {
 
   return {
     isConnected,
+    isBootstrap,
     init,
     sendChatMessage,
     sendMessageWithRetry,

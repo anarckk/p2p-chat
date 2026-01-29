@@ -1292,7 +1292,7 @@ export class PeerHttpUtil {
    * 处理设备列表响应
    */
   private handleDeviceListResponse(protocol: any) {
-    const { devices } = protocol;
+    const { devices, isBootstrap, realPeerId } = protocol;
     commLog.deviceDiscovery.responseReceived({ deviceCount: devices.length });
 
     let newDeviceCount = 0;
@@ -1307,6 +1307,23 @@ export class PeerHttpUtil {
         firstDiscovered: existing?.firstDiscovered || device.firstDiscovered || Date.now(),
       });
     });
+
+    // 如果响应者是宇宙启动者，添加启动者设备（使用真实 PeerID）
+    if (isBootstrap && realPeerId) {
+      console.log('[PeerHttp] Bootstrap device has real PeerID:', realPeerId);
+      const bootstrapDevice: OnlineDevice = {
+        peerId: realPeerId, // 使用真实 PeerID 作为显示 ID
+        username: '宇宙启动者',
+        avatar: null,
+        lastHeartbeat: Date.now(),
+        firstDiscovered: Date.now(),
+        isOnline: true,
+        isBootstrap: true,
+        realPeerId: protocol.from, // 记录固定 ID
+      };
+      this.discoveredDevices.set(realPeerId, bootstrapDevice);
+      newDeviceCount++;
+    }
 
     if (newDeviceCount > 0) {
       console.log('[PeerHttp] Discovered ' + newDeviceCount + ' new devices from peer list');

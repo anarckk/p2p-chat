@@ -105,6 +105,8 @@ export interface OnlineDevice {
   firstDiscovered: number; // 首次发现时间
   userInfoVersion?: number; // 对方的用户信息版本号
   networkAccelerationEnabled?: boolean; // 是否开启网络加速
+  isBootstrap?: boolean; // 是否是宇宙启动者
+  realPeerId?: string; // 宇宙启动者的真实 PeerID（如果该设备是宇宙启动者）
 }
 
 // 协议消息基础接口
@@ -264,4 +266,6 @@ export interface DeviceListRequestProtocol extends ProtocolMessage {
 export interface DeviceListResponseProtocol extends ProtocolMessage {
   type: 'device_list_response';
   devices: OnlineDevice[]; // 请求者的在线设备列表
+  isBootstrap?: boolean; // 响应者是否是宇宙启动者
+  realPeerId?: string; // 如果响应者是宇宙启动者，提供其真实 PeerID
 }
