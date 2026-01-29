@@ -117,33 +117,73 @@ export interface ProtocolMessage {
   timestamp: number;
 }
 
-// 版本号通知：发送方通知接收方有新消息版本
+// ==================== 五段式消息传递协议 ====================
+
+// 发送方状态
+export type SendingStage = 'notifying' | 'requested' | 'delivering' | 'acked';
+
+// 发送方消息状态
+export interface SendingMessageState {
+  messageId: string;
+  version: number;
+  peerId: string;
+  stage: SendingStage;
+  notifyCount: number; // 第一段重发次数
+  respondCount: number; // 第三段发送次数
+  notifiedAt: number;
+  requestedAt?: number;
+  deliveredAt?: number;
+  ackedAt?: number;
+  notifyTimer?: ReturnType<typeof setInterval>; // 第一段重发定时器
+}
+
+// 接收方状态
+export type ReceivingStage = 'pending' | 'requested' | 'received' | 'acked';
+
+// 接收方消息状态
+export interface ReceivingMessageState {
+  version: number;
+  peerId: string;
+  stage: ReceivingStage;
+  notifiedAt?: number;
+  requestedAt?: number;
+  receivedAt?: number;
+  ackedAt?: number;
+}
+
+// 第一段：版本号通知（发送方持续重发）
 export interface VersionNotifyProtocol extends ProtocolMessage {
   type: 'version_notify';
   from: string;
+  messageId: string; // 消息唯一标识
   version: number; // 发送方最新的聊天版本号
   msgType: MessageType; // 消息类型
+  retryCount: number; // 重试次数
 }
 
-// 版本请求：接收方请求指定版本的消息内容
+// 第二段：版本请求（接收方被动响应）
 export interface VersionRequestProtocol extends ProtocolMessage {
   type: 'version_request';
   to: string;
+  messageId: string; // 消息唯一标识（用于匹配发送方状态）
   version: number; // 请求的版本号
 }
 
-// 版本响应：发送方返回消息内容
+// 第三段：版本响应（发送方只发一次）
 export interface VersionResponseProtocol extends ProtocolMessage {
   type: 'version_response';
   from: string;
   version: number;
   message: ChatMessage; // 完整的消息对象
+  responseTime: number; // 响应时间戳
 }
 
-// 送达确认
+// 第四段：送达确认（接收方被动响应）
 export interface DeliveryAckProtocol extends ProtocolMessage {
   type: 'delivery_ack';
-  messageId: string;
+  messageId: string; // 消息唯一标识
+  version: number; // 版本号（用于匹配发送方状态）
+  ackTime: number; // 确认时间戳
 }
 
 // 发现中心：询问在线设备

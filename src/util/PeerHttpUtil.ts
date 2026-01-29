@@ -1,6 +1,11 @@
 /**
- * PeerJS HTTP 封装库 - 版本号消息同步协议 + 去中心化发现中心
- * 对外仅暴露 send() 和 on('message')
+ * PeerJS HTTP 封装库 - 五段式消息传递协议 + 去中心化发现中心
+ * 五段式协议：
+ * 第一段：version_notify（发送方持续重发，每5秒）
+ * 第二段：version_request（接收方被动响应）
+ * 第三段：version_response（发送方只发一次）
+ * 第四段：delivery_ack（接收方被动响应）
+ * 第五段：标记已送达（发送方本地操作）
  */
 import Peer from 'peerjs';
 import type {
@@ -11,8 +16,19 @@ import type {
   OnlineDevice,
   DeliveryAckProtocol,
   DiscoveryResponseProtocol,
+  SendingMessageState,
+  ReceivingMessageState,
 } from '../types';
 import { commLog } from './logger';
+
+// 五段式协议配置
+const FIVE_STAGE_CONFIG = {
+  notifyInterval: 5000,        // 第一段重发间隔：5秒
+  notifyMaxRetries: 120,       // 第一段最大重试次数：120次（10分钟）
+  requestTimeout: 10000,       // 第二段超时：10秒
+  responseTimeout: 15000,      // 第三段超时：15秒
+  ackTimeout: 5000,            // 第四段超时：5秒
+};
 
 export type MessageHandler = (data: { from: string; data: any }) => void;
 export type OpenHandler = (id: string) => void;
@@ -54,6 +70,14 @@ export class PeerHttpUtil {
 
   // 网络加速：存储其他设备的网络加速状态
   private networkAccelerationStatus: Map<string, boolean> = new Map();
+
+  // ==================== 五段式协议状态管理 ====================
+
+  // 发送方状态（key: messageId）
+  private sendingStates: Map<string, SendingMessageState> = new Map();
+
+  // 接收方状态（key: peerId_version）
+  private receivingStates: Map<string, ReceivingMessageState> = new Map();
 
   /**
    * 构造函数
@@ -241,66 +265,109 @@ export class PeerHttpUtil {
   }
 
   /**
-   * 处理版本号通知：对端有新消息
+   * 第一段接收：处理版本号通知
+   * 接收方判断是否需要更新，需要则发送第二段请求
    */
-  private handleVersionNotify(protocol: { version: number; msgType: MessageType }, from: string) {
-    const { version } = protocol;
+  private handleVersionNotify(protocol: { messageId: string; version: number; msgType: MessageType; retryCount: number }, from: string) {
+    const { messageId, version, msgType, retryCount } = protocol;
     const myChat = this.getOrCreateChatVersion(from);
 
-    console.log('[PeerHttp] Received version notify: from=' + from + ', theirVersion=' + version + ', myVersion=' + myChat.version);
+    console.log('[PeerHttp] [Stage 1] Received notify #' + retryCount + ': from=' + from + ', theirV=' + version + ', myV=' + myChat.version + ', msgId=' + messageId);
 
-    // 如果对端版本更新，请求消息内容
-    if (version > myChat.version) {
-      this.sendProtocol(from, {
-        type: 'version_request',
-        from: this.getId()!,
-        to: from,
-        timestamp: Date.now(),
-        version,
-      });
+    // 检查是否需要更新
+    if (version <= myChat.version) {
+      // 不需要更新，可能是重复通知或已送达的旧消息
+      console.log('[PeerHttp] [Stage 1] Version not newer, ignoring');
+      // 如果有最后一条消息，发送ACK确认已收到
+      const lastMsg = myChat.messages[myChat.messages.length - 1];
+      if (lastMsg) {
+        console.log('[PeerHttp] [Stage 1] Sending ACK for last message: ' + lastMsg.id);
+        this.sendDeliveryAck(from, lastMsg.id, version);
+      }
+      return;
     }
+
+    // 检查是否已发送过请求（避免重复请求）
+    const stateKey = `${from}_${version}`;
+    const existingState = this.receivingStates.get(stateKey);
+
+    if (existingState) {
+      // 已发送过请求，等待响应
+      console.log('[PeerHttp] [Stage 1] Already requested v=' + version + ', waiting for response');
+      return;
+    }
+
+    // 创建接收方状态
+    const state: ReceivingMessageState = {
+      version,
+      peerId: from,
+      stage: 'requested',
+      notifiedAt: Date.now(),
+      requestedAt: Date.now(),
+    };
+    this.receivingStates.set(stateKey, state);
+
+    // 发送第二段：版本请求
+    console.log('[PeerHttp] [Stage 1] Sending request for version=' + version);
+    this.sendVersionRequest(from, messageId, version);
   }
 
   /**
-   * 处理版本请求：对端请求指定版本的消息
+   * 第二段接收：处理版本请求
+   * 发送方收到请求后，发送第三段消息体（只发一次）
    */
-  private handleVersionRequest(protocol: { version: number }, from: string) {
-    const { version } = protocol;
+  private handleVersionRequest(protocol: { messageId: string; version: number }, from: string) {
+    const { messageId, version } = protocol;
+
+    // 查找发送方状态
+    const state = this.sendingStates.get(messageId);
+
+    if (!state) {
+      console.warn('[PeerHttp] [Stage 2] Request for unknown message: ' + messageId);
+      return;
+    }
+
+    console.log('[PeerHttp] [Stage 2] Received request for msgId=' + messageId + ', v=' + version);
+
+    // 更新状态
+    state.stage = 'requested';
+    state.requestedAt = Date.now();
+
+    // 查找消息
     const myChat = this.getOrCreateChatVersion(from);
-
-    console.log('[PeerHttp] Received version request: from=' + from + ', requestedVersion=' + version + ', myVersion=' + myChat.version);
-
-    // 查找对应版本的消息（版本号从 1 开始，对应数组索引 version - 1）
     const message = myChat.messages[version - 1];
 
     if (message) {
-      // 发送消息内容给对端
-      this.sendProtocol(from, {
-        type: 'version_response',
-        from: this.getId()!,
-        to: from,
-        timestamp: Date.now(),
-        version,
-        message,
-      });
+      // 发送第三段：消息响应（只发一次）
+      console.log('[PeerHttp] [Stage 2] Sending response for msgId=' + messageId);
+      this.sendVersionResponse(from, state, message);
     } else {
-      console.warn('[PeerHttp] Message not found for version:', version);
+      console.error('[PeerHttp] [Stage 2] Message not found for version: ' + version);
     }
   }
 
   /**
-   * 处理版本响应：接收到消息内容
+   * 第三段接收：处理版本响应
+   * 接收方收到消息体后，发送第四段ACK确认
    */
-  private handleVersionResponse(protocol: { version: number; message: ChatMessage }, from: string) {
-    const { version, message } = protocol;
+  private handleVersionResponse(protocol: { version: number; message: ChatMessage; responseTime: number }, from: string) {
+    const { version, message, responseTime } = protocol;
     const myChat = this.getOrCreateChatVersion(from);
+    const stateKey = `${from}_${version}`;
+    const state = this.receivingStates.get(stateKey);
 
-    console.log('[PeerHttp] Received version response: from=' + from + ', version=' + version);
+    console.log('[PeerHttp] [Stage 3] Received response: from=' + from + ', v=' + version + ', msgId=' + message.id);
 
     // 检查版本是否已处理
     if (version <= myChat.version) {
-      console.log('[PeerHttp] Version already processed, ignoring');
+      console.log('[PeerHttp] [Stage 3] Version already processed, ignoring');
       return;
+    }
+
+    // 更新接收方状态
+    if (state) {
+      state.stage = 'received';
+      state.receivedAt = Date.now();
     }
 
     // 更新版本号并存储消息
@@ -309,12 +376,19 @@ export class PeerHttpUtil {
 
     commLog.message.received({ from, msgType: message.type, messageId: message.id });
 
-    // 发送送达确认
-    this.sendDeliveryAck(from, message.id);
+    // 发送第四段：送达确认
+    console.log('[PeerHttp] [Stage 3] Sending ACK for msgId=' + message.id);
+    this.sendDeliveryAck(from, message.id, version);
+
+    // 清理接收方状态
+    if (state) {
+      state.stage = 'acked';
+      state.ackedAt = Date.now();
+      this.receivingStates.delete(stateKey);
+    }
 
     // 触发消息处理器
-    console.log('[PeerHttp] Triggering message handlers: messageId=' + message.id);
-
+    console.log('[PeerHttp] [Stage 3] Triggering message handlers: msgId=' + message.id);
     this.messageHandlers.forEach((handler) => {
       try {
         handler({ from, data: message });
@@ -325,13 +399,38 @@ export class PeerHttpUtil {
   }
 
   /**
-   * 处理送达确认
+   * 第四段接收：处理送达确认
+   * 发送方收到ACK后，执行第五段：标记消息已送达
    */
-  private handleDeliveryAck(protocol: DeliveryAckProtocol) {
-    const { messageId } = protocol;
+  private handleDeliveryAck(protocol: { messageId: string; version: number; ackTime: number }) {
+    const { messageId, version, ackTime } = protocol;
+
+    // 查找发送方状态
+    const state = this.sendingStates.get(messageId);
+
+    if (!state) {
+      console.warn('[PeerHttp] [Stage 4] ACK for unknown message: ' + messageId);
+      return;
+    }
+
+    console.log('[PeerHttp] [Stage 4] Received ACK for msgId=' + messageId + ', v=' + version);
+
+    // 第五段：标记消息已送达
+    state.stage = 'acked';
+    state.ackedAt = Date.now();
+
+    // 清理定时器
+    if (state.notifyTimer) {
+      clearInterval(state.notifyTimer);
+    }
+
+    // 删除状态
+    this.sendingStates.delete(messageId);
+
+    console.log('[PeerHttp] [Stage 5] Message delivered: msgId=' + messageId);
 
     // 触发送达确认事件
-    this.emitProtocol('delivery_ack', protocol);
+    this.emitProtocol('delivery_ack', { type: 'delivery_ack', from: state.peerId, to: this.getId()!, timestamp: ackTime, messageId, version } as any);
   }
 
   /**
@@ -490,83 +589,176 @@ export class PeerHttpUtil {
     });
   }
 
+  // ==================== 五段式协议辅助方法 ====================
+
   /**
-   * 发送送达确认
+   * 第一段发送：发送版本通知（持续重发）
+   * @param peerId - 目标节点的 ID
+   * @param state - 发送方状态
    */
-  private sendDeliveryAck(peerId: string, messageId: string) {
+  private sendVersionNotify(peerId: string, state: SendingMessageState) {
+    state.notifyCount++;
+    console.log('[PeerHttp] [Stage 1] Sending notify #' + state.notifyCount + ': msgId=' + state.messageId + ', v=' + state.version);
+
+    this.sendProtocol(peerId, {
+      type: 'version_notify',
+      from: this.getId()!,
+      to: peerId,
+      timestamp: Date.now(),
+      messageId: state.messageId,
+      version: state.version,
+      msgType: 'text',
+      retryCount: state.notifyCount,
+    } as any).catch((err) => {
+      console.error('[PeerHttp] [Stage 1] Notify failed:', err);
+      // 失败不影响重发，定时器会继续
+    });
+  }
+
+  /**
+   * 第二段发送：发送版本请求（接收方被动响应）
+   * @param peerId - 目标节点的 ID
+   * @param messageId - 消息唯一标识
+   * @param version - 请求的版本号
+   */
+  private sendVersionRequest(peerId: string, messageId: string, version: number) {
+    console.log('[PeerHttp] [Stage 2] Sending request: msgId=' + messageId + ', v=' + version);
+
+    this.sendProtocol(peerId, {
+      type: 'version_request',
+      from: this.getId()!,
+      to: peerId,
+      timestamp: Date.now(),
+      messageId,
+      version,
+    } as any).catch((err) => {
+      console.error('[PeerHttp] [Stage 2] Request failed:', err);
+      // 失败后等待下一个notify重试
+    });
+  }
+
+  /**
+   * 第三段发送：发送消息响应（发送方只发一次）
+   * @param peerId - 目标节点的 ID
+   * @param state - 发送方状态
+   * @param message - 消息对象
+   */
+  private sendVersionResponse(peerId: string, state: SendingMessageState, message: ChatMessage) {
+    state.stage = 'delivering';
+    state.respondCount++;
+    state.deliveredAt = Date.now();
+
+    console.log('[PeerHttp] [Stage 3] Sending response #' + state.respondCount + ': msgId=' + state.messageId);
+
+    this.sendProtocol(peerId, {
+      type: 'version_response',
+      from: this.getId()!,
+      to: peerId,
+      timestamp: Date.now(),
+      version: state.version,
+      message,
+      responseTime: Date.now(),
+    } as any).catch((err) => {
+      console.error('[PeerHttp] [Stage 3] Response failed:', err);
+      // 不重发，等对端重发请求
+    });
+  }
+
+  /**
+   * 第四段发送：发送送达确认（接收方被动响应）
+   * @param peerId - 目标节点的 ID
+   * @param messageId - 消息唯一标识
+   * @param version - 版本号
+   */
+  private sendDeliveryAck(peerId: string, messageId: string, version: number) {
+    console.log('[PeerHttp] [Stage 4] Sending ACK: msgId=' + messageId + ', v=' + version);
+
     this.sendProtocol(peerId, {
       type: 'delivery_ack',
       from: this.getId()!,
       to: peerId,
       timestamp: Date.now(),
       messageId,
-    }).catch((err) => {
-      console.error('[PeerHttp] Failed to send delivery ack:', err);
+      version,
+      ackTime: Date.now(),
+    } as any).catch((err) => {
+      console.error('[PeerHttp] [Stage 4] ACK failed:', err);
+      // 失败后等待对端重发notify，然后重发ACK
     });
   }
 
   /**
-   * 发送消息（版本号机制）
+   * 发送消息（五段式协议）
+   * 第一段：持续重发版本通知（每5秒）
+   * 后续段：被动响应
    * @param peerId - 目标节点的 ID
    * @param messageId - 消息唯一标识
    * @param content - 消息内容
    * @param type - 消息类型
-   * @param isRetry - 是否为重试（重试时重新发送版本号通知）
    */
   send(
     peerId: string,
     messageId: string,
     content: MessageContent,
     type: MessageType = 'text',
-    isRetry: boolean = false,
-  ): Promise<{ peerId: string; messageId: string; sent: boolean; stage: 'notified' | 'requested' | 'delivered' }> {
-    console.log('[PeerHttp] Starting version-based send: peerId=' + peerId + ', messageId=' + messageId + ', type=' + type + ', isRetry=' + isRetry);
+  ): Promise<{ peerId: string; messageId: string; sent: boolean; stage: 'notifying' }> {
+    console.log('[PeerHttp] [Five-Stage] Starting send: peerId=' + peerId + ', msgId=' + messageId + ', type=' + type);
 
     // 获取或创建聊天版本记录
     const myChat = this.getOrCreateChatVersion(peerId);
+    myChat.version++;
 
-    // 只有非重试时才增加版本号并存储消息
-    if (!isRetry) {
-      myChat.version++;
-      const chatMessage: ChatMessage = {
-        id: messageId,
-        from: this.getId()!,
-        to: peerId,
-        content,
-        timestamp: Date.now(),
-        status: 'sent',
-        type,
-      };
-      myChat.messages.push(chatMessage);
-      console.log('[PeerHttp] Stored message with version: ' + myChat.version);
-    } else {
-      console.log('[PeerHttp] Retry mode: resending version notify');
-    }
+    // 创建消息对象
+    const chatMessage: ChatMessage = {
+      id: messageId,
+      from: this.getId()!,
+      to: peerId,
+      content,
+      timestamp: Date.now(),
+      status: 'sent',
+      type,
+    };
+    myChat.messages.push(chatMessage);
+    console.log('[PeerHttp] [Five-Stage] Stored message with version: ' + myChat.version);
 
-    // 发送版本号通知给对端
-    return new Promise((resolve, reject) => {
-      this.sendProtocol(peerId, {
-        type: 'version_notify',
-        from: this.getId()!,
-        to: peerId,
-        timestamp: Date.now(),
-        version: myChat.version,
-        msgType: type,
-      })
-        .then(() => {
-          console.log('[PeerHttp] Version notify sent: version=' + myChat.version);
-          resolve({ peerId, messageId, sent: true, stage: 'notified' });
-        })
-        .catch((err) => {
-          console.error('[PeerHttp] Version notify failed:', err);
-          if (!isRetry) {
-            // 回退版本号
-            myChat.version--;
-            myChat.messages.pop();
-          }
-          reject(err);
-        });
-    });
+    // 创建发送方状态
+    const state: SendingMessageState = {
+      messageId,
+      version: myChat.version,
+      peerId,
+      stage: 'notifying',
+      notifyCount: 0,
+      respondCount: 0,
+      notifiedAt: Date.now(),
+    };
+    this.sendingStates.set(messageId, state);
+
+    // 立即发送第一次通知
+    this.sendVersionNotify(peerId, state);
+
+    // 启动定时重发（每5秒重发第一段）
+    state.notifyTimer = setInterval(() => {
+      const currentState = this.sendingStates.get(messageId);
+      if (currentState && currentState.stage === 'notifying') {
+        currentState.notifyCount++;
+        if (currentState.notifyCount <= FIVE_STAGE_CONFIG.notifyMaxRetries) {
+          console.log('[PeerHttp] [Five-Stage] Retrying notify #' + currentState.notifyCount + ' for msgId=' + messageId);
+          this.sendVersionNotify(peerId, currentState);
+        } else {
+          // 超过最大重试次数，停止重发
+          console.warn('[PeerHttp] [Five-Stage] Max retries reached for msgId=' + messageId);
+          clearInterval(currentState.notifyTimer!);
+        }
+      } else {
+        // 已进入后续阶段，停止重发
+        const timer = this.sendingStates.get(messageId)?.notifyTimer;
+        if (timer) {
+          clearInterval(timer);
+        }
+      }
+    }, FIVE_STAGE_CONFIG.notifyInterval);
+
+    return Promise.resolve({ peerId, messageId, sent: true, stage: 'notifying' });
   }
 
   /**

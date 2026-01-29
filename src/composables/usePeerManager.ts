@@ -713,13 +713,11 @@ export function usePeerManager() {
     console.log('[Peer] Retrying ' + pending.length + ' pending messages for ' + peerId);
 
     for (const pendingMsg of pending) {
-      // 重试时使用 isRetry=true，只发送消息ID
       const success = await sendChatMessage(
         peerId,
         pendingMsg.id,
         pendingMsg.content,
         pendingMsg.type,
-        true, // isRetry = true，只发送消息ID
       );
 
       if (success) {
@@ -737,15 +735,13 @@ export function usePeerManager() {
   }
 
   /**
-   * 发送聊天消息（使用三段式协议）
-   * @param isRetry - 是否为重试（重试时只发送消息ID）
+   * 发送聊天消息（使用五段式协议）
    */
   async function sendChatMessage(
     peerId: string,
     messageId: string,
     content: MessageContent,
     type: MessageType = 'text',
-    isRetry: boolean = false,
   ): Promise<boolean> {
     if (!peerInstance) {
       console.error('[Peer] Peer instance not initialized');
@@ -753,25 +749,15 @@ export function usePeerManager() {
       return false;
     }
 
-    console.log('[Peer] Sending chat message: peerId=' + peerId + ', messageId=' + messageId + ', type=' + type + ', isRetry=' + isRetry);
+    console.log('[Peer] Sending chat message: peerId=' + peerId + ', msgId=' + messageId + ', type=' + type);
 
     try {
-      const result = await peerInstance.send(peerId, messageId, content, type, isRetry);
-      const resultLog = JSON.stringify({
-        peerId: result.peerId,
-        messageId: result.messageId,
-        sent: result.sent,
-        stage: result.stage
-      });
-      console.log('[Peer] Send result: ' + resultLog.substring(0, 200));
+      const result = await peerInstance.send(peerId, messageId, content, type);
+      console.log('[Peer] Send result: msgId=' + result.messageId + ', sent=' + result.sent + ', stage=' + result.stage);
 
-      // 更新消息的 messageStage
-      if (result.sent && result.stage) {
+      // 更新消息状态为发送中
+      if (result.sent) {
         chatStore.updateMessageStatus(peerId, messageId, 'sending');
-        const msg = chatStore.getMessageById(messageId);
-        if (msg) {
-          msg.messageStage = result.stage;
-        }
       }
 
       return result.sent;
