@@ -39,6 +39,7 @@ export const SELECTORS = {
   wechatMenuItem: '.ant-menu-item:has-text("聊天")',
   centerMenuItem: '.ant-menu-item:has-text("发现中心")',
   settingsMenuItem: '.ant-menu-item:has-text("设置")',
+  networkLogMenuItem: '.ant-menu-item:has-text("网络数据日志")',
 
   // 通用
   centerContainer: '.center-container',
@@ -47,6 +48,7 @@ export const SELECTORS = {
   deviceCardOffline: '.device-card.is-offline',
   wechatContainer: '.wechat-container',
   settingsContainer: '.settings-container',
+  networkLogView: '.network-log-view',
 
   // 发现中心 - 使用更精确的选择器
   peerIdInput: 'input[placeholder*="Peer ID"], input[placeholder*="peer"], input[placeholder*="设备"]',
@@ -78,8 +80,14 @@ export const SELECTORS = {
 
   // 设置页面
   usernameInput: 'input[maxlength="20"], input[placeholder*="用户名"]',
-  networkAccelerationSwitch: '.settings-container .ant-switch',
+  networkAccelerationSwitch: '.network-acceleration-section .ant-switch',
+  networkLoggingSwitch: '.network-logging-section .ant-switch',
   saveSettingsButton: 'button[aria-label="save-settings-button"], button:has-text("保存")',
+
+  // 网络数据日志页面
+  networkLogTable: '.ant-table',
+  networkLogClearButton: 'button:has-text("清空日志")',
+  networkLogDataDetailButton: 'button:has-text("查看数据详情")',
 
   // 消息提示 - 使用更稳定的选择器
   successMessage: '.ant-message-success, .ant-message .anticon-check-circle',

@@ -4,6 +4,7 @@ import type { UserInfo } from '../types';
 
 const USER_INFO_KEY = 'p2p_user_info';
 const NETWORK_ACCELERATION_KEY = 'p2p_network_acceleration';
+const NETWORK_LOGGING_KEY = 'p2p_network_logging';
 // const MY_PEER_ID_KEY = 'p2p_my_peer_id'; // 保留但不使用，避免 ESLint 警告
 
 export const useUserStore = defineStore('user', () => {
@@ -18,6 +19,9 @@ export const useUserStore = defineStore('user', () => {
 
   // 网络加速开关
   const networkAccelerationEnabled = ref(false);
+
+  // 网络数据日志记录开关
+  const networkLoggingEnabled = ref(false);
 
   // 独立的 myPeerId，用于发现中心展示
   const myPeerId = computed(() => userInfo.value.peerId);
@@ -111,6 +115,27 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem(NETWORK_ACCELERATION_KEY, String(enabled));
   }
 
+  // ==================== 网络数据日志记录 ====================
+
+  /**
+   * 加载网络数据日志记录开关状态
+   */
+  function loadNetworkLogging() {
+    const saved = localStorage.getItem(NETWORK_LOGGING_KEY);
+    if (saved !== null) {
+      networkLoggingEnabled.value = saved === 'true';
+    }
+    return networkLoggingEnabled.value;
+  }
+
+  /**
+   * 设置网络数据日志记录开关状态
+   */
+  function setNetworkLogging(enabled: boolean) {
+    networkLoggingEnabled.value = enabled;
+    localStorage.setItem(NETWORK_LOGGING_KEY, String(enabled));
+  }
+
   return {
     userInfo,
     isSetup,
@@ -123,5 +148,9 @@ export const useUserStore = defineStore('user', () => {
     networkAccelerationEnabled,
     loadNetworkAcceleration,
     setNetworkAcceleration,
+    // 网络数据日志记录
+    networkLoggingEnabled,
+    loadNetworkLogging,
+    setNetworkLogging,
   };
 });

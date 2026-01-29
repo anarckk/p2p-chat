@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { message } from 'ant-design-vue';
 import { PeerHttpUtil } from '../util/PeerHttpUtil';
 
 const targetId = ref('');
@@ -34,12 +33,10 @@ function sendMessage() {
   const msg = messageContent.value.trim();
 
   if (!tid) {
-    message.warning('请输入对方 ID');
     return;
   }
 
   if (!msg) {
-    message.warning('请输入消息内容');
     return;
   }
 

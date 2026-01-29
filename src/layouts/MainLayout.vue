@@ -7,11 +7,11 @@ import {
   PlusOutlined,
   LoadingOutlined,
   SettingOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons-vue';
 import type { UploadChangeParam, UploadProps } from 'ant-design-vue';
 import { useUserStore } from '../stores/userStore';
 import { usePeerManager } from '../composables/usePeerManager';
-import { message } from 'ant-design-vue';
 import { fileToBase64 } from '../util/fileHelper';
 
 const router = useRouter();
@@ -29,6 +29,10 @@ const isSubmitting = ref(false);
 const avatarUrl = ref<string>('');
 const isUploading = ref(false);
 const fileList = ref<any[]>([]);
+
+// 内联提示状态
+const inlineMessage = ref('');
+const inlineMessageType = ref<'success' | 'error' | 'warning' | 'info'>('info');
 
 // 当前头像URL（用于显示）
 const currentAvatar = computed(() => {
@@ -55,6 +59,11 @@ const menuItems = [
     label: '设置',
     icon: SettingOutlined,
   },
+  {
+    key: 'NetworkLog',
+    label: '网络数据日志',
+    icon: FileTextOutlined,
+  },
 ];
 
 onMounted(async () => {
@@ -70,7 +79,6 @@ onMounted(async () => {
       await init();
     } catch (error) {
       console.error('Peer init failed:', error);
-      message.error('Peer 连接失败，请刷新页面重试');
     }
   }
 });
@@ -103,14 +111,11 @@ const handleAvatarChange: UploadProps['onChange'] = async (info: UploadChangePar
 const beforeUpload = async (file: File) => {
   const isImage = file.type.startsWith('image/');
   if (!isImage) {
-    message.error('只能上传图片文件（支持 JPG、PNG 等格式）');
     return false;
   }
 
   const isLt2M = file.size / 1024 / 1024 < 2;
   if (!isLt2M) {
-    const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
-    message.error(`图片大小不能超过 2MB，当前文件大小为 ${fileSizeMB}MB`);
     return false;
   }
 
@@ -123,10 +128,8 @@ const beforeUpload = async (file: File) => {
       status: 'done',
       url: base64,
     }];
-    message.success('头像上传成功');
   } catch (error) {
     console.error('Avatar processing error:', error);
-    message.error('头像处理失败，请重试或选择其他图片');
   }
 
   return false; // 阻止自动上传
@@ -136,25 +139,42 @@ const beforeUpload = async (file: File) => {
  * 移除头像
  */
 const handleRemove = () => {
+  inlineMessage.value = '';
   avatarUrl.value = '';
   fileList.value = [];
 };
 
+/**
+ * 显示内联提示
+ */
+function showInlineMessage(msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') {
+  inlineMessage.value = msg;
+  inlineMessageType.value = type;
+}
+
+/**
+ * 清除内联提示
+ */
+function clearInlineMessage() {
+  inlineMessage.value = '';
+}
+
 async function handleUserSetup() {
   const trimmedUsername = usernameInput.value.trim();
+  clearInlineMessage();
 
   if (!trimmedUsername) {
-    message.warning('用户名不能为空，请输入用户名');
+    showInlineMessage('用户名不能为空，请输入用户名', 'warning');
     return;
   }
 
   if (trimmedUsername.length < 2) {
-    message.warning('用户名至少需要2个字符');
+    showInlineMessage('用户名至少需要2个字符', 'warning');
     return;
   }
 
   if (trimmedUsername.length > 20) {
-    message.warning('用户名不能超过20个字符');
+    showInlineMessage('用户名不能超过20个字符', 'warning');
     return;
   }
 
@@ -176,7 +196,7 @@ async function handleUserSetup() {
     avatarUrl.value = '';
     fileList.value = [];
 
-    message.success('设置完成');
+    showInlineMessage('设置完成', 'success');
   } catch (error) {
     console.error('User setup failed:', error);
 
@@ -193,7 +213,7 @@ async function handleUserSetup() {
     avatarUrl.value = '';
     fileList.value = [];
 
-    message.warning('Peer 连接失败，某些功能可能不可用');
+    showInlineMessage('Peer 连接失败，某些功能可能不可用', 'warning');
   } finally {
     isSubmitting.value = false;
   }
@@ -235,6 +255,10 @@ async function handleUserSetup() {
             <a-typography-text type="secondary" style="font-size: 12px">
               支持 jpg、png 格式，不超过 2MB
             </a-typography-text>
+            <!-- 内联提示 -->
+            <div v-if="inlineMessage" class="inline-message" :class="`inline-message-${inlineMessageType}`">
+              {{ inlineMessage }}
+            </div>
           </div>
         </a-form-item>
         <a-form-item label="用户名" required>
@@ -324,6 +348,39 @@ async function handleUserSetup() {
 
 .avatar-upload-container :deep(.ant-avatar) {
   flex-shrink: 0;
+}
+
+/* 内联提示样式 */
+.inline-message {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.inline-message-success {
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+}
+
+.inline-message-error {
+  background-color: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #ff4d4f;
+}
+
+.inline-message-warning {
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  color: #faad14;
+}
+
+.inline-message-info {
+  background-color: #e6f7ff;
+  border: 1px solid #91d5ff;
+  color: #1890ff;
 }
 
 @media (max-width: 768px) {

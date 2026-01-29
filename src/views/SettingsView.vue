@@ -3,8 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import { usePeerManager } from '../composables/usePeerManager';
-import { message } from 'ant-design-vue';
-import { SaveOutlined, UserOutlined, ThunderboltOutlined } from '@ant-design/icons-vue';
+import { SaveOutlined, UserOutlined, ThunderboltOutlined, FileTextOutlined } from '@ant-design/icons-vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -27,9 +26,17 @@ const avatarFile = ref<File | null>(null);
 const networkAcceleration = ref(false);
 const originalNetworkAcceleration = ref(false);
 
+// 网络数据日志记录
+const networkLogging = ref(false);
+const originalNetworkLogging = ref(false);
+
 // 加载中状态
 const isLoading = ref(false);
 const isSaving = ref(false);
+
+// 内联提示状态
+const inlineMessage = ref('');
+const inlineMessageType = ref<'success' | 'error' | 'warning' | 'info'>('info');
 
 onMounted(() => {
   // 确保从 localStorage 加载用户信息
@@ -46,17 +53,24 @@ onMounted(() => {
 
   // 同步 peerManager 的网络加速状态
   setNetworkAccelerationEnabled(networkAcceleration.value);
+
+  // 加载网络数据日志记录开关状态
+  networkLogging.value = userStore.loadNetworkLogging();
+  originalNetworkLogging.value = networkLogging.value;
 });
 
 // 是否有修改
 const hasChanges = computed(() => {
   return username.value !== originalUsername.value ||
     avatarFile.value !== null ||
-    networkAcceleration.value !== originalNetworkAcceleration.value;
+    networkAcceleration.value !== originalNetworkAcceleration.value ||
+    networkLogging.value !== originalNetworkLogging.value;
 });
 
 // 处理文件选择
 function handleFileChange(info: any) {
+  clearInlineMessage();
+
   const file = info.file;
 
   // 兼容两种情况：
@@ -67,13 +81,13 @@ function handleFileChange(info: any) {
   if (actualFile && actualFile instanceof File) {
     // 验证文件类型
     if (!actualFile.type.startsWith('image/')) {
-      message.error('请选择图片文件');
+      showInlineMessage('请选择图片文件', 'error');
       return;
     }
 
     // 验证文件大小（2MB）
     if (actualFile.size > 2 * 1024 * 1024) {
-      message.error('图片大小不能超过 2MB');
+      showInlineMessage('图片大小不能超过 2MB', 'error');
       return;
     }
 
@@ -96,8 +110,10 @@ function removeAvatar() {
 
 // 保存设置
 async function handleSave() {
+  clearInlineMessage();
+
   if (!username.value.trim()) {
-    message.warning('用户名不能为空');
+    showInlineMessage('用户名不能为空', 'warning');
     return;
   }
 
@@ -128,17 +144,24 @@ async function handleSave() {
       // 广播网络加速状态给所有在线设备
       await broadcastNetworkAccelerationStatus();
 
-      message.success(networkAcceleration.value ? '已开启网络加速' : '已关闭网络加速');
+      showInlineMessage(networkAcceleration.value ? '已开启网络加速' : '已关闭网络加速', 'success');
+    }
+
+    // 保存网络数据日志记录开关
+    if (networkLogging.value !== originalNetworkLogging.value) {
+      userStore.setNetworkLogging(networkLogging.value);
+      showInlineMessage(networkLogging.value ? '已开启网络数据日志记录' : '已关闭网络数据日志记录', 'success');
     }
 
     originalUsername.value = username.value;
     originalNetworkAcceleration.value = networkAcceleration.value;
+    originalNetworkLogging.value = networkLogging.value;
     avatarFile.value = null;
 
-    message.success('设置已保存');
+    showInlineMessage('设置已保存', 'success');
   } catch (error) {
     console.error('[Settings] Save error:', error);
-    message.error('保存失败');
+    showInlineMessage('保存失败', 'error');
   } finally {
     isSaving.value = false;
   }
@@ -150,12 +173,29 @@ function handleCancel() {
   avatarPreview.value = userStore.userInfo.avatar;
   avatarFile.value = null;
   networkAcceleration.value = originalNetworkAcceleration.value;
+  networkLogging.value = originalNetworkLogging.value;
 }
 
 // 跳转到发现中心
 function goToCenter() {
   router.push('/center');
 }
+
+/**
+ * 显示内联提示
+ */
+function showInlineMessage(msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') {
+  inlineMessage.value = msg;
+  inlineMessageType.value = type;
+}
+
+/**
+ * 清除内联提示
+ */
+function clearInlineMessage() {
+  inlineMessage.value = '';
+}
+
 </script>
 
 <template>
@@ -266,8 +306,63 @@ function goToCenter() {
         </a-card>
       </a-col>
 
+      <!-- 网络数据日志记录设置 -->
+      <a-col :xs="24" :md="12">
+        <a-card title="网络数据日志记录" :bordered="false">
+          <template #extra>
+            <FileTextOutlined />
+          </template>
+
+          <div class="network-logging-section">
+            <p class="description">
+              开启网络数据日志记录后，所有的 PeerJS 请求和响应数据都会被记录到本地 IndexedDB 中。
+              这对于调试网络问题和分析通信数据非常有用。
+            </p>
+
+            <a-switch
+              v-model:checked="networkLogging"
+              checked-children="开启"
+              un-checked-children="关闭"
+            />
+
+            <div class="status-info">
+              <a-alert
+                v-if="networkLogging"
+                type="info"
+                show-icon
+                message="网络数据日志记录已开启"
+              >
+                <template #description>
+                  <div>所有的网络通信数据都会被记录到本地数据库中。</div>
+                  <div style="margin-top: 8px;">
+                    <a-button type="link" size="small" @click="router.push('/network-log')" style="padding: 0;">
+                      查看网络数据日志 →
+                    </a-button>
+                  </div>
+                </template>
+              </a-alert>
+              <a-alert
+                v-else
+                type="warning"
+                show-icon
+                message="网络数据日志记录已关闭"
+              >
+                <template #description>
+                  网络通信数据不会被记录。开启后可在"网络数据日志"页面查看记录的数据。
+                </template>
+              </a-alert>
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+
       <!-- 操作按钮 -->
       <a-col :span="24">
+        <!-- 内联提示 -->
+        <div v-if="inlineMessage" class="inline-message" :class="`inline-message-${inlineMessageType}`">
+          {{ inlineMessage }}
+        </div>
+
         <div class="action-buttons">
           <a-button
             type="primary"
@@ -333,6 +428,18 @@ function goToCenter() {
   margin: 0;
 }
 
+.network-logging-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.network-logging-section .description {
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
 .status-info {
   margin-top: 8px;
 }
@@ -358,5 +465,37 @@ function goToCenter() {
   .action-buttons button {
     width: 100%;
   }
+}
+
+/* 内联提示样式 */
+.inline-message {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.inline-message-success {
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+}
+
+.inline-message-error {
+  background-color: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #ff4d4f;
+}
+
+.inline-message-warning {
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  color: #faad14;
+}
+
+.inline-message-info {
+  background-color: #e6f7ff;
+  border: 1px solid #91d5ff;
+  color: #1890ff;
 }
 </style>

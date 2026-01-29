@@ -4,9 +4,8 @@ import { useUserStore } from '../stores/userStore';
 import { useChatStore } from '../stores/chatStore';
 import { useDeviceStore } from '../stores/deviceStore';
 import { usePeerManager } from '../composables/usePeerManager';
-import { message } from 'ant-design-vue';
 import type { OnlineDevice } from '../types';
-import { ReloadOutlined, TeamOutlined, PlusOutlined } from '@ant-design/icons-vue';
+import { ReloadOutlined, TeamOutlined, PlusOutlined, LoadingOutlined, SyncOutlined } from '@ant-design/icons-vue';
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
@@ -27,6 +26,27 @@ const {
 
 const queryPeerIdInput = ref('');
 const isQuerying = ref(false);
+const isRefreshing = ref(false);
+
+// 内联提示状态
+const inlineMessage = ref('');
+const inlineMessageType = ref<'success' | 'error' | 'warning' | 'info'>('info');
+
+// 设备刷新状态跟踪：Map<peerId, { refreshing: boolean, duration: number | null, error: boolean }>
+interface DeviceRefreshStatus {
+  refreshing: boolean;
+  duration: number | null;
+  error: boolean;
+}
+
+const deviceRefreshStatus = ref<Map<string, DeviceRefreshStatus>>(new Map());
+
+/**
+ * 获取设备的刷新状态
+ */
+function getDeviceRefreshStatus(peerId: string): DeviceRefreshStatus {
+  return deviceRefreshStatus.value.get(peerId) || { refreshing: false, duration: null, error: false };
+}
 
 // 使用 deviceStore 中的设备列表
 const storedDevices = computed(() => deviceStore.allDevices);
@@ -135,11 +155,28 @@ onUnmounted(() => {
 });
 
 /**
+ * 显示内联提示
+ */
+function showInlineMessage(msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') {
+  inlineMessage.value = msg;
+  inlineMessageType.value = type;
+}
+
+/**
+ * 清除内联提示
+ */
+function clearInlineMessage() {
+  inlineMessage.value = '';
+}
+
+/**
  * 查询指定节点的已发现设备
  */
 async function queryDevices() {
+  clearInlineMessage();
+
   if (!queryPeerIdInput.value.trim()) {
-    message.warning('请输入要查询的 Peer ID');
+    showInlineMessage('请输入要查询的 Peer ID', 'warning');
     return;
   }
 
@@ -148,15 +185,15 @@ async function queryDevices() {
     const devices = await queryDiscoveredDevices(queryPeerIdInput.value.trim());
 
     if (devices.length > 0) {
-      message.success(`从 ${queryPeerIdInput.value} 发现了 ${devices.length} 个设备`);
+      showInlineMessage(`从 ${queryPeerIdInput.value} 发现了 ${devices.length} 个设备`, 'success');
     } else {
-      message.info('未发现任何设备');
+      showInlineMessage('未发现任何设备', 'info');
     }
 
     queryPeerIdInput.value = '';
   } catch (error) {
     console.error('[Center] Query error:', error);
-    message.error('查询失败');
+    showInlineMessage('查询失败', 'error');
   } finally {
     isQuerying.value = false;
   }
@@ -166,8 +203,10 @@ async function queryDevices() {
  * 手动添加设备
  */
 async function addDeviceManually() {
+  clearInlineMessage();
+
   if (!queryPeerIdInput.value.trim()) {
-    message.warning('请输入要添加的 Peer ID');
+    showInlineMessage('请输入要添加的 Peer ID', 'warning');
     return;
   }
 
@@ -175,7 +214,7 @@ async function addDeviceManually() {
 
   // 检查是否已存在
   if (storedDevices.value.some((d) => d.peerId === peerId)) {
-    message.info('该设备已存在');
+    showInlineMessage('该设备已存在', 'info');
     return;
   }
 
@@ -204,8 +243,7 @@ async function addDeviceManually() {
     console.error('[Center] Error sending discovery notification:', error);
   }
 
-  // 显示成功消息（设备已添加，即使查询用户名失败也算成功）
-  message.success(`已添加设备 ${peerId}`);
+  showInlineMessage(`已添加设备 ${peerId}`, 'success');
   queryPeerIdInput.value = '';
 
   // 设备互相发现：向新添加的设备询问其设备列表
@@ -245,74 +283,115 @@ async function addDeviceManually() {
 function handleDeviceClick(device: OnlineDevice) {
   // 创建聊天
   chatStore.createChat(device.peerId, device.username);
-
-  message.success(`已添加 ${device.username} 到聊天列表`);
+  showInlineMessage(`已添加 ${device.username} 到聊天列表`, 'success');
 }
 
 /**
  * 复制 Peer ID
  */
 function copyPeerId(id: string) {
+  clearInlineMessage();
   navigator.clipboard.writeText(id);
-  message.success('已复制到剪贴板');
+  showInlineMessage('已复制到剪贴板', 'success');
 }
 
 /**
  * 刷新发现列表（设备互相发现 + 在线状态检查）
  */
 async function refreshDiscovery() {
+  clearInlineMessage();
+
   // 记录刷新开始
   console.log('[Center] Refresh discovery started');
 
-  // 检查是否已连接
-  if (!isConnected.value) {
-    console.warn('[Center] Not connected to Peer Server');
-    // 仍然继续执行，但记录警告
-  }
-
-  // 检查用户信息是否已设置
-  if (!userStore.myPeerId) {
-    console.warn('[Center] User info not set');
-    // 仍然继续执行，但记录警告
-  }
+  isRefreshing.value = true;
 
   try {
-    // 1. 向所有设备请求设备列表（设备互相发现）
-    await requestAllDeviceLists();
-  } catch (error) {
-    console.error('[Center] Request device lists error:', error);
-  }
-
-  // 2. 主动检查每个设备的在线状态（除了自己）
-  const devicesToCheck = storedDevices.value.filter(
-    (d) => d.peerId !== userStore.myPeerId
-  );
-
-  let onlineCount = 0;
-  const checkPromises = devicesToCheck.map(async (device) => {
-    try {
-      const isOnline = await checkOnline(device.peerId);
-      if (isOnline) {
-        onlineCount++;
-      }
-      // 更新设备的在线状态
-      deviceStore.updateDeviceOnlineStatus(device.peerId, isOnline);
-      return { peerId: device.peerId, isOnline };
-    } catch (error) {
-      // 单个设备检查失败不应影响其他设备
-      console.warn('[Center] Check online failed for ' + device.peerId + ':', error);
-      return { peerId: device.peerId, isOnline: false };
+    // 检查是否已连接
+    if (!isConnected.value) {
+      console.warn('[Center] Not connected to Peer Server');
     }
-  });
 
-  await Promise.allSettled(checkPromises);
+    // 检查用户信息是否已设置
+    if (!userStore.myPeerId) {
+      console.warn('[Center] User info not set');
+    }
 
-  console.log('[Center] Refresh completed: ' + storedDevices.value.length + ' devices, ' + onlineCount + ' online');
+    // 获取要刷新的设备列表（排除自己）
+    const devicesToCheck = storedDevices.value.filter(
+      (d) => d.peerId !== userStore.myPeerId
+    );
 
-  // 注意：不调用 updateOnlineStatus()，因为它会根据 lastHeartbeat 重新计算状态，
-  // 可能会覆盖 checkOnline() 的实际检查结果
+    // 初始化所有设备的刷新状态
+    devicesToCheck.forEach((device) => {
+      deviceRefreshStatus.value.set(device.peerId, {
+        refreshing: true,
+        duration: null,
+        error: false,
+      });
+    });
 
-  message.success(`已刷新，当前发现 ${storedDevices.value.length} 个设备，其中 ${onlineCount} 个在线`);
+    try {
+      // 1. 向所有设备请求设备列表（设备互相发现）
+      await requestAllDeviceLists();
+    } catch (error) {
+      console.error('[Center] Request device lists error:', error);
+    }
+
+    // loading 状态只覆盖发出请求阶段，请求发出后立即结束 loading
+    // 后续的设备检查会在后台继续进行，每个设备独立更新状态
+    isRefreshing.value = false;
+
+    // 2. 主动检查每个设备的在线状态（并发执行，各自独立更新）
+    const checkPromises = devicesToCheck.map(async (device) => {
+      const startTime = Date.now();
+      const peerId = device.peerId;
+
+      try {
+        // 发起在线检查请求
+        const isOnline = await checkOnline(peerId);
+        const duration = Date.now() - startTime;
+
+        // 更新设备的在线状态
+        deviceStore.updateDeviceOnlineStatus(peerId, isOnline);
+
+        // 更新刷新状态（完成，显示耗时）
+        deviceRefreshStatus.value.set(peerId, {
+          refreshing: false,
+          duration,
+          error: false,
+        });
+
+        console.log('[Center] Device ' + peerId + ' checked: online=' + isOnline + ', duration=' + duration + 'ms');
+
+        return { peerId, isOnline, duration };
+      } catch (error) {
+        // 单个设备检查失败不应影响其他设备
+        console.warn('[Center] Check online failed for ' + peerId + ':', error);
+
+        // 更新刷新状态（失败）
+        deviceRefreshStatus.value.set(peerId, {
+          refreshing: false,
+          duration: null,
+          error: true,
+        });
+
+        return { peerId, isOnline: false, duration: null };
+      }
+    });
+
+    // 不等待所有检查完成，让它们在后台并发执行
+    // 使用 Promise.allSettled 确保所有 Promise 都被处理（无论成功失败）
+    Promise.allSettled(checkPromises).then((results) => {
+      const onlineCount = results.filter((r) => r.status === 'fulfilled' && (r.value as any).isOnline).length;
+      console.log('[Center] Refresh completed: ' + storedDevices.value.length + ' devices, ' + onlineCount + ' online');
+      showInlineMessage(`已刷新，当前发现 ${storedDevices.value.length} 个设备，其中 ${onlineCount} 个在线`, 'success');
+    });
+  } catch (error) {
+    console.error('[Center] Refresh error:', error);
+    showInlineMessage('刷新失败', 'error');
+    isRefreshing.value = false;
+  }
 }
 </script>
 
@@ -349,7 +428,7 @@ async function refreshDiscovery() {
       <a-col :xs="24" :md="16">
         <a-card title="发现中心" :bordered="false">
           <template #extra>
-            <a-button size="small" @click="refreshDiscovery" aria-label="refresh-discovery">
+            <a-button size="small" :loading="isRefreshing" @click="refreshDiscovery" aria-label="refresh-discovery">
               <template #icon>
                 <ReloadOutlined />
               </template>
@@ -376,6 +455,10 @@ async function refreshDiscovery() {
                 添加
               </a-button>
             </a-input-group>
+            <!-- 内联提示 -->
+            <div v-if="inlineMessage" class="inline-message" :class="`inline-message-${inlineMessageType}`">
+              {{ inlineMessage }}
+            </div>
           </div>
 
           <!-- 在线设备列表 -->
@@ -422,6 +505,15 @@ async function refreshDiscovery() {
                         <a-tag v-if="isInChat(item.peerId)" color="green" size="small">聊天中</a-tag>
                         <a-tag v-if="item.isOnline" color="success" size="small">在线</a-tag>
                         <a-tag v-else color="default" size="small">离线</a-tag>
+                        <!-- 刷新状态显示（仅在线设备显示） -->
+                        <template v-if="item.isOnline">
+                          <template v-if="getDeviceRefreshStatus(item.peerId).refreshing">
+                            <SyncOutlined spin style="color: #1890ff; margin-left: 4px;" />
+                          </template>
+                          <template v-else-if="getDeviceRefreshStatus(item.peerId).duration !== null">
+                            <span class="refresh-duration">{{ getDeviceRefreshStatus(item.peerId).duration }}ms</span>
+                          </template>
+                        </template>
                       </template>
                     </template>
                     <template #description>
@@ -454,6 +546,37 @@ async function refreshDiscovery() {
   margin-bottom: 16px;
 }
 
+.inline-message {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.inline-message-success {
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+}
+
+.inline-message-error {
+  background-color: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #ff4d4f;
+}
+
+.inline-message-warning {
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  color: #faad14;
+}
+
+.inline-message-info {
+  background-color: #e6f7ff;
+  border: 1px solid #91d5ff;
+  color: #1890ff;
+}
+
 .empty-state {
   padding: 40px 0;
 }
@@ -481,6 +604,13 @@ async function refreshDiscovery() {
 
 .device-card.is-offline {
   opacity: 0.7;
+}
+
+.refresh-duration {
+  color: #52c41a;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 4px;
 }
 
 @media (max-width: 768px) {

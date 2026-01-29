@@ -4,7 +4,6 @@ import { useUserStore } from '../stores/userStore';
 import { useChatStore } from '../stores/chatStore';
 import { useDeviceStore } from '../stores/deviceStore';
 import { usePeerManager } from '../composables/usePeerManager';
-import { message } from 'ant-design-vue';
 import type { ChatMessage, Contact, MessageType, MessageContent } from '../types';
 import type { FileContent, ImageContent, VideoContent } from '../types';
 import { fileToBase64 } from '../util/fileHelper';
@@ -36,6 +35,10 @@ const addChatPeerIdInput = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 const isMobile = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+
+// 内联提示状态
+const inlineMessage = ref('');
+const inlineMessageType = ref<'success' | 'error' | 'warning' | 'info'>('info');
 
 const currentContact = computed(() => {
   if (!chatStore.currentChatPeerId) return null;
@@ -141,17 +144,34 @@ function backToList() {
 }
 
 /**
+ * 显示内联提示
+ */
+function showInlineMessage(msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') {
+  inlineMessage.value = msg;
+  inlineMessageType.value = type;
+}
+
+/**
+ * 清除内联提示
+ */
+function clearInlineMessage() {
+  inlineMessage.value = '';
+}
+
+/**
  * 新增聊天
  */
 async function handleAddChat() {
   const peerId = addChatPeerIdInput.value.trim();
+  clearInlineMessage();
+
   if (!peerId) {
-    message.warning('请输入对方 Peer ID');
+    showInlineMessage('请输入对方 Peer ID', 'warning');
     return;
   }
 
   if (peerId === userStore.myPeerId) {
-    message.warning('不能与自己聊天');
+    showInlineMessage('不能与自己聊天', 'warning');
     return;
   }
 
@@ -166,7 +186,8 @@ async function handleAddChat() {
 
   showAddChatModal.value = false;
   addChatPeerIdInput.value = '';
-  message.success('已创建聊天');
+
+  showInlineMessage('已创建聊天', 'success');
 
   console.log('[WeChat] Chat created successfully');
 }
@@ -181,7 +202,7 @@ function handleDeleteChat() {
   const contactName = contact?.username || chatStore.currentChatPeerId;
 
   chatStore.deleteChat(chatStore.currentChatPeerId);
-  message.success(`已删除与 ${contactName} 的聊天`);
+  showInlineMessage(`已删除与 ${contactName} 的聊天`, 'success');
 }
 
 /**
@@ -224,10 +245,11 @@ async function handleFileSelect(e: Event) {
   const target = e.target as HTMLInputElement;
   const file = target.files?.[0];
   if (!file || !chatStore.currentChatPeerId) return;
+  clearInlineMessage();
 
   // 限制文件大小 50MB
   if (file.size > 50 * 1024 * 1024) {
-    message.warning('文件大小不能超过 50MB');
+    showInlineMessage('文件大小不能超过 50MB', 'warning');
     return;
   }
 
@@ -267,10 +289,10 @@ async function handleFileSelect(e: Event) {
     }
 
     await sendMessageWithRetry(chatStore.currentChatPeerId, content, type);
-    message.success('文件发送成功');
+    showInlineMessage('文件发送成功', 'success');
   } catch (error) {
     console.error('[Chat] File send error:', error);
-    message.error('文件发送失败');
+    showInlineMessage('文件发送失败', 'error');
   }
 
   // 清空 input
@@ -421,6 +443,10 @@ function renderMessageContent(msg: ChatMessage) {
         <a-typography-text type="secondary">
           提示：在发现中心可以查看和复制其他设备的 Peer ID
         </a-typography-text>
+        <!-- 内联提示 -->
+        <div v-if="inlineMessage" class="inline-message" :class="`inline-message-${inlineMessageType}`">
+          {{ inlineMessage }}
+        </div>
       </a-form>
     </a-modal>
 
@@ -974,6 +1000,38 @@ function renderMessageContent(msg: ChatMessage) {
   .message-content {
     max-width: 80%;
   }
+}
+
+/* 内联提示样式 */
+.inline-message {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.inline-message-success {
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+}
+
+.inline-message-error {
+  background-color: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #ff4d4f;
+}
+
+.inline-message-warning {
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  color: #faad14;
+}
+
+.inline-message-info {
+  background-color: #e6f7ff;
+  border: 1px solid #91d5ff;
+  color: #1890ff;
 }
 
 </style>

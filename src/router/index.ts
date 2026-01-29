@@ -31,6 +31,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/SettingsView.vue'),
         meta: { title: '设置', requiresSetup: true },
       },
+      {
+        path: 'network-log',
+        name: 'NetworkLog',
+        component: () => import('../views/NetworkLogView.vue'),
+        meta: { title: '网络数据日志', requiresSetup: true },
+      },
     ],
   },
 ];

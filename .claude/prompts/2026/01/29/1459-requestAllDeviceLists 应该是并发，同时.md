@@ -1,0 +1,3 @@
+session_id:89350be4-7311-443e-bb8f-918cd650d742
+
+requestAllDeviceLists 应该是并发，同时向所有设备发起请求吧

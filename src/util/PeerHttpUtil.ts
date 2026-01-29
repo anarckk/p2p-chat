@@ -80,6 +80,20 @@ export class PeerHttpUtil {
   // 网络加速：存储其他设备的网络加速状态
   private networkAccelerationStatus: Map<string, boolean> = new Map();
 
+  // 网络数据日志记录
+  private networkLogEnabled: boolean = false;
+  private networkLogger?: (log: {
+    timestamp: number;
+    direction: 'outgoing' | 'incoming';
+    peerId: string;
+    protocol: string;
+    stage?: string;
+    data: unknown;
+    dataSize: number;
+    status: 'success' | 'error' | 'pending';
+    error?: string;
+  }) => void;
+
   // ==================== 通用五段式协议 ====================
 
   // 通用五段式协议实例
@@ -192,10 +206,68 @@ export class PeerHttpUtil {
   }
 
   /**
+   * 设置网络数据日志记录器
+   */
+  setNetworkLogger(
+    enabled: boolean,
+    logger?: (log: {
+      timestamp: number;
+      direction: 'outgoing' | 'incoming';
+      peerId: string;
+      protocol: string;
+      stage?: string;
+      data: unknown;
+      dataSize: number;
+      status: 'success' | 'error' | 'pending';
+      error?: string;
+    }) => void,
+  ): void {
+    this.networkLogEnabled = enabled;
+    this.networkLogger = logger;
+  }
+
+  /**
+   * 记录网络日志
+   */
+  private logNetwork(log: {
+    direction: 'outgoing' | 'incoming';
+    peerId: string;
+    protocol: string;
+    stage?: string;
+    data: unknown;
+    status: 'success' | 'error' | 'pending';
+    error?: string;
+  }): void {
+    if (this.networkLogEnabled && this.networkLogger) {
+      const dataStr = JSON.stringify(log.data);
+      this.networkLogger({
+        timestamp: Date.now(),
+        direction: log.direction,
+        peerId: log.peerId,
+        protocol: log.protocol,
+        stage: log.stage,
+        data: log.data,
+        dataSize: new Blob([dataStr]).size,
+        status: log.status,
+        error: log.error,
+      });
+    }
+  }
+
+  /**
    * 处理协议消息
    */
   private handleProtocolMessage(protocol: AnyProtocol, from: string) {
     const { type } = protocol;
+
+    // 记录接收日志
+    this.logNetwork({
+      direction: 'incoming',
+      peerId: from,
+      protocol: type,
+      data: protocol,
+      status: 'success',
+    });
 
     // 检查是否是通用五段式协议消息
     const protocolType = type as string;
@@ -586,11 +658,31 @@ export class PeerHttpUtil {
   private sendProtocol(peerId: string, protocol: AnyProtocol): Promise<void> {
     console.log('[PeerHttp] Sending protocol:', { peerId, protocolType: protocol.type });
 
+    // 记录发送日志
+    this.logNetwork({
+      direction: 'outgoing',
+      peerId: peerId,
+      protocol: protocol.type,
+      data: protocol,
+      status: 'pending',
+    });
+
     return new Promise((resolve, reject) => {
       try {
         const conn = this.peer.connect(peerId);
         const timeout = setTimeout(() => {
           console.error('[PeerHttp] Connection timeout for:', peerId);
+
+          // 更新发送日志状态为错误
+          this.logNetwork({
+            direction: 'outgoing',
+            peerId: peerId,
+            protocol: protocol.type,
+            data: protocol,
+            status: 'error',
+            error: 'Connection timeout',
+          });
+
           conn.close();
           reject(new Error('Connection timeout'));
         }, 20000); // 增加到 20 秒，给予更多时间建立连接
@@ -600,6 +692,16 @@ export class PeerHttpUtil {
           try {
             conn.send(protocol);
             console.log('[PeerHttp] Protocol sent successfully');
+
+            // 更新发送日志状态为成功
+            this.logNetwork({
+              direction: 'outgoing',
+              peerId: peerId,
+              protocol: protocol.type,
+              data: protocol,
+              status: 'success',
+            });
+
             // 等待一小段时间确保数据发送完成
             setTimeout(() => {
               clearTimeout(timeout);
@@ -610,12 +712,34 @@ export class PeerHttpUtil {
             console.error('[PeerHttp] Error sending protocol:', err);
             clearTimeout(timeout);
             conn.close();
+
+            // 更新发送日志状态为错误
+            this.logNetwork({
+              direction: 'outgoing',
+              peerId: peerId,
+              protocol: protocol.type,
+              data: protocol,
+              status: 'error',
+              error: String(err),
+            });
+
             reject(err);
           }
         });
         conn.on('error', (err: any) => {
           console.error('[PeerHttp] Connection error:', err);
           clearTimeout(timeout);
+
+          // 更新发送日志状态为错误
+          this.logNetwork({
+            direction: 'outgoing',
+            peerId: peerId,
+            protocol: protocol.type,
+            data: protocol,
+            status: 'error',
+            error: String(err),
+          });
+
           reject(err);
         });
       } catch (error: any) {

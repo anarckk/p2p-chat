@@ -5,8 +5,8 @@ import { useChatStore } from '../stores/chatStore';
 import { useUserStore } from '../stores/userStore';
 import { useDeviceStore } from '../stores/deviceStore';
 import type { ChatMessage, MessageType, MessageContent, OnlineDevice } from '../types';
-import { message } from 'ant-design-vue';
 import { commLog } from '../util/logger';
+import { networkLogDB } from '../util/networkLogDB';
 
 let peerInstance: PeerHttpUtil | null = null;
 let bootstrapPeerInstance: Peer | null = null;
@@ -71,13 +71,11 @@ export function usePeerManager() {
 
     reconnectTimer = window.setTimeout(async () => {
       console.log('[Peer] Attempting to reconnect...');
-      message.warning('与 Peer Server 断开连接，正在尝试重连...');
 
       try {
         // 重新初始化连接
         await init();
         console.log('[Peer] Reconnected successfully');
-        message.success('已重新连接到 Peer Server');
         stopReconnect();
       } catch (error) {
         console.error('[Peer] Reconnect failed:', error);
@@ -162,6 +160,19 @@ export function usePeerManager() {
       };
 
       peerInstance = new PeerHttpUtil(peerId, peerOptions);
+
+      // 设置网络日志记录器
+      const networkLoggingEnabled = userStore.loadNetworkLogging();
+      if (networkLoggingEnabled) {
+        peerInstance.setNetworkLogger(true, async (log) => {
+          try {
+            await networkLogDB.addLog(log);
+          } catch (error) {
+            console.error('[Peer] Failed to save network log:', error);
+          }
+        });
+        console.log('[Peer] Network logging enabled');
+      }
 
       // 用于跟踪是否已经 resolve/reject
       let settled = false;
@@ -331,7 +342,6 @@ export function usePeerManager() {
             unreadCount: 0,
             chatVersion: 0,
           });
-          message.info(`${fromUsername} 发现了你`);
         }
 
         // 发送响应，包含我的用户名和头像
@@ -687,8 +697,6 @@ export function usePeerManager() {
         unreadCount: 1,
         chatVersion: 0,
       });
-
-      message.info('新设备加入聊天');
     } else {
       chatStore.incrementUnread(from);
       console.log('[Peer] Incremented unread for ' + from);
@@ -745,7 +753,6 @@ export function usePeerManager() {
   ): Promise<boolean> {
     if (!peerInstance) {
       console.error('[Peer] Peer instance not initialized');
-      message.error('Peer 未连接');
       return false;
     }
 
@@ -785,7 +792,6 @@ export function usePeerManager() {
     // 确保 Peer 已连接
     if (!isConnected.value || !peerInstance) {
       console.error('[Peer] Peer not connected, cannot send message');
-      message.error('Peer 未连接，请稍后重试');
       throw new Error('Peer not connected');
     }
 
@@ -1312,11 +1318,9 @@ export function usePeerManager() {
     const devices = deviceStore.allDevices;
     console.log('[Peer] Requesting device lists from ' + devices.length + ' devices');
 
+    // 向所有设备发起请求（包括离线设备），这样才能检测到离线设备是否上线
     const promises = devices.map((device) => {
-      if (device.isOnline) {
-        return requestDeviceList(device.peerId);
-      }
-      return Promise.resolve([]);
+      return requestDeviceList(device.peerId);
     });
 
     await Promise.allSettled(promises);
