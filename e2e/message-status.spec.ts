@@ -54,12 +54,6 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
-      await page.reload();
-      await page.waitForTimeout(WAIT_TIMES.RELOAD);
-
-      await page.click(SELECTORS.contactItem);
-      await page.waitForTimeout(WAIT_TIMES.SHORT);
-
       // 模拟不同状态的消息（使用实际的 PeerId）
       const messages = [
         {
@@ -94,6 +88,8 @@ test.describe('消息状态展示与送达确认', () => {
 
       await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 现在联系人有消息了，可以点击了
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
@@ -146,11 +142,6 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
-      await page.reload();
-      await page.waitForTimeout(WAIT_TIMES.RELOAD);
-      await page.click(SELECTORS.contactItem);
-      await page.waitForTimeout(WAIT_TIMES.SHORT);
-
       const messages = [
         {
           id: 'msg-persist-1',
@@ -166,6 +157,8 @@ test.describe('消息状态展示与送达确认', () => {
 
       await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
+
+      // 现在联系人有消息了，可以点击了
       await page.click(SELECTORS.contactItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 

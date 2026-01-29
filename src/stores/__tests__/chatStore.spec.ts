@@ -109,7 +109,7 @@ describe('chatStore', () => {
         to: 'me',
         content: 'Hello',
         timestamp: Date.now(),
-        status: 'sent',
+        status: 'sending',
         type: 'text',
       };
 
@@ -127,7 +127,7 @@ describe('chatStore', () => {
         to: 'me',
         content: 'Hello',
         timestamp: Date.now(),
-        status: 'sent',
+        status: 'sending',
         type: 'text',
       };
 
@@ -149,7 +149,7 @@ describe('chatStore', () => {
         to: 'me',
         content: 'Hello',
         timestamp: 1000,
-        status: 'sent',
+        status: 'sending',
         type: 'text',
       };
 
@@ -159,7 +159,7 @@ describe('chatStore', () => {
         to: 'me',
         content: 'World',
         timestamp: 2000,
-        status: 'sent',
+        status: 'sending',
         type: 'text',
       };
 
@@ -185,10 +185,10 @@ describe('chatStore', () => {
       };
 
       store.addMessage('peer-1', message);
-      store.updateMessageStatus('peer-1', 'msg-1', 'sent');
+      store.updateMessageStatus('peer-1', 'msg-1', 'delivered');
 
       const msgs = store.messages.get('peer-1');
-      expect(msgs?.[0]?.status).toBe('sent');
+      expect(msgs?.[0]?.status).toBe('delivered');
     });
   });
 

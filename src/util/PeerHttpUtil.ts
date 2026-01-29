@@ -751,7 +751,7 @@ export class PeerHttpUtil {
       to: peerId,
       content,
       timestamp: Date.now(),
-      status: 'sent',
+      status: 'sending',
       type,
     };
     myChat.messages.push(chatMessage);

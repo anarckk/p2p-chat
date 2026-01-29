@@ -2,7 +2,7 @@
 export type MessageType = 'text' | 'image' | 'file' | 'video' | 'system';
 
 // 消息状态
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'failed';
+export type MessageStatus = 'sending' | 'delivered' | 'failed';
 
 // 协议消息类型
 export type ProtocolMessageType =

@@ -12,6 +12,7 @@ import type { UploadChangeParam, UploadProps } from 'ant-design-vue';
 import { useUserStore } from '../stores/userStore';
 import { usePeerManager } from '../composables/usePeerManager';
 import { message } from 'ant-design-vue';
+import { fileToBase64 } from '../util/fileHelper';
 
 const router = useRouter();
 const route = useRoute();
@@ -75,18 +76,6 @@ onMounted(async () => {
 });
 
 /**
- * 将文件转换为 base64
- */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target?.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
  * 处理头像上传变化
  */
 const handleAvatarChange: UploadProps['onChange'] = async (info: UploadChangeParam) => {
@@ -114,13 +103,14 @@ const handleAvatarChange: UploadProps['onChange'] = async (info: UploadChangePar
 const beforeUpload = async (file: File) => {
   const isImage = file.type.startsWith('image/');
   if (!isImage) {
-    message.error('只能上传图片文件');
+    message.error('只能上传图片文件（支持 JPG、PNG 等格式）');
     return false;
   }
 
   const isLt2M = file.size / 1024 / 1024 < 2;
   if (!isLt2M) {
-    message.error('图片大小不能超过 2MB');
+    const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+    message.error(`图片大小不能超过 2MB，当前文件大小为 ${fileSizeMB}MB`);
     return false;
   }
 
@@ -135,7 +125,8 @@ const beforeUpload = async (file: File) => {
     }];
     message.success('头像上传成功');
   } catch (error) {
-    message.error('头像处理失败');
+    console.error('Avatar processing error:', error);
+    message.error('头像处理失败，请重试或选择其他图片');
   }
 
   return false; // 阻止自动上传
@@ -150,8 +141,20 @@ const handleRemove = () => {
 };
 
 async function handleUserSetup() {
-  if (!usernameInput.value.trim()) {
-    message.warning('请输入用户名');
+  const trimmedUsername = usernameInput.value.trim();
+
+  if (!trimmedUsername) {
+    message.warning('用户名不能为空，请输入用户名');
+    return;
+  }
+
+  if (trimmedUsername.length < 2) {
+    message.warning('用户名至少需要2个字符');
+    return;
+  }
+
+  if (trimmedUsername.length > 20) {
+    message.warning('用户名不能超过20个字符');
     return;
   }
 
@@ -163,7 +166,7 @@ async function handleUserSetup() {
 
     // 保存用户信息（包含头像，但不覆盖 PeerId）
     userStore.saveUserInfo({
-      username: usernameInput.value.trim(),
+      username: trimmedUsername,
       avatar: avatarUrl.value || null,
     });
 
@@ -237,7 +240,7 @@ async function handleUserSetup() {
         <a-form-item label="用户名" required>
           <a-input
             v-model:value="usernameInput"
-            placeholder="请输入用户名"
+            placeholder="请输入用户名（2-20个字符）"
             :maxlength="20"
             :disabled="isSubmitting"
             @keyup.enter="handleUserSetup"

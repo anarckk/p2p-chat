@@ -7,6 +7,7 @@ import { usePeerManager } from '../composables/usePeerManager';
 import { message } from 'ant-design-vue';
 import type { ChatMessage, Contact, MessageType, MessageContent } from '../types';
 import type { FileContent, ImageContent, VideoContent } from '../types';
+import { fileToBase64 } from '../util/fileHelper';
 import {
   UserOutlined,
   LeftOutlined,
@@ -57,22 +58,28 @@ const currentContact = computed(() => {
  * 注意：不在 chatStore 中的设备（仅在发现中心的）不应出现在聊天列表中
  */
 const chatListContacts = computed(() => {
-  // 仅显示已有的聊天联系人，并用设备状态更新在线信息
-  const contacts = chatStore.sortedContacts.map((contact) => {
-    // 从 deviceStore 获取最新的设备状态（如果存在）
-    const device = deviceStore.getDevice(contact.peerId);
-    if (device) {
-      // 更新联系人的在线状态和用户信息
-      return {
-        ...contact,
-        online: device.isOnline ?? false,
-        lastSeen: device.lastHeartbeat,
-        username: device.username,
-        avatar: device.avatar,
-      };
-    }
-    return contact;
-  });
+  // 仅显示已有聊天记录的联系人（至少有一条消息）
+  const contacts = chatStore.sortedContacts
+    .filter((contact) => {
+      // 检查该联系人是否有聊天记录（至少有一条消息）
+      const messages = chatStore.messages.get(contact.peerId);
+      return messages && messages.length > 0;
+    })
+    .map((contact) => {
+      // 从 deviceStore 获取最新的设备状态（如果存在）
+      const device = deviceStore.getDevice(contact.peerId);
+      if (device) {
+        // 更新联系人的在线状态和用户信息
+        return {
+          ...contact,
+          online: device.isOnline ?? false,
+          lastSeen: device.lastHeartbeat,
+          username: device.username,
+          avatar: device.avatar,
+        };
+      }
+      return contact;
+    });
 
   // 排序：在线优先，然后按最后活跃时间
   return contacts.sort((a, b) => {
@@ -123,15 +130,6 @@ function scrollToBottom() {
   if (messagesContainer.value) {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
   }
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target?.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 function selectContact(peerId: string) {
@@ -234,7 +232,7 @@ async function handleFileSelect(e: Event) {
   }
 
   try {
-    const dataUrl = await fileToDataUrl(file);
+    const dataUrl = await fileToBase64(file);
     let content: MessageContent;
     let type: MessageType;
 
