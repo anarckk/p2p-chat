@@ -58,29 +58,33 @@ const hasChanges = computed(() => {
 // 处理文件选择
 function handleFileChange(info: any) {
   const file = info.file;
-  if (file && file.originFileObj) {
-    const originFileObj = file.originFileObj;
 
+  // 兼容两种情况：
+  // 1. ant-design-vue 标准方式：file.originFileObj 存在
+  // 2. 直接方式：file 本身就是 File 对象（在某些情况下会发生）
+  const actualFile = file?.originFileObj || file;
+
+  if (actualFile && actualFile instanceof File) {
     // 验证文件类型
-    if (!originFileObj.type.startsWith('image/')) {
+    if (!actualFile.type.startsWith('image/')) {
       message.error('请选择图片文件');
       return;
     }
 
     // 验证文件大小（2MB）
-    if (originFileObj.size > 2 * 1024 * 1024) {
+    if (actualFile.size > 2 * 1024 * 1024) {
       message.error('图片大小不能超过 2MB');
       return;
     }
 
-    avatarFile.value = originFileObj;
+    avatarFile.value = actualFile;
 
     // 预览图片
     const reader = new FileReader();
     reader.onload = (e) => {
       avatarPreview.value = e.target?.result as string;
     };
-    reader.readAsDataURL(originFileObj);
+    reader.readAsDataURL(actualFile);
   }
 }
 

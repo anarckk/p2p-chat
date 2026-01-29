@@ -47,10 +47,19 @@ const myDeviceInfo = computed(() => {
 const sortedDevices = computed(() => {
   const allDevices = [...storedDevices.value];
   if (myDeviceInfo.value) {
-    // 确保自己在列表中
+    // 确保自己在列表中，并且始终使用最新的用户信息
     const myId = myDeviceInfo.value.peerId;
-    const hasMe = allDevices.some((d) => d.peerId === myId);
-    if (!hasMe) {
+    const existingIndex = allDevices.findIndex((d) => d.peerId === myId);
+    if (existingIndex >= 0) {
+      // 如果已存在，更新用户信息（特别是头像可能已更新）
+      allDevices[existingIndex] = {
+        ...allDevices[existingIndex],
+        username: myDeviceInfo.value.username,
+        avatar: myDeviceInfo.value.avatar,
+        lastHeartbeat: Date.now(),
+      };
+    } else {
+      // 如果不存在，添加自己
       allDevices.push(myDeviceInfo.value);
     }
   }
