@@ -165,6 +165,10 @@ export const useUserStore = defineStore('user', () => {
     const { avatar: _, ...metaToSave } = userInfo.value;
     localStorage.setItem(USER_INFO_META_KEY, JSON.stringify(metaToSave));
 
+    // 为了向后兼容，同时保存到旧的 key（包含头像）
+    // 注意：这里包含完整的 userInfo，包括头像
+    localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo.value));
+
     if (info.username) {
       isSetup.value = true;
     }
@@ -175,6 +179,8 @@ export const useUserStore = defineStore('user', () => {
     // 保存元数据到 localStorage（不含头像）
     const { avatar: _, ...metaToSave } = userInfo.value;
     localStorage.setItem(USER_INFO_META_KEY, JSON.stringify(metaToSave));
+    // 为了向后兼容，同时保存到旧的 key
+    localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo.value));
   }
 
   async function clearUserInfo() {

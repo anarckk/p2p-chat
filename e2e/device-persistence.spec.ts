@@ -48,7 +48,7 @@ test.describe('设备持久化功能', () => {
 
       // 验证 localStorage 中的设备数据
       const storedDevices = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? JSON.parse(stored) : {};
       });
 
@@ -194,7 +194,7 @@ test.describe('设备持久化功能', () => {
 
       // 验证过期设备已被删除
       const storedDevices = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? JSON.parse(stored) : {};
       });
 
@@ -227,7 +227,7 @@ test.describe('设备持久化功能', () => {
 
       // 验证设备还在
       const storedDevices = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? JSON.parse(stored) : {};
       });
 
@@ -252,7 +252,7 @@ test.describe('设备持久化功能', () => {
 
       // 验证定时器相关的逻辑已启动
       const devices_list = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? Object.keys(JSON.parse(stored)) : [];
       });
 
@@ -286,7 +286,7 @@ test.describe('设备持久化功能', () => {
 
       // 验证 localStorage 数据持久化
       const storedDevices = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? JSON.parse(stored) : {};
       });
 
@@ -321,7 +321,7 @@ test.describe('设备持久化功能', () => {
         let hasDeviceA = false;
         for (let i = 0; i < 3; i++) {
           const storedDevices = await devices.deviceB.page.evaluate(() => {
-            const stored = localStorage.getItem('discovered_devices');
+            const stored = localStorage.getItem('discovered_devices_meta');
             return stored ? JSON.parse(stored) : {};
           });
 
@@ -361,14 +361,14 @@ test.describe('设备持久化功能', () => {
 
       // 验证设备数据完整性
       const storedDevices = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? JSON.parse(stored) : {};
       });
 
       const device = storedDevices['complete-device'];
       expect(device).toHaveProperty('peerId');
       expect(device).toHaveProperty('username');
-      expect(device).toHaveProperty('avatar');
+      // avatar 现在存储在 IndexedDB 中，不在 localStorage 元数据中
       expect(device).toHaveProperty('lastHeartbeat');
       expect(device).toHaveProperty('firstDiscovered');
       expect(device).toHaveProperty('isOnline');
@@ -389,7 +389,7 @@ test.describe('设备持久化功能', () => {
 
       // 在发现中心获取设备数据
       const devicesInCenter = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? JSON.parse(stored) : {};
       });
 
@@ -400,7 +400,7 @@ test.describe('设备持久化功能', () => {
 
       // 在聊天页面获取设备数据
       const devicesInChat = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? JSON.parse(stored) : {};
       });
 

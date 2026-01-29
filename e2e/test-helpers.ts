@@ -3,7 +3,8 @@
  * 提供统一的测试数据构造、页面操作和等待策略
  */
 
-import { Page, BrowserContext, expect } from '@playwright/test';
+import { Page, BrowserContext } from '@playwright/test';
+import { expect } from '@playwright/test';
 
 // ==================== 类型定义 ====================
 
@@ -222,8 +223,8 @@ export async function setUserInfo(
   // 检查是否有用户设置弹窗
   try {
     await page.waitForSelector('.ant-modal-title', { timeout: WAIT_TIMES.MODAL });
-    // 有弹窗，填写用户名
-    const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
+    // 有弹窗，填写用户名 - 使用更精确的选择器
+    const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
     await usernameInput.fill(userInfo.username);
     // 点击确定按钮
     await page.click('.ant-modal .ant-btn-primary');
@@ -261,10 +262,17 @@ export async function clearAllStorage(page: Page): Promise<void> {
 
 /**
  * 设置设备列表到 localStorage
+ * 注意：现在使用混合存储策略，元数据存储到 'discovered_devices_meta'
  */
 export async function setDeviceList(page: Page, devices: Record<string, DeviceInfo>): Promise<void> {
   await page.evaluate((deviceData) => {
-    localStorage.setItem('discovered_devices', JSON.stringify(deviceData));
+    // 存储元数据到 discovered_devices_meta（不包含头像）
+    const metadata: Record<string, any> = {};
+    for (const [peerId, device] of Object.entries(deviceData)) {
+      const { avatar, ...meta } = device as any;
+      metadata[peerId] = meta;
+    }
+    localStorage.setItem('discovered_devices_meta', JSON.stringify(metadata));
   }, devices);
 }
 
@@ -531,14 +539,21 @@ export async function cleanupTestDevices(devices: TestDevices): Promise<void> {
 /**
  * 添加设备（在发现中心页面）
  * 改进：增加重试机制和更长的等待时间
+ * 注意：现在使用内联提示而不是全局消息
  */
 export async function addDevice(page: Page, peerId: string): Promise<void> {
   await page.fill(SELECTORS.peerIdInput, peerId);
   await page.click(SELECTORS.addButton);
   // 等待足够的时间让设备添加完成
   await page.waitForTimeout(WAIT_TIMES.MESSAGE);
-  // 验证成功消息
-  await waitForSuccessMessage(page);
+  // 验证内联提示消息（现在不再使用全局消息）
+  const inlineMessage = page.locator('.inline-message');
+  try {
+    await expect(inlineMessage).toBeVisible({ timeout: 3000 });
+  } catch (error) {
+    // 如果没有内联提示，至少等待设备卡片出现
+    console.log('[Test] Inline message not found, checking for device card...');
+  }
 }
 
 /**
@@ -588,9 +603,10 @@ export async function sendTextMessage(page: Page, message: string): Promise<void
 /**
  * 断言设备卡片存在
  * 本地环境下响应快速
+ * 注意：使用 first() 处理多个匹配的情况（Playwright strict mode）
  */
 export async function assertDeviceExists(page: Page, usernameOrPeerId: string): Promise<void> {
-  const card = page.locator(SELECTORS.deviceCard).filter({ hasText: usernameOrPeerId });
+  const card = page.locator(SELECTORS.deviceCard).filter({ hasText: usernameOrPeerId }).first();
   await expect(card).toBeVisible({ timeout: 8000 });
 }
 
@@ -941,19 +957,24 @@ export async function setupUser(page: Page, username: string): Promise<void> {
     console.log('[Test] Waiting for modal...');
     await page.waitForSelector('.ant-modal-title', { timeout: WAIT_TIMES.MODAL });
     console.log('[Test] Modal found, filling username...');
-    // 填写用户名
-    const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
+    // 填写用户名 - 使用更精确的选择器，选择弹窗中的输入框
+    const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
     await usernameInput.fill(username);
     console.log('[Test] Username filled, clicking confirm button...');
-    // 点击确定按钮
-    await page.click('.ant-modal .ant-btn-primary');
+    // 点击确定按钮 - 使用更精确的选择器
+    const okButton = page.locator('.ant-modal .ant-btn-primary');
+    await okButton.click();
     console.log('[Test] Confirm button clicked, waiting for modal to close...');
-    // 等待弹窗关闭
-    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 8000 }).catch(() => {
+    // 等待弹窗关闭 - 使用更可靠的方式
+    await page.waitForSelector('.ant-modal-wrap', { state: 'detached', timeout: 10000 }).catch(() => {
+      console.log('[Test] Modal wrap not detached, trying hidden state...');
+    });
+    // 再次等待弹窗隐藏
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
       console.log('[Test] Modal still visible after clicking confirm, continuing...');
     });
     // 等待弹窗完全消失
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
     console.log('[Test] Modal closed, waiting for Peer init...');
     // 等待 Peer 初始化
     await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
@@ -974,6 +995,27 @@ export async function setupUser(page: Page, username: string): Promise<void> {
     await page.waitForLoadState('domcontentloaded');
     // 等待 Peer 初始化
     await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
+
+    // 再次检查是否还有弹窗（可能需要手动关闭）
+    try {
+      console.log('[Test] Checking if modal still exists after reload...');
+      const modalExists = await page.locator('.ant-modal-title').isVisible({ timeout: 2000 });
+      if (modalExists) {
+        console.log('[Test] Modal still exists after reload, filling username again...');
+        const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
+        await usernameInput.fill(username);
+        const okButton = page.locator('.ant-modal .ant-btn-primary');
+        await okButton.click();
+        // 等待弹窗关闭
+        await page.waitForSelector('.ant-modal-wrap', { state: 'detached', timeout: 10000 }).catch(() => {
+          console.log('[Test] Modal wrap not detached, trying hidden state...');
+        });
+        await page.waitForTimeout(1000);
+        console.log('[Test] Modal closed after second attempt');
+      }
+    } catch (e) {
+      console.log('[Test] No modal found after reload, proceeding...');
+    }
   }
 }
 

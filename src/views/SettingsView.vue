@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import { usePeerManager } from '../composables/usePeerManager';
@@ -38,25 +38,34 @@ const isSaving = ref(false);
 const inlineMessage = ref('');
 const inlineMessageType = ref<'success' | 'error' | 'warning' | 'info'>('info');
 
-onMounted(() => {
-  // 确保从 localStorage 加载用户信息
-  userStore.loadUserInfo();
+// 加载用户信息的标志
+const userInfoLoaded = ref(false);
 
-  // 加载用户信息
-  username.value = userStore.userInfo.username || '';
-  originalUsername.value = username.value;
-  avatarPreview.value = userStore.userInfo.avatar;
+onMounted(async () => {
+  // 确保从 localStorage 加载用户信息（异步）
+  await userStore.loadUserInfo();
+  userInfoLoaded.value = true;
+});
 
-  // 加载网络加速开关状态
-  networkAcceleration.value = userStore.loadNetworkAcceleration();
-  originalNetworkAcceleration.value = networkAcceleration.value;
+// 监听用户信息加载完成后，初始化表单
+watch(userInfoLoaded, (loaded) => {
+  if (loaded) {
+    // 加载用户信息
+    username.value = userStore.userInfo.username || '';
+    originalUsername.value = username.value;
+    avatarPreview.value = userStore.userInfo.avatar;
 
-  // 同步 peerManager 的网络加速状态
-  setNetworkAccelerationEnabled(networkAcceleration.value);
+    // 加载网络加速开关状态
+    networkAcceleration.value = userStore.loadNetworkAcceleration();
+    originalNetworkAcceleration.value = networkAcceleration.value;
 
-  // 加载网络数据日志记录开关状态
-  networkLogging.value = userStore.loadNetworkLogging();
-  originalNetworkLogging.value = networkLogging.value;
+    // 同步 peerManager 的网络加速状态
+    setNetworkAccelerationEnabled(networkAcceleration.value);
+
+    // 加载网络数据日志记录开关状态
+    networkLogging.value = userStore.loadNetworkLogging();
+    originalNetworkLogging.value = networkLogging.value;
+  }
 });
 
 // 是否有修改

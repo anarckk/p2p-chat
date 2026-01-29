@@ -85,7 +85,7 @@ test.describe('在线检查协议', () => {
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
       const storedDevices = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? JSON.parse(stored) : {};
       });
 
@@ -95,7 +95,7 @@ test.describe('在线检查协议', () => {
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
       const storedDevicesAfter = await page.evaluate(() => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         return stored ? JSON.parse(stored) : {};
       });
 

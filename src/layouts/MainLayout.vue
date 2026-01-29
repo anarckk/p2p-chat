@@ -67,8 +67,8 @@ const menuItems = [
 ];
 
 onMounted(async () => {
-  // 加载用户信息
-  const isSetup = userStore.loadUserInfo();
+  // 加载用户信息（需要等待异步完成）
+  const isSetup = await userStore.loadUserInfo();
 
   if (!isSetup) {
     // 首次使用，显示设置弹窗

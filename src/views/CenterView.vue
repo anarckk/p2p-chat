@@ -140,10 +140,10 @@ onMounted(async () => {
   tryBecomeBootstrap();
   perfLog('after-bootstrap', `成为宇宙启动者调用完成 (耗时 ${Math.round(performance.now() - bootstrapStart)}ms)`);
 
-  // 从 localStorage 加载已保存的设备列表
+  // 从 localStorage 加载已保存的设备列表（异步等待）
   perfLog('before-load-devices', '准备加载设备列表');
   const loadDevicesStart = performance.now();
-  deviceStore.loadDevices();
+  await deviceStore.loadDevices();
   perfLog('after-load-devices', `设备列表加载完成 (耗时 ${Math.round(performance.now() - loadDevicesStart)}ms)`);
 
   // 加载聊天数据（确保 isInChat 能正确工作）
