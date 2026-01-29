@@ -465,10 +465,6 @@ sx-peerjs-http-util/
 4. 通过宇宙启动者，知道宇宙启动者的个人 PeerID 是什么
 5. 在发现中心里把 A 标记成宇宙启动者
 
-# 服务器已经启动了。
-
-npm run dev 已经启动了。
-
 ---
 
 # 注意事项
@@ -499,3 +495,13 @@ PC分别率 1280 x 710
 # 提醒
 
 不要后台运行测试！
+
+---
+
+# peerjs-server启动命令
+
+在`peerjs-server/`目录执行命令：`node server.js`。
+
+# 检查 peerjs-server 是否启动
+
+检查端口 9000 是否启动。

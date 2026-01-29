@@ -11,6 +11,7 @@ import {
   cleanupTestDevices,
   createChat,
   retry,
+  setMessagesLegacy,
 } from './test-helpers.js';
 
 /**
@@ -222,6 +223,20 @@ test.describe('聊天中标识', () => {
       };
       await setDeviceList(page, devices);
 
+      // 添加消息记录（联系人需要有消息才能显示在聊天列表中）
+      const messages = [
+        {
+          id: `msg-${Date.now()}`,
+          from: 'chat-to-delete',
+          to: 'delete-chat-badge-123',
+          content: '测试消息',
+          type: 'text',
+          timestamp: Date.now(),
+          status: 'delivered',
+        },
+      ];
+      await setMessagesLegacy(page, 'chat-to-delete', messages);
+
       await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
@@ -235,8 +250,10 @@ test.describe('聊天中标识', () => {
       await page.click(SELECTORS.wechatMenuItem);
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      // 点击联系人
-      await page.click(SELECTORS.contactItem);
+      // 等待联系人出现并点击
+      const contactItem = page.locator(SELECTORS.contactItem).filter({ hasText: '要删除的聊天' });
+      await expect(contactItem).toBeVisible({ timeout: 10000 });
+      await contactItem.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 点击更多按钮

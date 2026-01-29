@@ -914,9 +914,9 @@ export async function setContacts(page: any, contacts: Record<string, any>): Pro
  * 设置消息记录到 localStorage（向后兼容）
  */
 export async function setMessagesLegacy(page: any, peerId: string, messages: any[]): Promise<void> {
-  await page.evaluate((pid: any, msgs: any) => {
+  await page.evaluate(({ pid, msgs }: { pid: string; msgs: any[] }) => {
     localStorage.setItem(`p2p_messages_${pid}`, JSON.stringify(msgs));
-  }, peerId, messages);
+  }, { pid: peerId, msgs: messages });
 }
 
 /**

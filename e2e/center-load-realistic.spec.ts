@@ -275,7 +275,7 @@ test.describe('发现中心首屏加载时间 - 真实场景', () => {
     // 分析关键时间点
     const timeline: { event: string; time: number }[] = [];
 
-    perfLogs = consoleLogs.filter((msg) =>
+    const perfLogs = consoleLogs.filter((msg) =>
       msg.text.includes('[Center-Performance]') ||
       msg.text.includes('[Bootstrap-Performance]') ||
       msg.text.includes('[Peer-Performance]')

@@ -208,6 +208,7 @@ export interface DiscoveryNotificationProtocol extends ProtocolMessage {
   type: 'discovery_notification';
   fromUsername: string;
   fromAvatar: string | null;
+  profileVersion: number; // 个人信息版本号
 }
 
 // 查询用户名

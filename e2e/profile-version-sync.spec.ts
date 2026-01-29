@@ -144,7 +144,18 @@ test.describe('个人信息版本同步', () => {
 
         const saveButton = devices.deviceA.page.locator('button[aria-label="save-settings-button"]');
         await saveButton.click();
-        await devices.deviceA.page.waitForSelector('.ant-message-success', { timeout: 3000 });
+
+        // 等待保存操作完成
+        await devices.deviceA.page.waitForTimeout(1000);
+        const userInfoA = await devices.deviceA.page.evaluate(() => {
+          const stored = localStorage.getItem('p2p_user_info');
+          return stored ? JSON.parse(stored) : null;
+        });
+
+        // 验证用户名已更新
+        if (!userInfoA || userInfoA.username !== '已更新用户A') {
+          throw new Error(`Username not updated. Expected: 已更新用户A, Got: ${userInfoA?.username}`);
+        }
 
         await devices.deviceA.page.click('.ant-menu-item:has-text("发现中心")');
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -281,8 +292,8 @@ test.describe('个人信息版本同步', () => {
       const saveButton = page.locator('button[aria-label="save-settings-button"]');
       await saveButton.click();
 
-      // 等待保存成功提示
-      await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+      // 等待保存成功提示（内联提示）
+      await page.waitForSelector('.inline-message-success', { timeout: 3000 });
 
       // 获取修改后的版本号
       const userInfoAfter = await page.evaluate(() => {
