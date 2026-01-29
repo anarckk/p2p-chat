@@ -6,6 +6,9 @@
  * 第三段：version_response（发送方只发一次）
  * 第四段：delivery_ack（接收方被动响应）
  * 第五段：标记已送达（发送方本地操作）
+ *
+ * 通用五段式协议：
+ * 支持多种业务场景：聊天消息、头像传输、用户名传输、设备列表传输
  */
 import Peer from 'peerjs';
 import type {
@@ -20,6 +23,12 @@ import type {
   ReceivingMessageState,
 } from '../types';
 import { commLog } from './logger';
+import {
+  FiveStageProtocol,
+  BusinessType,
+  type FiveStageMessage,
+  DEFAULT_FIVE_STAGE_CONFIG,
+} from './FiveStageProtocol';
 
 // 五段式协议配置
 const FIVE_STAGE_CONFIG = {
@@ -71,7 +80,12 @@ export class PeerHttpUtil {
   // 网络加速：存储其他设备的网络加速状态
   private networkAccelerationStatus: Map<string, boolean> = new Map();
 
-  // ==================== 五段式协议状态管理 ====================
+  // ==================== 通用五段式协议 ====================
+
+  // 通用五段式协议实例
+  private fiveStageProtocol: FiveStageProtocol | null = null;
+
+  // ==================== 五段式协议状态管理（聊天消息专用） ====================
 
   // 发送方状态（key: messageId）
   private sendingStates: Map<string, SendingMessageState> = new Map();
@@ -87,6 +101,15 @@ export class PeerHttpUtil {
   constructor(peerId: string | null = null, options: any = {}) {
     const peerOptions = { debug: 1, host: 'localhost', port: 9000, path: '/peerjs', ...options };
     this.peer = peerId ? new Peer(peerId, peerOptions) : new Peer(peerOptions);
+
+    // 初始化通用五段式协议
+    this.fiveStageProtocol = new FiveStageProtocol({
+      sendProtocol: (peerId: string, message: FiveStageMessage) => {
+        // 将 FiveStageMessage 转换为 AnyProtocol 发送
+        return this.sendProtocol(peerId, message as any);
+      },
+      getMyPeerId: this.getId.bind(this) as () => string,
+    });
 
     // 监听连接打开事件
     this.peer.on('open', (id: string) => {
@@ -173,6 +196,19 @@ export class PeerHttpUtil {
    */
   private handleProtocolMessage(protocol: AnyProtocol, from: string) {
     const { type } = protocol;
+
+    // 检查是否是通用五段式协议消息
+    const protocolType = type as string;
+    if (protocolType === 'five_stage_notify' ||
+        protocolType === 'five_stage_request' ||
+        protocolType === 'five_stage_response' ||
+        protocolType === 'five_stage_ack') {
+      // 通用五段式协议消息
+      if (this.fiveStageProtocol) {
+        this.fiveStageProtocol.handleMessage(protocol as unknown as FiveStageMessage, from);
+      }
+      return;
+    }
 
     switch (type) {
       case 'version_notify':
@@ -1242,9 +1278,66 @@ export class PeerHttpUtil {
    * 销毁连接
    */
   destroy(): void {
+    // 销毁通用五段式协议
+    if (this.fiveStageProtocol) {
+      this.fiveStageProtocol.destroy();
+      this.fiveStageProtocol = null;
+    }
+
     if (this.peer) {
       this.peer.destroy();
     }
+  }
+
+  // ==================== 通用五段式协议公共方法 ====================
+
+  /**
+   * 获取通用五段式协议实例
+   */
+  getFiveStageProtocol(): FiveStageProtocol | null {
+    return this.fiveStageProtocol;
+  }
+
+  /**
+   * 注册通用五段式协议处理器
+   * @param businessType - 业务类型
+   * @param handler - 处理器对象
+   */
+  registerFiveStageHandler(businessType: BusinessType, handler: import('./FiveStageProtocol').FiveStageHandler): void {
+    if (this.fiveStageProtocol) {
+      this.fiveStageProtocol.registerHandler(businessType, handler);
+    }
+  }
+
+  /**
+   * 注销通用五段式协议处理器
+   * @param businessType - 业务类型
+   */
+  unregisterFiveStageHandler(businessType: BusinessType): void {
+    if (this.fiveStageProtocol) {
+      this.fiveStageProtocol.unregisterHandler(businessType);
+    }
+  }
+
+  /**
+   * 使用通用五段式协议发送数据
+   * @param peerId - 目标PeerId
+   * @param businessType - 业务类型
+   * @param dataIdGenerator - 数据ID生成器
+   * @param data - 要发送的数据
+   */
+  async sendWithFiveStage<T>(
+    peerId: string,
+    businessType: BusinessType,
+    dataIdGenerator: import('./FiveStageProtocol').DataIdGenerator<T>,
+    data: T,
+  ): Promise<{ dataId: string; version: number; sent: boolean; stage: 'notifying' } | null> {
+    if (!this.fiveStageProtocol) {
+      console.error('[PeerHttp] FiveStageProtocol not initialized');
+      return null;
+    }
+
+    return await this.fiveStageProtocol.send(peerId, businessType, dataIdGenerator, data);
   }
 
   // ==================== 网络加速协议 ====================

@@ -24,7 +24,11 @@ export type ProtocolMessageType =
   | 'relay_response'           // 网络加速：中转响应
   | 'network_acceleration_status' // 网络加速：状态同步
   | 'device_list_request'      // 设备互相发现：请求设备列表
-  | 'device_list_response';    // 设备互相发现：响应设备列表
+  | 'device_list_response'     // 设备互相发现：响应设备列表
+  | 'five_stage_notify'        // 通用五段式协议：版本号通知
+  | 'five_stage_request'       // 通用五段式协议：版本请求
+  | 'five_stage_response'      // 通用五段式协议：版本响应
+  | 'five_stage_ack';          // 通用五段式协议：送达确认
 
 export interface UserInfo {
   username: string;
