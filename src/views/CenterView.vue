@@ -109,16 +109,51 @@ async function checkDeviceOnline(device: OnlineDevice): Promise<boolean> {
 }
 
 onMounted(async () => {
+  // 性能监控：记录组件挂载开始时间
+  const mountStartTime = performance.now();
+  console.log('[Center-Performance] ===== 组件开始挂载 =====');
+  console.log('[Center-Performance] Timestamp:', Date.now());
+
+  // 性能日志辅助函数
+  const perfLog = (phase: string, message: string) => {
+    const now = performance.now();
+    const duration = Math.round(now - mountStartTime);
+    console.log(`[Center-Performance] [${phase}] +${duration}ms ${message}`);
+
+    // 保存到 window 对象供 E2E 测试读取
+    if (!(window as any).__performanceLogs) {
+      (window as any).__performanceLogs = [];
+    }
+    (window as any).__performanceLogs.push({
+      timestamp: Date.now(),
+      phase,
+      duration,
+      message,
+    });
+  };
+
+  perfLog('start', '组件开始挂载');
+
   // 尝试成为宇宙启动者
+  perfLog('before-bootstrap', '准备成为宇宙启动者');
+  const bootstrapStart = performance.now();
   tryBecomeBootstrap();
+  perfLog('after-bootstrap', `成为宇宙启动者调用完成 (耗时 ${Math.round(performance.now() - bootstrapStart)}ms)`);
 
   // 从 localStorage 加载已保存的设备列表
+  perfLog('before-load-devices', '准备加载设备列表');
+  const loadDevicesStart = performance.now();
   deviceStore.loadDevices();
+  perfLog('after-load-devices', `设备列表加载完成 (耗时 ${Math.round(performance.now() - loadDevicesStart)}ms)`);
 
   // 加载聊天数据（确保 isInChat 能正确工作）
+  perfLog('before-load-chat', '准备加载聊天数据');
+  const loadChatStart = performance.now();
   chatStore.loadFromStorage();
+  perfLog('after-load-chat', `聊天数据加载完成 (耗时 ${Math.round(performance.now() - loadChatStart)}ms)`);
 
   // 启动心跳定时器
+  perfLog('before-heartbeat', '准备启动心跳定时器');
   deviceStore.startHeartbeatTimer(async (device: OnlineDevice) => {
     // 定时检查设备在线状态的回调函数
     if (!isConnected.value) {
@@ -133,6 +168,7 @@ onMounted(async () => {
       return false;
     }
   });
+  perfLog('after-heartbeat', '心跳定时器启动完成');
 
   // 监听发现设备更新事件，自动刷新
   const handleDiscoveryUpdate = () => {
@@ -142,11 +178,17 @@ onMounted(async () => {
   };
 
   window.addEventListener('discovery-devices-updated', handleDiscoveryUpdate);
+  perfLog('event-listeners', '事件监听器注册完成');
 
   // 清理事件监听器
   onUnmounted(() => {
     window.removeEventListener('discovery-devices-updated', handleDiscoveryUpdate);
   });
+
+  perfLog('complete', '组件挂载完成');
+  const totalMountTime = Math.round(performance.now() - mountStartTime);
+  console.log('[Center-Performance] ===== 组件挂载完成 =====');
+  console.log('[Center-Performance] 总耗时:', totalMountTime, 'ms');
 });
 
 onUnmounted(() => {

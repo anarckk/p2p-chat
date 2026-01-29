@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref, computed, triggerRef } from 'vue';
 import type { OnlineDevice } from '../types';
+import indexedDBStorage from '../util/indexedDBStorage';
 
 const DEVICE_STORAGE_KEY = 'discovered_devices';
+const DEVICE_META_STORAGE_KEY = 'discovered_devices_meta'; // 存储小型元数据
+const AVATAR_MIGRATION_KEY = 'avatar_migrated_to_indexeddb'; // 标记是否已迁移头像
 const OFFLINE_THRESHOLD = 10 * 60 * 1000; // 10分钟无心跳视为离线
 const EXPIRY_DAYS = 3; // 3天后删除
 const EXPIRY_MS = EXPIRY_DAYS * 24 * 60 * 60 * 1000;
@@ -22,15 +25,39 @@ export const useDeviceStore = defineStore('device', () => {
   let heartbeatTimer: number | null = null;
 
   /**
-   * 从 localStorage 加载设备列表
+   * 从存储加载数据（混合策略：localStorage + IndexedDB）
+   * 小数据（元数据）→ localStorage
+   * 大数据（头像）→ IndexedDB
    */
-  function loadDevices() {
+  async function loadDevices() {
     try {
-      const stored = localStorage.getItem(DEVICE_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        devices.value = new Map(Object.entries(parsed));
-        console.log(`[DeviceStore] Loaded ${devices.value.size} devices from storage`);
+      // 首次加载时检查是否需要迁移旧数据
+      await migrateOldDataIfNeeded();
+
+      // 从 localStorage 加载设备元数据
+      const storedMeta = localStorage.getItem(DEVICE_META_STORAGE_KEY);
+      if (storedMeta) {
+        const parsedMeta = JSON.parse(storedMeta);
+        const deviceList: OnlineDevice[] = Object.values(parsedMeta);
+
+        // 从 IndexedDB 批量加载头像
+        const avatars = await indexedDBStorage.getAll('avatars');
+        const avatarMap = new Map(
+          avatars.map((a) => [a.peerId, a.avatar])
+        );
+
+        // 合并数据
+        devices.value = new Map(
+          deviceList.map((device) => [
+            device.peerId,
+            {
+              ...device,
+              avatar: avatarMap.get(device.peerId) || null,
+            },
+          ])
+        );
+
+        console.log(`[DeviceStore] Loaded ${devices.value.size} devices from storage (${avatarMap.size} avatars from IndexedDB)`);
         // 加载后更新设备的在线状态
         updateOnlineStatus();
       }
@@ -40,12 +67,89 @@ export const useDeviceStore = defineStore('device', () => {
   }
 
   /**
-   * 保存设备列表到 localStorage
+   * 迁移旧数据到新的混合存储策略
+   * 只在首次加载时执行一次
    */
-  function saveDevices() {
+  async function migrateOldDataIfNeeded() {
+    const hasMigrated = localStorage.getItem(AVATAR_MIGRATION_KEY);
+    if (hasMigrated) {
+      return; // 已迁移过
+    }
+
     try {
-      const obj = Object.fromEntries(devices.value);
-      localStorage.setItem(DEVICE_STORAGE_KEY, JSON.stringify(obj));
+      // 检查是否有旧数据
+      const oldData = localStorage.getItem(DEVICE_STORAGE_KEY);
+      if (!oldData) {
+        localStorage.setItem(AVATAR_MIGRATION_KEY, 'true');
+        return;
+      }
+
+      const oldDevices: OnlineDevice[] = Object.values(JSON.parse(oldData));
+      console.log(`[DeviceStore] 开始迁移 ${oldDevices.length} 个设备到混合存储...`);
+
+      // 分离元数据和头像
+      const metadata: Record<string, Omit<OnlineDevice, 'avatar'>> = {};
+      const avatarsWithAvatar: Array<{ peerId: string; avatar: string }> = [];
+
+      for (const device of oldDevices) {
+        const { avatar, ...meta } = device;
+        metadata[device.peerId] = meta;
+
+        // 如果有头像，存储到 IndexedDB
+        if (avatar) {
+          await indexedDBStorage.set('avatars', {
+            id: device.peerId,
+            peerId: device.peerId,
+            avatar,
+          });
+          avatarsWithAvatar.push({ peerId: device.peerId, avatar });
+        }
+      }
+
+      // 保存元数据到 localStorage
+      localStorage.setItem(DEVICE_META_STORAGE_KEY, JSON.stringify(metadata));
+
+      // 删除旧数据
+      localStorage.removeItem(DEVICE_STORAGE_KEY);
+
+      // 标记迁移完成
+      localStorage.setItem(AVATAR_MIGRATION_KEY, 'true');
+
+      console.log(`[DeviceStore] 迁移完成！${avatarsWithAvatar.length} 个头像已移至 IndexedDB`);
+    } catch (e) {
+      console.error('[DeviceStore] 迁移失败:', e);
+    }
+  }
+
+  /**
+   * 保存设备列表（混合策略：localStorage + IndexedDB）
+   * 小数据（元数据）→ localStorage
+   * 大数据（头像）→ IndexedDB
+   */
+  async function saveDevices() {
+    try {
+      const metadata: Record<string, Omit<OnlineDevice, 'avatar'>> = {};
+
+      // 遍历所有设备，分离元数据和头像
+      for (const [peerId, device] of devices.value) {
+        const { avatar, ...meta } = device;
+        metadata[peerId] = meta;
+
+        // 如果有头像，保存到 IndexedDB
+        if (avatar) {
+          await indexedDBStorage.set('avatars', {
+            id: peerId,
+            peerId,
+            avatar,
+          });
+        } else {
+          // 如果没有头像，从 IndexedDB 删除
+          await indexedDBStorage.delete('avatars', peerId);
+        }
+      }
+
+      // 保存元数据到 localStorage
+      localStorage.setItem(DEVICE_META_STORAGE_KEY, JSON.stringify(metadata));
     } catch (e) {
       console.error('[DeviceStore] Failed to save devices:', e);
     }
@@ -81,7 +185,7 @@ export const useDeviceStore = defineStore('device', () => {
   /**
    * 添加或更新设备
    */
-  function addOrUpdateDevice(device: OnlineDevice) {
+  async function addOrUpdateDevice(device: OnlineDevice) {
     const existing = devices.value.get(device.peerId);
     const now = Date.now();
 
@@ -100,7 +204,7 @@ export const useDeviceStore = defineStore('device', () => {
       });
     }
 
-    saveDevices();
+    await saveDevices();
   }
 
   /**
@@ -113,26 +217,26 @@ export const useDeviceStore = defineStore('device', () => {
   /**
    * 更新设备心跳时间
    */
-  function updateHeartbeat(peerId: string) {
+  async function updateHeartbeat(peerId: string) {
     const device = devices.value.get(peerId);
     if (device) {
       device.lastHeartbeat = Date.now();
       device.isOnline = true;
-      saveDevices();
+      await saveDevices();
     }
   }
 
   /**
    * 更新设备在线状态
    */
-  function updateDeviceOnlineStatus(peerId: string, isOnline: boolean) {
+  async function updateDeviceOnlineStatus(peerId: string, isOnline: boolean) {
     const device = devices.value.get(peerId);
     if (device) {
       device.isOnline = isOnline;
       if (isOnline) {
         device.lastHeartbeat = Date.now();
       }
-      saveDevices();
+      await saveDevices();
       // 手动触发响应式更新
       triggerRef(devices);
     }
@@ -141,7 +245,7 @@ export const useDeviceStore = defineStore('device', () => {
   /**
    * 批量添加设备
    */
-  function addDevices(deviceList: OnlineDevice[]) {
+  async function addDevices(deviceList: OnlineDevice[]) {
     const now = Date.now();
     deviceList.forEach((device) => {
       const existing = devices.value.get(device.peerId);
@@ -156,15 +260,17 @@ export const useDeviceStore = defineStore('device', () => {
         });
       }
     });
-    saveDevices();
+    await saveDevices();
   }
 
   /**
    * 删除指定设备
    */
-  function removeDevice(peerId: string) {
+  async function removeDevice(peerId: string) {
     if (devices.value.delete(peerId)) {
-      saveDevices();
+      // 同时删除 IndexedDB 中的头像
+      await indexedDBStorage.delete('avatars', peerId);
+      await saveDevices();
       return true;
     }
     return false;
@@ -173,7 +279,7 @@ export const useDeviceStore = defineStore('device', () => {
   /**
    * 清理超过3天未在线的设备
    */
-  function cleanupExpiredDevices() {
+  async function cleanupExpiredDevices() {
     const now = Date.now();
     const toDelete: string[] = [];
 
@@ -184,13 +290,15 @@ export const useDeviceStore = defineStore('device', () => {
       }
     });
 
-    toDelete.forEach((peerId) => {
+    for (const peerId of toDelete) {
       devices.value.delete(peerId);
+      // 同时删除 IndexedDB 中的头像
+      await indexedDBStorage.delete('avatars', peerId);
       console.log(`[DeviceStore] Removed expired device: ${peerId}`);
-    });
+    }
 
     if (toDelete.length > 0) {
-      saveDevices();
+      await saveDevices();
     }
 
     return toDelete.length;
@@ -199,12 +307,12 @@ export const useDeviceStore = defineStore('device', () => {
   /**
    * 更新所有设备的在线状态
    */
-  function updateOnlineStatus() {
+  async function updateOnlineStatus() {
     const now = Date.now();
     devices.value.forEach((device) => {
       device.isOnline = now - device.lastHeartbeat < OFFLINE_THRESHOLD;
     });
-    saveDevices();
+    await saveDevices();
     // 手动触发响应式更新
     triggerRef(devices);
   }
@@ -219,8 +327,8 @@ export const useDeviceStore = defineStore('device', () => {
       return; // 已经启动
     }
 
-    // 立即执行一次清理
-    cleanupExpiredDevices();
+    // 立即执行一次清理（异步）
+    cleanupExpiredDevices().catch((e) => console.error('[DeviceStore] Initial cleanup failed:', e));
 
     // 每10分钟执行一次心跳检查
     heartbeatTimer = window.setInterval(async () => {
@@ -239,7 +347,7 @@ export const useDeviceStore = defineStore('device', () => {
         try {
           const isOnline = await onCheck(device);
           if (isOnline) {
-            updateHeartbeat(device.peerId);
+            await updateHeartbeat(device.peerId);
           } else {
             // 设备离线，更新状态
             const dev = devices.value.get(device.peerId);
@@ -257,10 +365,10 @@ export const useDeviceStore = defineStore('device', () => {
       }
 
       // 更新在线状态
-      updateOnlineStatus();
+      await updateOnlineStatus();
 
       // 清理过期设备
-      cleanupExpiredDevices();
+      await cleanupExpiredDevices();
     }, 10 * 60 * 1000); // 10分钟
 
     console.log('[DeviceStore] Heartbeat timer started');
@@ -280,9 +388,11 @@ export const useDeviceStore = defineStore('device', () => {
   /**
    * 清空所有设备
    */
-  function clearAll() {
+  async function clearAll() {
     devices.value.clear();
-    saveDevices();
+    // 清空 IndexedDB 中的所有头像
+    await indexedDBStorage.clearStore('avatars');
+    await saveDevices();
   }
 
   return {

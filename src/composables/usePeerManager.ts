@@ -134,8 +134,22 @@ export function usePeerManager() {
 
   function init(): Promise<PeerHttpUtil> {
     return new Promise((resolve, reject) => {
+      // 性能监控：记录 Peer 初始化开始时间
+      const initStartTime = performance.now();
+      console.log('[Peer-Performance] ===== Peer 初始化开始 =====');
+      console.log('[Peer-Performance] Timestamp:', Date.now());
+
+      const perfLog = (phase: string, message: string) => {
+        const now = performance.now();
+        const duration = Math.round(now - initStartTime);
+        console.log(`[Peer-Performance] [${phase}] +${duration}ms ${message}`);
+      };
+
+      perfLog('start', '开始初始化 Peer');
+
       // 总是重新初始化 peerInstance，确保连接有效
       if (peerInstance) {
+        perfLog('destroy-old', '销毁旧的 peerInstance');
         peerInstance.destroy();
         peerInstance = null;
       }
@@ -145,11 +159,14 @@ export function usePeerManager() {
 
       // 如果没有存储的 PeerId，生成新的
       if (!peerId) {
+        perfLog('generate-peerid', '生成新的 PeerId');
         // PeerJS ID 不能包含中文字符，需要使用字母数字组合
         // 使用时间戳和随机字符串，确保唯一性
         const timestamp = Date.now().toString(36);
         const randomStr = Math.random().toString(36).substring(2, 11);
         peerId = `peer_${timestamp}_${randomStr}`;
+      } else {
+        perfLog('reuse-peerid', `复用已存储的 PeerId: ${peerId}`);
       }
 
       console.log('[Peer] Initializing with PeerId:', peerId, 'at', new Date().toISOString());
@@ -159,11 +176,15 @@ export function usePeerManager() {
         debug: 2, // 增加调试级别
       };
 
+      perfLog('before-peer-http-util', '准备创建 PeerHttpUtil');
+      const createPeerStart = performance.now();
       peerInstance = new PeerHttpUtil(peerId, peerOptions);
+      perfLog('after-peer-http-util', `PeerHttpUtil 创建完成 (耗时 ${Math.round(performance.now() - createPeerStart)}ms)`);
 
       // 设置网络日志记录器
       const networkLoggingEnabled = userStore.loadNetworkLogging();
       if (networkLoggingEnabled) {
+        perfLog('network-logging', '启用网络日志');
         peerInstance.setNetworkLogger(true, async (log) => {
           try {
             await networkLogDB.addLog(log);
@@ -182,21 +203,29 @@ export function usePeerManager() {
         if (!settled) {
           settled = true;
           console.error('[Peer] Connection timeout');
+          perfLog('timeout', '连接超时 (30秒)');
           isConnected.value = false;
           reject(new Error('Peer connection timeout'));
         }
       }, 30000); // 30秒超时
 
       // 注册所有协议处理器（在 'open' 事件前注册，避免错过早期消息）
+      perfLog('before-register-protocols', '准备注册协议处理器');
       registerProtocolHandlers();
+      perfLog('after-register-protocols', '协议处理器注册完成');
 
       peerInstance.on('open', (id: string) => {
         if (!settled) {
+          const openTime = performance.now();
           settled = true;
           clearTimeout(timeout);
           isConnected.value = true;
           userStore.setPeerId(id);
+
+          const connectionTime = Math.round(openTime - initStartTime);
           console.log('[Peer] Connected with ID:', id);
+          perfLog('connected', `Peer 连接成功! 总耗时: ${connectionTime}ms`);
+          console.log('[Peer-Performance] ===== Peer 初始化完成 =====');
 
           // 连接成功，停止自动重连
           stopReconnect();
@@ -973,10 +1002,23 @@ export function usePeerManager() {
     const UNIVERSE_BOOTSTRAP_ID = 'UNIVERSE-BOOTSTRAP-PEER-ID-001';
     commLog.universeBootstrap.connecting();
 
+    // 性能监控：记录启动者初始化开始时间
+    const bootstrapStartTime = performance.now();
+    console.log('[Bootstrap-Performance] ===== 尝试成为宇宙启动者 =====');
+
+    const perfLog = (phase: string, message: string) => {
+      const now = performance.now();
+      const duration = Math.round(now - bootstrapStartTime);
+      console.log(`[Bootstrap-Performance] [${phase}] +${duration}ms ${message}`);
+    };
+
+    perfLog('start', '开始尝试成为宇宙启动者');
+
     return new Promise((resolve) => {
       // 如果已经是启动者，直接返回
       if (bootstrapPeerInstance) {
         console.log('[Peer] Already is bootstrap');
+        perfLog('already-bootstrap', '已经是启动者');
         resolve(true);
         return;
       }
@@ -985,6 +1027,7 @@ export function usePeerManager() {
       const successTimeout = setTimeout(() => {
         commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
         console.log('[Peer] Became the universe bootstrap! Keeping connection...');
+        perfLog('success', '成为宇宙启动者成功 (3秒超时未被触发)');
         isBootstrap.value = true;
         // 不销毁连接，保持启动者状态
         resolve(true);
@@ -992,13 +1035,18 @@ export function usePeerManager() {
 
       // 尝试创建 peer
       try {
+        perfLog('before-create-peer', '准备创建 Bootstrap Peer');
+        const createPeerStart = performance.now();
         bootstrapPeerInstance = new Peer(UNIVERSE_BOOTSTRAP_ID, { host: 'localhost', port: 9000, path: '/peerjs' });
+        perfLog('after-create-peer', `Bootstrap Peer 创建完成 (耗时 ${Math.round(performance.now() - createPeerStart)}ms)`);
 
         bootstrapPeerInstance.on('open', (id: string) => {
           // 连接成功，说明我们是第一个启动者
+          const openTime = performance.now();
           clearTimeout(successTimeout);
           commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
           console.log('[Peer] Became the universe bootstrap! ID:', id);
+          perfLog('connected', `成为宇宙启动者成功! 连接耗时: ${Math.round(openTime - bootstrapStartTime)}ms`);
           isBootstrap.value = true;
 
           // 监听设备列表请求
@@ -1053,9 +1101,11 @@ export function usePeerManager() {
             return;
           }
 
+          const errorTime = performance.now();
           clearTimeout(successTimeout);
           commLog.universeBootstrap.failed({ error: error?.type });
           console.log('[Peer] Bootstrap already exists, requesting device list...');
+          perfLog('error', `Bootstrap 已存在，连接失败 (耗时 ${Math.round(errorTime - bootstrapStartTime)}ms)`);
           isBootstrap.value = false;
 
           // 清理失败的连接

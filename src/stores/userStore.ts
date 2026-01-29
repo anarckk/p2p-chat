@@ -1,10 +1,14 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { UserInfo } from '../types';
+import indexedDBStorage from '../util/indexedDBStorage';
 
 const USER_INFO_KEY = 'p2p_user_info';
+const USER_INFO_META_KEY = 'p2p_user_info_meta'; // 存储小型元数据（不含头像）
 const NETWORK_ACCELERATION_KEY = 'p2p_network_acceleration';
 const NETWORK_LOGGING_KEY = 'p2p_network_logging';
+const USER_AVATAR_MIGRATION_KEY = 'user_avatar_migrated_to_indexeddb'; // 标记是否已迁移头像
+const MY_AVATAR_ID = 'my-avatar'; // 用户自己的头像在 IndexedDB 中的 ID
 // const MY_PEER_ID_KEY = 'p2p_my_peer_id'; // 保留但不使用，避免 ESLint 警告
 
 export const useUserStore = defineStore('user', () => {
@@ -26,26 +30,97 @@ export const useUserStore = defineStore('user', () => {
   // 独立的 myPeerId，用于发现中心展示
   const myPeerId = computed(() => userInfo.value.peerId);
 
-  function loadUserInfo() {
-    const saved = localStorage.getItem(USER_INFO_KEY);
+  /**
+   * 加载用户信息（混合策略：localStorage + IndexedDB）
+   * 小数据（用户名、peerId、版本）→ localStorage
+   * 大数据（头像）→ IndexedDB
+   */
+  async function loadUserInfo() {
+    // 首次加载时检查是否需要迁移旧数据
+    await migrateOldUserDataIfNeeded();
+
+    // 从 localStorage 加载用户元数据
+    const saved = localStorage.getItem(USER_INFO_META_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         userInfo.value = {
           username: parsed.username || '',
-          avatar: parsed.avatar || null,
+          avatar: null, // 稍后从 IndexedDB 加载
           peerId: parsed.peerId || null,
           version: parsed.version || 0,
         };
         isSetup.value = !!parsed.username;
+
+        // 从 IndexedDB 加载头像
+        if (parsed.peerId) {
+          const avatarData = await indexedDBStorage.get('avatars', MY_AVATAR_ID);
+          if (avatarData && avatarData.avatar) {
+            userInfo.value.avatar = avatarData.avatar;
+          }
+        }
       } catch (e) {
-        console.error('Failed to load user info:', e);
+        console.error('[UserStore] Failed to load user info:', e);
       }
     }
     return isSetup.value;
   }
 
-  function saveUserInfo(info: Partial<UserInfo>) {
+  /**
+   * 迁移旧用户数据到新的混合存储策略
+   * 只在首次加载时执行一次
+   */
+  async function migrateOldUserDataIfNeeded() {
+    const hasMigrated = localStorage.getItem(USER_AVATAR_MIGRATION_KEY);
+    if (hasMigrated) {
+      return; // 已迁移过
+    }
+
+    try {
+      // 检查是否有旧数据
+      const oldData = localStorage.getItem(USER_INFO_KEY);
+      if (!oldData) {
+        localStorage.setItem(USER_AVATAR_MIGRATION_KEY, 'true');
+        return;
+      }
+
+      const parsed = JSON.parse(oldData);
+      console.log('[UserStore] 开始迁移用户数据到混合存储...');
+
+      // 分离元数据和头像
+      const { avatar, ...meta } = parsed;
+
+      // 保存元数据到 localStorage
+      localStorage.setItem(USER_INFO_META_KEY, JSON.stringify(meta));
+
+      // 如果有头像，存储到 IndexedDB
+      if (avatar) {
+        await indexedDBStorage.set('avatars', {
+          id: MY_AVATAR_ID,
+          peerId: MY_AVATAR_ID,
+          avatar,
+        });
+        console.log('[UserStore] 用户头像已移至 IndexedDB');
+      }
+
+      // 删除旧数据
+      localStorage.removeItem(USER_INFO_KEY);
+
+      // 标记迁移完成
+      localStorage.setItem(USER_AVATAR_MIGRATION_KEY, 'true');
+
+      console.log('[UserStore] 用户数据迁移完成！');
+    } catch (e) {
+      console.error('[UserStore] 迁移失败:', e);
+    }
+  }
+
+  /**
+   * 保存用户信息（混合策略：localStorage + IndexedDB）
+   * 小数据（用户名、peerId、版本）→ localStorage
+   * 大数据（头像）→ IndexedDB
+   */
+  async function saveUserInfo(info: Partial<UserInfo>) {
     // 检查是否有实质性变更（username 或 avatar 变化）
     // 注意：需要考虑 null 的情况，只有当新值与旧值确实不同时才算变更
     const hasUsernameChange =
@@ -59,7 +134,7 @@ export const useUserStore = defineStore('user', () => {
     const hasChange = hasUsernameChange || hasAvatarChange;
 
     // 合并信息，但不要覆盖已有的 peerId（除非明确传入了新的 peerId）
-    const { peerId, ...restInfo } = info;
+    const { avatar, peerId, ...restInfo } = info;
     userInfo.value = {
       ...userInfo.value,
       ...restInfo,
@@ -72,18 +147,37 @@ export const useUserStore = defineStore('user', () => {
       userInfo.value.version += 1;
     }
 
-    localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo.value));
+    // 如果传入了头像，保存到 IndexedDB
+    if (avatar !== undefined) {
+      userInfo.value.avatar = avatar;
+      if (avatar) {
+        await indexedDBStorage.set('avatars', {
+          id: MY_AVATAR_ID,
+          peerId: MY_AVATAR_ID,
+          avatar,
+        });
+      } else {
+        await indexedDBStorage.delete('avatars', MY_AVATAR_ID);
+      }
+    }
+
+    // 保存元数据到 localStorage（不含头像）
+    const { avatar: _, ...metaToSave } = userInfo.value;
+    localStorage.setItem(USER_INFO_META_KEY, JSON.stringify(metaToSave));
+
     if (info.username) {
       isSetup.value = true;
     }
   }
 
-  function setPeerId(peerId: string) {
+  async function setPeerId(peerId: string) {
     userInfo.value.peerId = peerId;
-    localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo.value));
+    // 保存元数据到 localStorage（不含头像）
+    const { avatar: _, ...metaToSave } = userInfo.value;
+    localStorage.setItem(USER_INFO_META_KEY, JSON.stringify(metaToSave));
   }
 
-  function clearUserInfo() {
+  async function clearUserInfo() {
     userInfo.value = {
       username: '',
       avatar: null,
@@ -91,7 +185,9 @@ export const useUserStore = defineStore('user', () => {
       version: 0,
     };
     isSetup.value = false;
-    localStorage.removeItem(USER_INFO_KEY);
+    localStorage.removeItem(USER_INFO_META_KEY);
+    // 同时删除 IndexedDB 中的头像
+    await indexedDBStorage.delete('avatars', MY_AVATAR_ID);
   }
 
   // ==================== 网络加速 ====================
