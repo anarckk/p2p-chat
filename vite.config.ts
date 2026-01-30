@@ -22,17 +22,29 @@ function injectFixScript() {
     <script>
       // 修复 __vite__mapDeps 中的路径解析问题（必须在主脚本加载前执行）
       (function() {
-        const originalDeps = { f: [] };
+        // 存储 __vite__mapDeps 函数
+        let viteMapDepsFunc = null;
+        // 拦截 __vite__mapDeps 的赋值
         Object.defineProperty(window, '__vite__mapDeps', {
           configurable: true,
-          get: function() { return originalDeps; },
+          get: function() {
+            return viteMapDepsFunc;
+          },
           set: function(value) {
-            if (value && value.f) {
-              originalDeps.f = value.f.map(path => {
-                if (typeof path === 'string' && path.startsWith('assets/')) {
-                  return './' + path;
+            viteMapDepsFunc = value;
+            // 同时拦截 value.f 的赋值
+            if (value && typeof value === 'function') {
+              Object.defineProperty(value, 'f', {
+                configurable: true,
+                get: function() { return this._f || []; },
+                set: function(paths) {
+                  this._f = paths.map(path => {
+                    if (typeof path === 'string' && path.startsWith('assets/')) {
+                      return './' + path;
+                    }
+                    return path;
+                  });
                 }
-                return path;
               });
             }
           }
