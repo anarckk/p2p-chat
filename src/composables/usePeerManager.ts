@@ -334,12 +334,16 @@ export function usePeerManager() {
     discoveryNotificationHandler = (protocol: any, from: string) => {
       console.log('[Peer] discoveryNotificationHandler called:', { type: protocol.type, from });
       if (protocol.type === 'discovery_notification') {
-        const { fromUsername, fromAvatar } = protocol;
+        const { fromUsername, fromAvatar, profileVersion } = protocol;
         commLog.discovery.notified({ from, username: fromUsername });
-        console.log('[Peer] Received discovery notification from:', from, 'username:', fromUsername);
+        console.log('[Peer] Received discovery notification from:', from, 'username:', fromUsername, 'profileVersion:', profileVersion);
 
         // 对端发现了我，添加到发现中心的设备列表（保留原有的 firstDiscovered）
         const existingDevice = deviceStore.getDevice(from);
+
+        // 检查是否需要更新个人信息
+        const needsUpdate = !existingDevice || existingDevice.userInfoVersion === undefined || existingDevice.userInfoVersion < profileVersion;
+
         const device: OnlineDevice = {
           peerId: from,
           username: fromUsername,
@@ -347,6 +351,7 @@ export function usePeerManager() {
           lastHeartbeat: Date.now(),
           firstDiscovered: existingDevice?.firstDiscovered || Date.now(),
           isOnline: true,
+          userInfoVersion: profileVersion,
         };
 
         console.log('[Peer] Adding device to store:', device);
@@ -375,7 +380,16 @@ export function usePeerManager() {
 
         // 发送响应，包含我的用户名和头像
         // 这样对端就能知道我的用户信息，而不需要额外查询
-        peerInstance?.sendDiscoveryResponse(from, userStore.userInfo.username || '', userStore.userInfo.avatar);
+        const currentUsername = userStore.userInfo.username || '';
+        const currentAvatar = userStore.userInfo.avatar;
+        console.log('[Peer] Sending discovery response to:', from, 'username:', currentUsername, 'avatar:', currentAvatar);
+        peerInstance?.sendDiscoveryResponse(from, currentUsername, currentAvatar);
+
+        // 如果需要更新个人信息，主动请求
+        if (needsUpdate && (existingDevice !== undefined)) {
+          console.log('[Peer] Profile version mismatch, requesting latest user info from:', from);
+          requestUserInfo(from);
+        }
 
         // 设备互相发现：向新发现的设备询问其设备列表
         requestDeviceList(from).then((devices) => {
@@ -933,6 +947,7 @@ export function usePeerManager() {
         peerId,
         userStore.userInfo.username || '',
         userStore.userInfo.avatar,
+        userStore.userInfo.version || 0,
       );
       console.log('[Peer] Discovery notification sent successfully to:', peerId);
     } catch (error) {
@@ -1000,6 +1015,7 @@ export function usePeerManager() {
    */
   async function tryBecomeBootstrap(): Promise<boolean> {
     const UNIVERSE_BOOTSTRAP_ID = 'UNIVERSE-BOOTSTRAP-PEER-ID-001';
+    console.log('[Peer] Trying to become universe bootstrap with ID:', UNIVERSE_BOOTSTRAP_ID);
     commLog.universeBootstrap.connecting();
 
     // 性能监控：记录启动者初始化开始时间
@@ -1026,7 +1042,7 @@ export function usePeerManager() {
       // 设置超时，3秒内如果连接成功则说明没有其他启动者
       const successTimeout = setTimeout(() => {
         commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
-        console.log('[Peer] Became the universe bootstrap! Keeping connection...');
+        console.log('[Peer] UNIVERSE-BOOTSTRAP-PEER-ID-001: Became the universe bootstrap! Keeping connection...');
         perfLog('success', '成为宇宙启动者成功 (3秒超时未被触发)');
         isBootstrap.value = true;
         // 不销毁连接，保持启动者状态
@@ -1045,7 +1061,7 @@ export function usePeerManager() {
           const openTime = performance.now();
           clearTimeout(successTimeout);
           commLog.universeBootstrap.success({ peerId: UNIVERSE_BOOTSTRAP_ID });
-          console.log('[Peer] Became the universe bootstrap! ID:', id);
+          console.log('[Peer] UNIVERSE-BOOTSTRAP-PEER-ID-001: Became the universe bootstrap! ID:', id);
           perfLog('connected', `成为宇宙启动者成功! 连接耗时: ${Math.round(openTime - bootstrapStartTime)}ms`);
           isBootstrap.value = true;
 
@@ -1053,7 +1069,7 @@ export function usePeerManager() {
           bootstrapPeerInstance!.on('connection', (conn: any) => {
             conn.on('data', (data: any) => {
               if (data && data.type === 'device_list_request') {
-                console.log('[Peer-Bootstrap] Received device list request from:', data.from, 'realPeerId:', data.realPeerId);
+                console.log('[Peer-Bootstrap] Received device list request from:', data.from, 'realPeerId:', data.realPeerId, 'username:', data.username);
                 commLog.deviceDiscovery.requestReceived({ from: data.from });
 
                 // 如果请求者携带了真实 Peer ID，将其加入设备列表
@@ -1067,7 +1083,7 @@ export function usePeerManager() {
                     isOnline: true,
                   };
                   deviceStore.addOrUpdateDevice(requesterDevice);
-                  console.log('[Peer-Bootstrap] Added requester to device list:', data.realPeerId);
+                  console.log('[Peer-Bootstrap] Added requester to device list:', data.realPeerId, 'username:', data.username);
                 }
 
                 // 响应我的设备列表
@@ -1104,7 +1120,7 @@ export function usePeerManager() {
           const errorTime = performance.now();
           clearTimeout(successTimeout);
           commLog.universeBootstrap.failed({ error: error?.type });
-          console.log('[Peer] Bootstrap already exists, requesting device list...');
+          console.log('[Peer] UNIVERSE-BOOTSTRAP-PEER-ID-001: Bootstrap already exists, requesting device list...');
           perfLog('error', `Bootstrap 已存在，连接失败 (耗时 ${Math.round(errorTime - bootstrapStartTime)}ms)`);
           isBootstrap.value = false;
 
@@ -1153,6 +1169,7 @@ export function usePeerManager() {
       let tempPeer: any = null;
       let conn: any = null;
       let timeoutId: number | null = null;
+      let checkPeerIdInterval: number | null = null;
 
       const cleanup = () => {
         if (conn) {
@@ -1166,6 +1183,10 @@ export function usePeerManager() {
         if (timeoutId !== null) {
           clearTimeout(timeoutId);
           timeoutId = null;
+        }
+        if (checkPeerIdInterval !== null) {
+          clearInterval(checkPeerIdInterval);
+          checkPeerIdInterval = null;
         }
       };
 
@@ -1187,20 +1208,56 @@ export function usePeerManager() {
           conn = tempPeer.connect(bootstrapPeerId);
 
           conn.on('open', () => {
-            console.log('[Peer] Connected to bootstrap, requesting device list...');
+            console.log('[Peer] Connected to bootstrap, waiting for myPeerId...');
 
-            // 发送设备列表请求（携带真实 Peer ID）
-            const request = {
-              type: 'device_list_request',
-              from: myId,
-              to: bootstrapPeerId,
-              timestamp: Date.now(),
-              realPeerId: userStore.myPeerId, // 真实 Peer ID
-              username: userStore.userInfo.username, // 用户名
-              avatar: userStore.userInfo.avatar, // 头像
-            };
+            // 等待 userStore.myPeerId 已经设置
+            // 最多等待 5 秒
+            const maxWaitTime = 5000;
+            const startTime = Date.now();
 
-            conn.send(request);
+            checkPeerIdInterval = window.setInterval(() => {
+              if (userStore.myPeerId) {
+                clearInterval(checkPeerIdInterval!);
+                checkPeerIdInterval = null;
+
+                console.log('[Peer] myPeerId is ready:', userStore.myPeerId);
+
+                // 发送设备列表请求（携带真实 Peer ID）
+                const request = {
+                  type: 'device_list_request',
+                  from: myId,
+                  to: bootstrapPeerId,
+                  timestamp: Date.now(),
+                  realPeerId: userStore.myPeerId, // 真实 Peer ID
+                  username: userStore.userInfo.username, // 用户名
+                  avatar: userStore.userInfo.avatar, // 头像
+                };
+
+                console.log('[Peer] Sending device list request with realPeerId:', userStore.myPeerId);
+
+                conn.send(request);
+              } else {
+                // 检查是否超时
+                if (Date.now() - startTime > maxWaitTime) {
+                  clearInterval(checkPeerIdInterval!);
+                  checkPeerIdInterval = null;
+                  console.warn('[Peer] Timeout waiting for myPeerId, sending request without it...');
+
+                  // 超时后发送请求（不带真实 Peer ID）
+                  const request = {
+                    type: 'device_list_request',
+                    from: myId,
+                    to: bootstrapPeerId,
+                    timestamp: Date.now(),
+                    realPeerId: null,
+                    username: null,
+                    avatar: null,
+                  };
+
+                  conn.send(request);
+                }
+              }
+            }, 100); // 每 100ms 检查一次
           });
 
           conn.on('data', (data: any) => {

@@ -56,8 +56,8 @@ const myDeviceInfo = computed((): (OnlineDevice | null) => {
   if (!userStore.userInfo.username) { return null; }
   return {
     peerId: userStore.myPeerId || 'connecting...',
-    username: userStore.userInfo.username || userStore.myPeerId,
-    avatar: userStore.userInfo.avatar,
+    username: userStore.userInfo.username || (userStore.myPeerId || 'Unknown'),
+    avatar: userStore.userInfo.avatar || null,
     lastHeartbeat: Date.now(),
     firstDiscovered: Date.now(),
     isOnline: true,
@@ -265,8 +265,19 @@ async function addDeviceManually() {
   const peerId = queryPeerIdInput.value.trim();
 
   // 检查是否已存在
-  if (storedDevices.value.some((d) => d.peerId === peerId)) {
+  const existingDevice = storedDevices.value.find((d) => d.peerId === peerId);
+  if (existingDevice) {
     showInlineMessage('该设备已存在', 'info');
+    // 即使设备已存在，也发送发现通知，确保对方知道我们的存在
+    // 这对于被动发现机制很重要，特别是当设备通过宇宙启动者机制发现对方时
+    console.log('[Center] Device already exists, but sending discovery notification anyway:', peerId);
+    try {
+      await sendDiscoveryNotification(peerId);
+      console.log('[Center] Discovery notification sent to existing device:', peerId);
+    } catch (error) {
+      console.error('[Center] Error sending discovery notification:', error);
+    }
+    queryPeerIdInput.value = '';
     return;
   }
 

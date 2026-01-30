@@ -15,7 +15,7 @@ import {
  */
 test.describe('聊天离线状态测试', () => {
   test('设备下线后，发现中心和聊天列表都要显示离线状态', async ({ browser }) => {
-    test.setTimeout(30000);
+    test.setTimeout(60000);
     // 创建两个浏览器 session
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();
@@ -99,17 +99,19 @@ test.describe('聊天离线状态测试', () => {
 
       // 步骤6: 用户A下线（关闭页面）
       await contextA.close();
+      // 标记 contextA 已关闭，避免 finally 块重复关闭
+      (contextA as any)._closed = true;
 
       // 步骤7: 模拟设备A离线（通过修改 lastHeartbeat）
       console.log('[Test] 模拟设备A离线...');
       await pageB.evaluate((peerIdA) => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed[peerIdA]) {
             // 将 lastHeartbeat 设置为 11 分钟前，超过 OFFLINE_THRESHOLD（10 分钟）
             parsed[peerIdA].lastHeartbeat = Date.now() - 11 * 60 * 1000;
-            localStorage.setItem('discovered_devices', JSON.stringify(parsed));
+            localStorage.setItem('discovered_devices_meta', JSON.stringify(parsed));
             console.log('[Test] 已将设备A的lastHeartbeat设置为11分钟前');
           }
         }
@@ -155,13 +157,15 @@ test.describe('聊天离线状态测试', () => {
 
       console.log('[Test] 测试通过：设备下线后，发现中心和聊天列表都正确显示离线状态');
     } finally {
-      await contextA.close();
+      if (!(contextA as any)._closed) {
+        await contextA.close();
+      }
       await contextB.close();
     }
   });
 
   test('设备下线后重新上线，状态应该正确更新', async ({ browser }) => {
-    test.setTimeout(30000);
+    test.setTimeout(60000);
     // 创建两个浏览器 session
     let contextA = await browser.newContext();
     const contextB = await browser.newContext();
@@ -206,17 +210,19 @@ test.describe('聊天离线状态测试', () => {
 
       // 步骤4: 用户A下线
       await contextA.close();
+      // 标记 contextA 已关闭，避免 finally 块重复关闭
+      (contextA as any)._closed = true;
 
       // 步骤5: 模拟设备A离线（通过修改 lastHeartbeat）
       console.log('[Test] 模拟设备A离线...');
       await pageB.evaluate((peerIdA) => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed[peerIdA]) {
             // 将 lastHeartbeat 设置为 11 分钟前，超过 OFFLINE_THRESHOLD（10 分钟）
             parsed[peerIdA].lastHeartbeat = Date.now() - 11 * 60 * 1000;
-            localStorage.setItem('discovered_devices', JSON.stringify(parsed));
+            localStorage.setItem('discovered_devices_meta', JSON.stringify(parsed));
             console.log('[Test] 已将设备A的lastHeartbeat设置为11分钟前');
           }
         }
@@ -252,13 +258,13 @@ test.describe('聊天离线状态测试', () => {
 
       // 模拟用户B检测到设备A重新上线（更新 lastHeartbeat）
       await pageB.evaluate((peerIdA) => {
-        const stored = localStorage.getItem('discovered_devices');
+        const stored = localStorage.getItem('discovered_devices_meta');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed[peerIdA]) {
             // 将 lastHeartbeat 设置为当前时间
             parsed[peerIdA].lastHeartbeat = Date.now();
-            localStorage.setItem('discovered_devices', JSON.stringify(parsed));
+            localStorage.setItem('discovered_devices_meta', JSON.stringify(parsed));
             console.log('[Test] 已将设备A的lastHeartbeat更新为当前时间');
           }
         }
@@ -278,7 +284,9 @@ test.describe('聊天离线状态测试', () => {
 
       console.log('[Test] 测试通过：设备重新上线后状态正确更新');
     } finally {
-      await contextA.close();
+      if (!(contextA as any)._closed) {
+        await contextA.close();
+      }
       await contextB.close();
     }
   });

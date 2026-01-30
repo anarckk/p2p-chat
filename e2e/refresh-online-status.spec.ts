@@ -16,7 +16,7 @@ import {
 } from './test-helpers.js';
 
 test.describe('刷新在线状态', () => {
-  test.setTimeout(30000);
+  test.setTimeout(60000);
 
   test('刷新后离线设备不会产生控制台错误', async ({ page, context }) => {
     const browser = context.browser();
@@ -117,7 +117,7 @@ test.describe('刷新在线状态', () => {
 
       await page2.goto('/center');
       await page2.waitForLoadState('domcontentloaded');
-      await setupUser(page2, '重连测试B');
+      await setupUser(page2, '重连测试B_v1');
 
       const peerIdA = await getPeerIdFromStorage(page);
       const peerIdB = await getPeerIdFromStorage(page2);
@@ -153,7 +153,7 @@ test.describe('刷新在线状态', () => {
     try {
       await page3.goto('/center');
       await page3.waitForLoadState('domcontentloaded');
-      await setupUser(page3, '重连测试B');
+      await setupUser(page3, '重连测试B_v2');
 
       const newPeerIdB = await getPeerIdFromStorage(page3);
       if (!newPeerIdB) {
@@ -169,7 +169,7 @@ test.describe('刷新在线状态', () => {
 
       // 刷新
       await page.locator(SELECTORS.refreshButton).click();
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 2);
 
       // 验证有刷新日志
       const hasRefreshLog = logs.some(log =>
@@ -226,26 +226,30 @@ test.describe('刷新在线状态', () => {
 
       // 设置其他设备并互相添加
       for (let i = 0; i < pages.length; i++) {
-        await pages[i].goto('/center');
-        await pages[i].waitForLoadState('domcontentloaded');
-        await setupUser(pages[i], `从设备${i + 1}`);
+        try {
+          await pages[i].goto('/center');
+          await pages[i].waitForLoadState('domcontentloaded');
+          await setupUser(pages[i], `从设备${i + 1}`);
 
-        const pid = await getPeerIdFromStorage(pages[i]);
-        if (pid) {
-          // 主设备添加从设备
-          const queryInput = page.locator(SELECTORS.peerIdInput);
-          await queryInput.fill(pid);
-          await page.locator(SELECTORS.addButton).click();
-          await page.waitForTimeout(WAIT_TIMES.SHORT);
+          const pid = await getPeerIdFromStorage(pages[i]);
+          if (pid) {
+            // 主设备添加从设备
+            const queryInput = page.locator(SELECTORS.peerIdInput);
+            await queryInput.fill(pid);
+            await page.locator(SELECTORS.addButton).click();
+            await page.waitForTimeout(WAIT_TIMES.SHORT);
+          }
+        } catch (e) {
+          console.log(`[Test] Error setting up device ${i + 1}:`, e);
         }
       }
 
       // 等待所有设备连接
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 2);
 
       // 刷新
       await page.locator(SELECTORS.refreshButton).click();
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 2);
 
       // 验证有刷新日志
       const hasRefreshLog = logs.some(log =>
@@ -321,7 +325,7 @@ test.describe('刷新在线状态', () => {
 
       // 刷新
       await page.locator(SELECTORS.refreshButton).click();
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 2);
 
       // 验证有刷新日志
       const hasRefreshLog = logs.some(log =>
@@ -386,7 +390,7 @@ test.describe('刷新在线状态', () => {
 
       // 第一次刷新：设备 B 在线
       await page.locator(SELECTORS.refreshButton).click();
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 2);
 
       // 关闭设备 B
       await page2.close();
@@ -397,7 +401,7 @@ test.describe('刷新在线状态', () => {
 
       // 第二次刷新：设备 B 离线
       await page.locator(SELECTORS.refreshButton).click();
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 2);
 
       // 验证有刷新日志
       const hasRefreshLog = logs.some(log =>

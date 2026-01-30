@@ -135,7 +135,7 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 找到网络加速开关
-      const networkSwitch = page.locator('.settings-container .ant-switch');
+      const networkSwitch = page.locator('button[aria-label="network-acceleration-switch"]');
 
       // 检查当前状态
       const ariaCheckedBefore = await networkSwitch.getAttribute('aria-checked');
@@ -148,8 +148,8 @@ test.describe('网络加速功能', () => {
 
         // 点击保存按钮
         await page.click('button[aria-label="save-settings-button"]');
-        // 等待保存成功提示
-        await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+        // 等待保存成功提示（内联提示）
+        await page.waitForSelector('.inline-message', { timeout: 3000 });
         await page.waitForTimeout(WAIT_TIMES.SHORT);
       }
 
@@ -164,7 +164,7 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 找到网络加速开关
-      const networkSwitch = page.locator('.settings-container .ant-switch');
+      const networkSwitch = page.locator('button[aria-label="network-acceleration-switch"]');
 
       // 确保开关是开启状态
       const ariaChecked = await networkSwitch.getAttribute('aria-checked');
@@ -175,7 +175,7 @@ test.describe('网络加速功能', () => {
         await networkSwitch.click();
         await page.waitForTimeout(WAIT_TIMES.SHORT);
         await page.click('button[aria-label="save-settings-button"]');
-        await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+        await page.waitForSelector('.inline-message', { timeout: 3000 });
         await page.waitForTimeout(WAIT_TIMES.SHORT);
       }
 
@@ -183,7 +183,7 @@ test.describe('网络加速功能', () => {
       await networkSwitch.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
       await page.click('button[aria-label="save-settings-button"]');
-      await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+      await page.waitForSelector('.inline-message', { timeout: 3000 });
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证开关已关闭
@@ -197,7 +197,7 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 找到网络加速开关
-      const networkSwitch = page.locator('.settings-container .ant-switch');
+      const networkSwitch = page.locator('button[aria-label="network-acceleration-switch"]');
 
       // 先关闭网络加速（如果开启的话）
       const ariaChecked = await networkSwitch.getAttribute('aria-checked');
@@ -206,14 +206,14 @@ test.describe('网络加速功能', () => {
         await networkSwitch.click();
         await page.waitForTimeout(WAIT_TIMES.SHORT);
         await page.click('button[aria-label="save-settings-button"]');
-        await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+        await page.waitForSelector('.inline-message', { timeout: 3000 });
       }
 
       // 开启网络加速
       await networkSwitch.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
       await page.click('button[aria-label="save-settings-button"]');
-      await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+      await page.waitForSelector('.inline-message', { timeout: 3000 });
 
       // 刷新页面
       await page.reload();
@@ -245,14 +245,14 @@ test.describe('网络加速功能', () => {
         await devices.deviceB.page.click('.ant-menu-item:has-text("设置")');
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
-        const networkSwitch = devices.deviceB.page.locator('.settings-container .ant-switch');
+        const networkSwitch = devices.deviceB.page.locator('button[aria-label="network-acceleration-switch"]');
         const isOffBefore = await networkSwitch.evaluate((el: HTMLElement) =>
           el.classList.contains('ant-switch-unchecked')
         );
 
         if (isOffBefore) {
           await networkSwitch.click();
-          await devices.deviceB.page.waitForSelector('.ant-message-success', { timeout: 3000 });
+          await devices.deviceB.page.waitForSelector('.inline-message', { timeout: 3000 });
         }
 
         await devices.deviceB.page.click('.ant-menu-item:has-text("聊天")');
@@ -323,14 +323,14 @@ test.describe('网络加速功能', () => {
         await devices.deviceB.page.click('.ant-menu-item:has-text("设置")');
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
-        const networkSwitch = devices.deviceB.page.locator('.settings-container .ant-switch');
+        const networkSwitch = devices.deviceB.page.locator('button[aria-label="network-acceleration-switch"]');
         const isChecked = await networkSwitch.evaluate((el: HTMLElement) =>
           el.classList.contains('ant-switch-checked')
         );
 
         if (isChecked) {
           await networkSwitch.click();
-          await devices.deviceB.page.waitForSelector('.ant-message-success', { timeout: 3000 });
+          await devices.deviceB.page.waitForSelector('.inline-message', { timeout: 3000 });
         }
 
         await devices.deviceB.page.click('.ant-menu-item:has-text("聊天")');
@@ -392,11 +392,11 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 开启网络加速
-      const networkSwitch = page.locator('.settings-container .ant-switch');
+      const networkSwitch = page.locator('button[aria-label="network-acceleration-switch"]');
       await networkSwitch.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
       await page.click('button[aria-label="save-settings-button"]');
-      await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+      await page.waitForSelector('.inline-message', { timeout: 3000 });
 
       // 刷新页面
       await page.reload();
@@ -412,11 +412,11 @@ test.describe('网络加速功能', () => {
       await page.click('.ant-menu-item:has-text("设置")');
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      const networkSwitch = page.locator('.settings-container .ant-switch');
+      const networkSwitch = page.locator('button[aria-label="network-acceleration-switch"]');
       await networkSwitch.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
       await page.click('button[aria-label="save-settings-button"]');
-      await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+      await page.waitForSelector('.inline-message', { timeout: 3000 });
 
       // 切换到发现中心
       await page.click('.ant-menu-item:has-text("发现中心")');
@@ -440,7 +440,7 @@ test.describe('网络加速功能', () => {
       await page.click('.ant-menu-item:has-text("设置")');
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      const networkSwitch = page.locator('.settings-container .ant-switch');
+      const networkSwitch = page.locator('button[aria-label="network-acceleration-switch"]');
 
       // 确保开关是关闭状态
       const ariaChecked = await networkSwitch.getAttribute('aria-checked');
@@ -450,14 +450,14 @@ test.describe('网络加速功能', () => {
         await networkSwitch.click();
         await page.waitForTimeout(WAIT_TIMES.SHORT);
         await page.click('button[aria-label="save-settings-button"]');
-        await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+        await page.waitForSelector('.inline-message', { timeout: 3000 });
       }
 
       // 开启网络加速
       await networkSwitch.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
       await page.click('button[aria-label="save-settings-button"]');
-      await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+      await page.waitForSelector('.inline-message', { timeout: 3000 });
 
       // 检查是否有相应的提示信息
       const helpText = await page.locator('.settings-container').textContent();
@@ -468,7 +468,7 @@ test.describe('网络加速功能', () => {
       await page.click('.ant-menu-item:has-text("设置")');
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      const networkSwitch = page.locator('.settings-container .ant-switch');
+      const networkSwitch = page.locator('button[aria-label="network-acceleration-switch"]');
 
       // 确保开关是开启状态
       const ariaChecked = await networkSwitch.getAttribute('aria-checked');
@@ -478,14 +478,14 @@ test.describe('网络加速功能', () => {
         await networkSwitch.click();
         await page.waitForTimeout(WAIT_TIMES.SHORT);
         await page.click('button[aria-label="save-settings-button"]');
-        await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+        await page.waitForSelector('.inline-message', { timeout: 3000 });
       }
 
       // 关闭网络加速
       await networkSwitch.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
       await page.click('button[aria-label="save-settings-button"]');
-      await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+      await page.waitForSelector('.inline-message', { timeout: 3000 });
 
       // 检查是否有相应的提示信息
       const helpText = await page.locator('.settings-container').textContent();

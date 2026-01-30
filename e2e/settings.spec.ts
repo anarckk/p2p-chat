@@ -50,6 +50,9 @@ test.describe('设置页面', () => {
     await page.goto('/settings');
     await page.waitForLoadState('domcontentloaded');
 
+    // 等待用户信息加载完成
+    await page.waitForTimeout(1000);
+
     // 验证用户名输入框显示当前用户名（使用更精确的选择器）
     const usernameInput = page.locator('.settings-container input[maxlength="20"]');
     const value = await usernameInput.inputValue();
@@ -68,6 +71,9 @@ test.describe('设置页面', () => {
     await page.goto('/settings');
     await page.waitForLoadState('domcontentloaded');
 
+    // 等待用户信息加载完成
+    await page.waitForTimeout(1000);
+
     // 修改用户名（使用更精确的选择器）
     const usernameInput = page.locator('.settings-container input[maxlength="20"]');
     await usernameInput.clear();
@@ -77,8 +83,8 @@ test.describe('设置页面', () => {
     const saveButton = page.locator('button[aria-label="save-settings-button"]');
     await saveButton.click();
 
-    // 等待保存成功提示
-    await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+    // 等待保存成功提示（内联提示）
+    await page.waitForSelector('.inline-message-success', { timeout: 3000 });
 
     // 验证用户名已更新
     const userInfo = await page.evaluate(() => {
@@ -119,6 +125,9 @@ test.describe('设置页面', () => {
     await page.goto('/settings');
     await page.waitForLoadState('domcontentloaded');
 
+    // 等待用户信息加载完成
+    await page.waitForTimeout(1000);
+
     // 找到网络加速开关
     const switchSelector = '.network-acceleration-section .ant-switch';
     const switchElement = page.locator(switchSelector);
@@ -139,8 +148,8 @@ test.describe('设置页面', () => {
     const saveButton = page.locator('button[aria-label="save-settings-button"]');
     await saveButton.click();
 
-    // 等待保存成功提示
-    await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+    // 等待保存成功提示（内联提示）
+    await page.waitForSelector('.inline-message-success', { timeout: 3000 });
 
     // 验证网络加速状态已保存
     const networkAccelerationStatus = await page.evaluate(() => {
@@ -158,7 +167,7 @@ test.describe('设置页面', () => {
     // 完成用户设置
     await setupUser(page, '网络加速测试用户');
 
-    // 先开启网络加速
+    // 先在 localStorage 中开启网络加速
     await page.evaluate(() => {
       localStorage.setItem('p2p_network_acceleration', 'true');
     });
@@ -166,6 +175,9 @@ test.describe('设置页面', () => {
     // 再次导航到设置页面
     await page.goto('/settings');
     await page.waitForLoadState('domcontentloaded');
+
+    // 等待用户信息加载完成
+    await page.waitForTimeout(1000);
 
     // 找到网络加速开关
     const switchSelector = '.network-acceleration-section .ant-switch';
@@ -187,8 +199,8 @@ test.describe('设置页面', () => {
     const saveButton = page.locator('button[aria-label="save-settings-button"]');
     await saveButton.click();
 
-    // 等待保存成功提示
-    await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+    // 等待保存成功提示（内联提示）
+    await page.waitForSelector('.inline-message-success', { timeout: 3000 });
 
     // 验证网络加速状态已保存
     const networkAccelerationStatus = await page.evaluate(() => {
@@ -210,6 +222,9 @@ test.describe('设置页面', () => {
     await page.goto('/settings');
     await page.waitForLoadState('domcontentloaded');
 
+    // 等待用户信息加载完成
+    await page.waitForTimeout(1000);
+
     // 开启网络加速
     const switchSelector = '.network-acceleration-section .ant-switch';
     const switchElement = page.locator(switchSelector);
@@ -219,12 +234,15 @@ test.describe('设置页面', () => {
     const saveButton = page.locator('button[aria-label="save-settings-button"]');
     await saveButton.click();
 
-    // 等待保存成功
-    await page.waitForSelector('.ant-message-success', { timeout: 3000 });
+    // 等待保存成功（内联提示）
+    await page.waitForSelector('.inline-message-success', { timeout: 3000 });
 
     // 刷新页面
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
+
+    // 等待用户信息加载完成
+    await page.waitForTimeout(1000);
 
     // 验证开关状态仍然开启
     const isStillChecked = await switchElement.isChecked();

@@ -61,13 +61,8 @@ const currentContact = computed(() => {
  * 注意：不在 chatStore 中的设备（仅在发现中心的）不应出现在聊天列表中
  */
 const chatListContacts = computed(() => {
-  // 仅显示已有聊天记录的联系人（至少有一条消息）
+  // 显示所有在 chatStore 中的联系人（已创建聊天的）
   const contacts = chatStore.sortedContacts
-    .filter((contact) => {
-      // 检查该联系人是否有聊天记录（至少有一条消息）
-      const messages = chatStore.messages.get(contact.peerId);
-      return messages && messages.length > 0;
-    })
     .map((contact) => {
       // 从 deviceStore 获取最新的设备状态（如果存在）
       const device = deviceStore.getDevice(contact.peerId);
@@ -244,7 +239,9 @@ function selectFile(accept?: string) {
 async function handleFileSelect(e: Event) {
   const target = e.target as HTMLInputElement;
   const file = target.files?.[0];
-  if (!file || !chatStore.currentChatPeerId) return;
+  if (!file || !chatStore.currentChatPeerId) {
+    return;
+  }
   clearInlineMessage();
 
   // 限制文件大小 50MB
@@ -260,15 +257,27 @@ async function handleFileSelect(e: Event) {
 
     if (file.type.startsWith('image/')) {
       // 图片
-      const img = await loadImageDimensions(file);
-      content = {
-        name: file.name,
-        size: file.size,
-        width: img.width,
-        height: img.height,
-        data: dataUrl,
-      } as ImageContent;
-      type = 'image';
+      try {
+        const img = await loadImageDimensions(file);
+        content = {
+          name: file.name,
+          size: file.size,
+          width: img.width,
+          height: img.height,
+          data: dataUrl,
+        } as ImageContent;
+        type = 'image';
+      } catch (imgError) {
+        // 图片加载失败（例如不是有效的图片格式），回退到普通文件
+        console.warn('[Chat] Failed to load image dimensions, treating as file:', imgError);
+        content = {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          data: dataUrl,
+        } as FileContent;
+        type = 'file';
+      }
     } else if (file.type.startsWith('video/')) {
       // 视频
       content = {
@@ -614,6 +623,7 @@ function renderMessageContent(msg: ChatMessage) {
               <input
                 ref="fileInputRef"
                 type="file"
+                data-testid="file-input"
                 style="display: none"
                 @change="handleFileSelect"
               />

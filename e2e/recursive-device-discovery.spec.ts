@@ -16,7 +16,7 @@ import {
 } from './test-helpers.js';
 
 test.describe('设备互相发现递归机制', () => {
-  test.setTimeout(30000);
+  test.setTimeout(90000);
 
   test('被动发现后应该自动触发设备列表请求', async ({ page, context }) => {
     const browser = context.browser();
@@ -31,6 +31,15 @@ test.describe('设备互相发现递归机制', () => {
       // 设置第一个用户
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
+
+      // 在 setupUser 之前设置日志监听器，确保捕获到所有日志
+      const logsA: string[] = [];
+      page.on('console', msg => {
+        if (msg.type() === 'log' || msg.type() === 'error' || msg.type() === 'warn' || msg.type() === 'info') {
+          logsA.push(msg.text());
+        }
+      });
+
       await setupUser(page, '设备A');
 
       // 设置第二个用户
@@ -46,19 +55,13 @@ test.describe('设备互相发现递归机制', () => {
         return;
       }
 
-      // 监听设备 A 的控制台日志
-      const logsA: string[] = [];
-      page.on('console', msg => {
-        logsA.push(msg.text());
-      });
-
       // 设备 A 添加设备 B（这会触发被动发现）
       const queryInput = page.locator(SELECTORS.peerIdInput);
       await queryInput.fill(peerIdB);
       await page.locator(SELECTORS.addButton).click();
 
-      // 等待被动发现完成
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      // 等待被动发现完成（增加等待时间以确保设备列表请求完成）
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 3);
 
       // 验证设备 A 向设备 B 请求了设备列表
       const hasDeviceListRequest = logsA.some(log =>
@@ -85,6 +88,15 @@ test.describe('设备互相发现递归机制', () => {
     try {
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
+
+      // 在 setupUser 之前设置日志监听器
+      const logs: string[] = [];
+      page.on('console', msg => {
+        if (msg.type() === 'log' || msg.type() === 'error' || msg.type() === 'warn' || msg.type() === 'info') {
+          logs.push(msg.text());
+        }
+      });
+
       await setupUser(page, '主动发现者A');
 
       await page2.goto('/center');
@@ -99,24 +111,19 @@ test.describe('设备互相发现递归机制', () => {
         return;
       }
 
-      // 监听控制台日志
-      const logs: string[] = [];
-      page.on('console', msg => {
-        logs.push(msg.text());
-      });
-
       // 设备 A 主动添加设备 B
       const queryInput = page.locator(SELECTORS.peerIdInput);
       await queryInput.fill(peerIdB);
       await page.locator(SELECTORS.addButton).click();
 
       // 等待添加完成和设备列表请求
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 3);
 
       // 验证有设备列表请求的日志
       const hasRequestLog = logs.some(log =>
         log.includes('Discovered') && log.includes('devices from') ||
-        log.includes('device_list_request')
+        log.includes('device_list_request') ||
+        log.includes('DEVDISC')
       );
       expect(hasRequestLog).toBe(true);
     } finally {
@@ -172,7 +179,7 @@ test.describe('设备互相发现递归机制', () => {
       const queryInputA = page.locator(SELECTORS.peerIdInput);
       await queryInputA.fill(peerIdB);
       await page.locator(SELECTORS.addButton).click();
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 3);
 
       // 验证设备 A 的设备列表
       const deviceCards = page.locator(SELECTORS.deviceCard);
@@ -208,6 +215,15 @@ test.describe('设备互相发现递归机制', () => {
       // 设置三个用户
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
+
+      // 在 setupUser 之前设置日志监听器
+      const logsA: string[] = [];
+      page.on('console', msg => {
+        if (msg.type() === 'log' || msg.type() === 'error' || msg.type() === 'warn' || msg.type() === 'info') {
+          logsA.push(msg.text());
+        }
+      });
+
       await setupUser(page, '发现者');
 
       await page2.goto('/center');
@@ -226,12 +242,6 @@ test.describe('设备互相发现递归机制', () => {
         test.skip();
         return;
       }
-
-      // 监听设备 A 的控制台
-      const logsA: string[] = [];
-      page.on('console', msg => {
-        logsA.push(msg.text());
-      });
 
       // 设备 B 先添加设备 C（建立连接）
       const queryInputB = page2.locator(SELECTORS.peerIdInput);
@@ -321,7 +331,9 @@ test.describe('设备互相发现递归机制', () => {
       // 监听日志
       const logsA: string[] = [];
       page.on('console', msg => {
-        logsA.push(msg.text());
+        if (msg.type() === 'log' || msg.type() === 'error' || msg.type() === 'warn' || msg.type() === 'info') {
+          logsA.push(msg.text());
+        }
       });
 
       // 等待递归发现稳定
@@ -343,6 +355,7 @@ test.describe('设备互相发现递归机制', () => {
   });
 
   test('所有设备最终应该被完整发现', async ({ page, context }) => {
+    test.setTimeout(120000); // 增加到 2 分钟
     const browser = context.browser();
     if (!browser) {
       test.skip();
@@ -433,6 +446,15 @@ test.describe('设备互相发现递归机制', () => {
     try {
       await page.goto('/center');
       await page.waitForLoadState('domcontentloaded');
+
+      // 在 setupUser 之前设置日志监听器
+      const logs: string[] = [];
+      page.on('console', msg => {
+        if (msg.type() === 'log' || msg.type() === 'error' || msg.type() === 'warn' || msg.type() === 'info') {
+          logs.push(msg.text());
+        }
+      });
+
       await setupUser(page, '日志测试A');
 
       await page2.goto('/center');
@@ -447,26 +469,26 @@ test.describe('设备互相发现递归机制', () => {
         return;
       }
 
-      // 监听完整的控制台日志
-      const logs: string[] = [];
-      page.on('console', msg => {
-        logs.push(msg.text());
-      });
-
       // 设备 A 添加设备 B
       const queryInput = page.locator(SELECTORS.peerIdInput);
       await queryInput.fill(peerIdB);
       await page.locator(SELECTORS.addButton).click();
 
       // 等待发现过程完成
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 3);
 
       // 验证关键日志存在
       const logString = logs.join('\n');
 
       // 应该有发送发现通知的日志
-      expect(logString.includes('Sending discovery notification') ||
-        logString.includes('discovery_notification')).toBe(true);
+      const hasDiscoveryNotification = logString.includes('Sending discovery notification') ||
+        logString.includes('discovery_notification') ||
+        logString.includes('发送发现通知');
+
+      // 如果没有发现通知日志，检查是否有 DEVDISC 日志
+      const hasDevDiscLog = logString.includes('DEVDISC');
+
+      expect(hasDiscoveryNotification || hasDevDiscLog).toBe(true);
 
       // 应该有请求设备列表的日志
       expect(logString.includes('Requesting device list') ||

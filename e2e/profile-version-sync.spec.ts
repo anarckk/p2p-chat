@@ -134,7 +134,24 @@ test.describe('个人信息版本同步', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
 
-        // 设备 A 先修改用户名
+        // 设备 A 先添加设备 B（触发被动发现）
+        await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
+        await devices.deviceA.page.click(SELECTORS.addButton);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+
+        // 验证设备 B 出现在设备 A 的发现中心
+        const deviceBCardInA = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: '被动发现B' });
+        await expect(deviceBCardInA).toBeVisible({ timeout: 8000 });
+
+        console.log('[Test] Device A sees Device B with username: 被动发现B');
+
+        // 验证设备 A 出现在设备 B 的发现中心（被动发现）
+        const deviceACardInB = devices.deviceB.page.locator(SELECTORS.deviceCard).filter({ hasText: '被动发现A' });
+        await expect(deviceACardInB).toBeVisible({ timeout: 8000 });
+
+        console.log('[Test] Device B sees Device A with username: 被动发现A (via passive discovery)');
+
+        // 设备 A 修改用户名
         await devices.deviceA.page.click('.ant-menu-item:has-text("设置")');
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
@@ -146,7 +163,7 @@ test.describe('个人信息版本同步', () => {
         await saveButton.click();
 
         // 等待保存操作完成
-        await devices.deviceA.page.waitForTimeout(1000);
+        await devices.deviceA.page.waitForTimeout(3000);
         const userInfoA = await devices.deviceA.page.evaluate(() => {
           const stored = localStorage.getItem('p2p_user_info');
           return stored ? JSON.parse(stored) : null;
@@ -157,13 +174,20 @@ test.describe('个人信息版本同步', () => {
           throw new Error(`Username not updated. Expected: 已更新用户A, Got: ${userInfoA?.username}`);
         }
 
+        console.log('[Test] Device A verified username updated in localStorage:', userInfoA.username);
+
         await devices.deviceA.page.click('.ant-menu-item:has-text("发现中心")');
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
-        // 设备 B 添加设备 A（触发被动发现）
-        await devices.deviceB.page.fill(SELECTORS.peerIdInput, devices.deviceA.userInfo.peerId);
-        await devices.deviceB.page.click(SELECTORS.addButton);
-        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+        // 额外等待，确保设备 A 的 peerInstance 完全准备好
+        await devices.deviceA.page.waitForTimeout(2000);
+
+        // 设备 A 再次与设备 B 通信，触发被动发现和版本检查
+        // 通过刷新设备列表来实现
+        await devices.deviceA.page.click(SELECTORS.refreshButton);
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.DISCOVERY);
+
+        console.log('[Test] Device A refreshed, triggering passive discovery to Device B');
 
         // 验证设备 B 看到设备 A 的新用户名（通过被动发现时的个人信息版本检查）
         await retry(async () => {
@@ -175,6 +199,11 @@ test.describe('个人信息版本同步', () => {
             throw new Error('Device A with updated username not found');
           }
         }, { maxAttempts: 8, delay: 3000, context: 'Check username sync via passive discovery' });
+
+        // 验证旧用户名不再显示
+        const deviceACardWithOldName = devices.deviceB.page.locator(SELECTORS.deviceCard).filter({ hasText: '被动发现A' });
+        const oldNameCount = await deviceACardWithOldName.count();
+        expect(oldNameCount).toBe(0);
 
         console.log('[Test] Passive discovery username sync test passed!');
       } finally {

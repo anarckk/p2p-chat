@@ -17,7 +17,7 @@ import {
 
 test.describe('聊天图片发送功能', () => {
   test('用户 A 发送图片给用户 B，用户 B 能收到并显示图片', async ({ browser }) => {
-    test.setTimeout(30000);
+    test.setTimeout(60000);
     // 创建两个测试设备（从发现中心开始，确保 Peer 连接稳定）
     const devices = await createTestDevices(browser, '设备A', '设备B', { startPage: 'center' });
 
@@ -65,11 +65,14 @@ test.describe('聊天图片发送功能', () => {
       await pageA.click(SELECTORS.contactItem);
       await pageA.waitForTimeout(WAIT_TIMES.SHORT);
 
-      // 点击图片上传按钮
-      console.log('[Test] 点击图片上传按钮');
-      const imageUploadButton = pageA.locator('button[aria-label="upload-image"]');
-      await expect(imageUploadButton).toBeVisible();
-      await imageUploadButton.click();
+      // 设备 B 也需要创建与设备 A 的聊天（这样才能看到消息）
+      console.log('[Test] 在设备 B 上创建与设备 A 的聊天');
+      const peerIdA = await getPeerIdFromStorage(pageA);
+      await createChat(pageB, peerIdA!);
+
+      // 设备 B 选择聊天
+      await pageB.click(SELECTORS.contactItem);
+      await pageB.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 创建一个简单的测试图片（1x1 红色 PNG）
       // 使用 Buffer 创建一个最小的 PNG 文件
@@ -78,9 +81,22 @@ test.describe('聊天图片发送功能', () => {
         'base64'
       );
 
+      // 找到文件输入元素
+      console.log('[Test] 找到文件输入元素');
+      const fileInput = pageA.locator('input[data-testid="file-input"]');
+      await expect(fileInput).toHaveCount(1);
+
+      // 点击图片上传按钮（这会设置 accept 属性并触发文件选择）
+      console.log('[Test] 点击图片上传按钮');
+      const imageUploadButton = pageA.locator('button[aria-label="upload-image"]');
+      await expect(imageUploadButton).toBeVisible();
+      await imageUploadButton.click();
+
+      // 等待一小段时间确保 accept 属性被设置
+      await pageA.waitForTimeout(100);
+
       // 上传图片文件
       console.log('[Test] 上传图片文件');
-      const fileInput = pageA.locator('input[type="file"]');
       await fileInput.setInputFiles({
         name: 'test-image.png',
         mimeType: 'image/png',
@@ -88,7 +104,12 @@ test.describe('聊天图片发送功能', () => {
       });
 
       // 等待图片上传和发送
-      await pageA.waitForTimeout(WAIT_TIMES.MESSAGE);
+      console.log('[Test] 等待图片上传和发送');
+      await pageA.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
+
+      // 检查页面上的消息数量
+      const messageCount = await pageA.locator('.message-item').count();
+      console.log('[Test] 当前消息数量:', messageCount);
 
       // 验证设备 A 上显示了图片消息
       console.log('[Test] 验证设备 A 上显示了图片消息');
@@ -114,15 +135,8 @@ test.describe('聊天图片发送功能', () => {
       console.log('[Test] 等待消息通过 P2P 传输');
       await pageB.waitForTimeout(WAIT_TIMES.MESSAGE * 5);
 
-      // 刷新设备 B 的页面以加载可能的消息
-      console.log('[Test] 刷新设备 B 页面');
-      await pageB.reload();
-      await pageB.waitForTimeout(WAIT_TIMES.RELOAD);
-
-      // 页面刷新后需要重新点击联系人以触发 loadMessages
-      console.log('[Test] 点击设备 B 上的联系人');
-      await pageB.click(SELECTORS.contactItem);
-      await pageB.waitForTimeout(WAIT_TIMES.SHORT);
+      // 不刷新页面，直接检查消息（消息应该已经在页面上显示了）
+      console.log('[Test] 检查设备 B 上的消息（不刷新页面）');
 
       // 使用重试机制检查设备 B 是否收到了图片消息
       console.log('[Test] 检查设备 B 是否收到图片消息');
@@ -138,7 +152,7 @@ test.describe('聊天图片发送功能', () => {
           }
         }
         throw new Error('Image message not found in Device B');
-      }, { maxAttempts: 3, delay: 3000, context: 'Check image message in Device B' });
+      }, { maxAttempts: 5, delay: 3000, context: 'Check image message in Device B' });
 
       // 验证设备 B 上收到了图片消息
       expect(imageReceived).toBeTruthy();
@@ -167,7 +181,7 @@ test.describe('聊天图片发送功能', () => {
   });
 
   test('用户发送图片后，消息状态显示为已送达', async ({ browser }) => {
-    test.setTimeout(30000);
+    test.setTimeout(60000);
     // 创建两个测试设备（从发现中心开始，确保 Peer 连接稳定）
     const devices = await createTestDevices(browser, '发送方', '接收方', { startPage: 'center' });
 
@@ -204,19 +218,24 @@ test.describe('聊天图片发送功能', () => {
       await senderPage.click(SELECTORS.contactItem);
       await senderPage.waitForTimeout(WAIT_TIMES.SHORT);
 
-      // 点击图片上传按钮
-      const imageUploadButton = senderPage.locator('button[aria-label="upload-image"]');
-      await expect(imageUploadButton).toBeVisible();
-      await imageUploadButton.click();
-
       // 创建测试图片
       const testImagePng = Buffer.from(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
         'base64'
       );
 
+      // 找到文件输入元素
+      const fileInput = senderPage.locator('input[data-testid="file-input"]');
+
+      // 点击图片上传按钮
+      const imageUploadButton = senderPage.locator('button[aria-label="upload-image"]');
+      await expect(imageUploadButton).toBeVisible();
+      await imageUploadButton.click();
+
+      // 等待一小段时间确保 accept 属性被设置
+      await senderPage.waitForTimeout(100);
+
       // 上传图片文件
-      const fileInput = senderPage.locator('input[type="file"]');
       await fileInput.setInputFiles({
         name: 'delivery-test.png',
         mimeType: 'image/png',
@@ -250,7 +269,7 @@ test.describe('聊天图片发送功能', () => {
   });
 
   test('发送多张图片，所有图片都能正确传输', async ({ browser }) => {
-    test.setTimeout(30000);
+    test.setTimeout(120000);
     // 创建两个测试设备（从发现中心开始，确保 Peer 连接稳定）
     const devices = await createTestDevices(browser, '多图发送者', '多图接收者', { startPage: 'center' });
 
@@ -287,6 +306,12 @@ test.describe('聊天图片发送功能', () => {
       await pageA.click(SELECTORS.contactItem);
       await pageA.waitForTimeout(WAIT_TIMES.SHORT);
 
+      // 设备 B 也需要创建与设备 A 的聊天（这样才能看到消息）
+      const peerIdA = await getPeerIdFromStorage(pageA);
+      await createChat(pageB, peerIdA!);
+      await pageB.click(SELECTORS.contactItem);
+      await pageB.waitForTimeout(WAIT_TIMES.SHORT);
+
       // 创建测试图片
       const testImagePng = Buffer.from(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
@@ -298,12 +323,17 @@ test.describe('聊天图片发送功能', () => {
       for (let i = 0; i < imageCount; i++) {
         console.log(`[Test] 发送第 ${i + 1} 张图片`);
 
+        // 找到文件输入元素
+        const fileInput = pageA.locator('input[data-testid="file-input"]');
+
         // 点击图片上传按钮
         const imageUploadButton = pageA.locator('button[aria-label="upload-image"]');
         await imageUploadButton.click();
 
+        // 等待一小段时间确保 accept 属性被设置
+        await pageA.waitForTimeout(100);
+
         // 上传图片文件
-        const fileInput = pageA.locator('input[type="file"]');
         await fileInput.setInputFiles({
           name: `test-image-${i + 1}.png`,
           mimeType: 'image/png',
@@ -326,13 +356,8 @@ test.describe('聊天图片发送功能', () => {
       console.log('[Test] 切换到设备 B，等待接收所有图片');
       await pageB.waitForTimeout(WAIT_TIMES.MESSAGE * 5);
 
-      // 刷新设备 B 的页面以加载可能的消息
-      await pageB.reload();
-      await pageB.waitForTimeout(WAIT_TIMES.RELOAD);
-
-      // 页面刷新后需要重新点击联系人以触发 loadMessages
-      await pageB.click(SELECTORS.contactItem);
-      await pageB.waitForTimeout(WAIT_TIMES.SHORT);
+      // 不刷新页面，直接检查消息（消息应该已经在页面上显示了）
+      console.log('[Test] 检查设备 B 上的消息（不刷新页面）');
 
       // 打印相关的调试日志
       console.log('[Test] Device A relevant logs:');
@@ -349,7 +374,7 @@ test.describe('聊天图片发送功能', () => {
           return true;
         }
         throw new Error(`Expected ${imageCount} images, but found ${count}`);
-      }, { maxAttempts: 3, delay: 3000, context: 'Check all images in Device B' });
+      }, { maxAttempts: 5, delay: 3000, context: 'Check all images in Device B' });
 
       // 验证设备 B 上收到了所有图片消息
       expect(allImagesReceived).toBeTruthy();

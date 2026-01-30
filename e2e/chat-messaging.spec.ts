@@ -301,10 +301,10 @@ test.describe('聊天消息发送与接收', () => {
       await okButton.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
-      // 验证警告消息 - 使用更精确的选择器
-      const warningMsg = page.locator('.ant-message-warning, .ant-message .anticon-exclamation-circle');
-      const warningCount = await warningMsg.count();
-      console.log('[Test] Warning message count:', warningCount);
+      // 验证内联警告消息 - 使用内联提示选择器
+      const inlineWarning = modal.locator('.inline-message-warning');
+      const warningCount = await inlineWarning.count();
+      console.log('[Test] Inline warning message count:', warningCount);
       expect(warningCount).toBeGreaterThan(0);
     });
 

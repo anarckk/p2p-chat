@@ -43,8 +43,9 @@ test.describe('刷新时检测离线设备上线', () => {
     const deviceBPeerId = 'offline-device-' + Date.now();
 
     // 手动添加一个离线设备到 localStorage
+    // 使用混合存储策略：元数据到 discovered_devices_meta
     await pageA.evaluate((peerId: string) => {
-      const devices = {
+      const metadata = {
         [peerId]: {
           peerId,
           username: peerId,
@@ -54,7 +55,8 @@ test.describe('刷新时检测离线设备上线', () => {
           isOnline: false,
         },
       };
-      localStorage.setItem('discovered_devices', JSON.stringify(devices));
+      // 存储元数据到 discovered_devices_meta（不包含头像）
+      localStorage.setItem('discovered_devices_meta', JSON.stringify(metadata));
     }, deviceBPeerId);
 
     // 刷新页面让设备列表加载
@@ -110,9 +112,10 @@ test.describe('刷新时检测离线设备上线', () => {
     console.log('[Test] 设备 B Peer ID:', peerIdB);
 
     // 设备 A：手动添加设备 B（使用临时用户名）
+    // 使用混合存储策略：元数据到 discovered_devices_meta
     await pageA.evaluate((peerId: string) => {
       const now = Date.now();
-      const devices = {
+      const metadata = {
         [peerId]: {
           peerId,
           username: peerId,
@@ -122,7 +125,7 @@ test.describe('刷新时检测离线设备上线', () => {
           isOnline: false,
         },
       };
-      localStorage.setItem('discovered_devices', JSON.stringify(devices));
+      localStorage.setItem('discovered_devices_meta', JSON.stringify(metadata));
     }, peerIdB);
 
     // 刷新页面让设备列表加载
@@ -208,9 +211,10 @@ test.describe('刷新时检测离线设备上线', () => {
 
     // 设备 A：添加真实设备 B 和一个假离线设备
     const fakeOfflineDevice = 'fake-offline-' + Date.now();
+    // 使用混合存储策略：元数据到 discovered_devices_meta
     await pageA.evaluate((data: { realPeerId: string; fakePeerId: string }) => {
       const now = Date.now();
-      const devices = {
+      const metadata = {
         [data.realPeerId]: {
           peerId: data.realPeerId,
           username: data.realPeerId,
@@ -228,7 +232,7 @@ test.describe('刷新时检测离线设备上线', () => {
           isOnline: false,
         },
       };
-      localStorage.setItem('discovered_devices', JSON.stringify(devices));
+      localStorage.setItem('discovered_devices_meta', JSON.stringify(metadata));
     }, { realPeerId: deviceBPeerId, fakePeerId: fakeOfflineDevice });
 
     // 刷新页面

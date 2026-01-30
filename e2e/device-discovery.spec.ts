@@ -187,10 +187,10 @@ test.describe('设备互相发现', () => {
 
     // 点击刷新按钮
     await page.locator('button[aria-label="refresh-discovery"]').click();
-    await page.waitForTimeout(WAIT_TIMES.SHORT);
+    await page.waitForTimeout(WAIT_TIMES.DISCOVERY);
 
-    // 验证显示成功消息（即使没有设备也应该显示消息）
-    const successMessage = page.locator('.ant-message-success');
+    // 验证显示内联成功消息（使用 inline-message 而不是 ant-message）
+    const successMessage = page.locator('.inline-message-success');
     const messageExists = await successMessage.count() > 0;
     expect(messageExists).toBe(true);
   });

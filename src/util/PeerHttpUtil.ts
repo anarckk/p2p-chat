@@ -991,7 +991,7 @@ export class PeerHttpUtil {
   /**
    * 发现中心：发送发现通知给对端
    */
-  async sendDiscoveryNotification(peerId: string, username: string, avatar: string | null) {
+  async sendDiscoveryNotification(peerId: string, username: string, avatar: string | null, profileVersion: number) {
     try {
       await this.sendProtocol(peerId, {
         type: 'discovery_notification',
@@ -1000,6 +1000,7 @@ export class PeerHttpUtil {
         timestamp: Date.now(),
         fromUsername: username,
         fromAvatar: avatar,
+        profileVersion,
       });
     } catch (err) {
       console.error('[PeerHttp] Failed to send discovery notification:', err);

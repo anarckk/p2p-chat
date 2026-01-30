@@ -45,40 +45,34 @@ const userInfoLoaded = ref(false);
 onMounted(async () => {
   // 确保从 localStorage 加载用户信息（异步）
   await userStore.loadUserInfo();
+  // 初始化表单
+  console.log('[SettingsView] userInfo.avatar:', userStore.userInfo.avatar);
+  // 加载用户信息
+  username.value = userStore.userInfo.username || '';
+  originalUsername.value = username.value;
+  avatarPreview.value = userStore.userInfo.avatar || null;
+  console.log('[SettingsView] avatarPreview set to:', avatarPreview.value);
+
+  console.log('[SettingsView] final avatarPreview:', avatarPreview.value, 'type:', typeof avatarPreview.value);
+
+  // 加载网络加速开关状态
+  networkAcceleration.value = userStore.loadNetworkAcceleration();
+  originalNetworkAcceleration.value = networkAcceleration.value;
+
+  // 同步 peerManager 的网络加速状态
+  setNetworkAccelerationEnabled(networkAcceleration.value);
+
+  // 加载网络数据日志记录开关状态
+  networkLogging.value = userStore.loadNetworkLogging();
+  originalNetworkLogging.value = networkLogging.value;
+
   userInfoLoaded.value = true;
 });
 
-// 监听用户信息加载完成后，初始化表单
+// 监听用户信息加载完成后，初始化表单（不再需要，因为已经在 onMounted 中直接初始化）
 watch(userInfoLoaded, (loaded) => {
   if (loaded) {
-    console.log('[SettingsView] userInfo.avatar:', userStore.userInfo.avatar);
-    // 加载用户信息
-    username.value = userStore.userInfo.username || '';
-    originalUsername.value = username.value;
-    avatarPreview.value = userStore.userInfo.avatar || undefined;
-    // 确保avatarPreview要么是有效字符串，要么是undefined（不是null）
-    if (avatarPreview.value === null) {
-      avatarPreview.value = undefined;
-    }
-    console.log('[SettingsView] avatarPreview set to:', avatarPreview.value);
-    
-    // 确保avatarPreview要么是有效字符串，要么是null/undefined
-    if (avatarPreview.value === null || avatarPreview.value === undefined) {
-      avatarPreview.value = null;
-    }
-    
-    console.log('[SettingsView] final avatarPreview:', avatarPreview.value, 'type:', typeof avatarPreview.value);
-    
-    // 加载网络加速开关状态
-    networkAcceleration.value = userStore.loadNetworkAcceleration();
-    originalNetworkAcceleration.value = networkAcceleration.value;
-
-    // 同步 peerManager 的网络加速状态
-    setNetworkAccelerationEnabled(networkAcceleration.value);
-
-    // 加载网络数据日志记录开关状态
-    networkLogging.value = userStore.loadNetworkLogging();
-    originalNetworkLogging.value = networkLogging.value;
+    console.log('[SettingsView] userInfoLoaded is true, form initialized');
   }
 });
 
@@ -144,15 +138,24 @@ async function handleSave() {
   isSaving.value = true;
 
   try {
+    const newUsername = username.value.trim();
+    const newAvatar = avatarPreview.value;
+
+    console.log('[Settings] Saving user info:', { newUsername, newAvatar, currentUsername: userStore.userInfo.username });
+
     // 检查用户名或头像是否有变更
-    const hasUsernameChange = username.value.trim() !== originalUsername.value;
-    const hasAvatarChange = avatarPreview.value !== userStore.userInfo.avatar;
+    const hasUsernameChange = newUsername !== originalUsername.value;
+    const hasAvatarChange = newAvatar !== userStore.userInfo.avatar;
+
+    console.log('[Settings] Changes detected:', { hasUsernameChange, hasAvatarChange });
 
     // 保存用户信息
-    userStore.saveUserInfo({
-      username: username.value.trim(),
-      avatar: avatarPreview.value,
+    await userStore.saveUserInfo({
+      username: newUsername,
+      avatar: newAvatar,
     });
+
+    console.log('[Settings] User info saved. Current userStore.userInfo.username:', userStore.userInfo.username);
 
     // 如果用户名或头像有变更，广播给所有在线设备
     if (hasUsernameChange || hasAvatarChange) {
@@ -310,6 +313,7 @@ function clearInlineMessage() {
               v-model:checked="networkAcceleration"
               checked-children="开启"
               un-checked-children="关闭"
+              aria-label="network-acceleration-switch"
             />
 
             <div class="status-info">
@@ -349,6 +353,7 @@ function clearInlineMessage() {
               v-model:checked="networkLogging"
               checked-children="开启"
               un-checked-children="关闭"
+              aria-label="network-logging-switch"
             />
 
             <div class="status-info">

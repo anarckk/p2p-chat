@@ -313,7 +313,7 @@ test.describe('宇宙启动者', () => {
         expect(hasDeviceA).toBe(true);
 
         // 等待设备A把设备B加入设备列表
-        await pageA.waitForTimeout(2000);
+        await pageA.waitForTimeout(3000);
 
         // 验证设备A的发现中心包含设备B
         const deviceCardsA = pageA.locator('.device-card');

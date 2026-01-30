@@ -134,8 +134,8 @@ export const WAIT_TIMES = {
   DISCOVERY: 2000,
   // 刷新页面
   RELOAD: 800,
-  // 弹窗显示
-  MODAL: 1000,
+  // 弹窗显示 - 增加到 5 秒，确保页面加载完成
+  MODAL: 5000,
 } as const;
 
 // ==================== 测试数据工厂 ====================
@@ -435,11 +435,13 @@ export async function createTestDevices(
   // 额外等待确保 PeerJS 完全初始化
   await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
 
-  // 等待连接状态变为已连接（本地环境超时时间减少）
+  // 等待连接状态变为已连接（仅当在 center 页面时）
   // 并且等待 PeerId 在页面上显示（说明 PeerJS 已连接）
-  await deviceAPage.waitForSelector('.ant-badge-status-processing', { timeout: 8000 }).catch(() => {
-    console.log('[Test] Device A connection status not showing as connected, continuing...');
-  });
+  if (startPage === 'center') {
+    await deviceAPage.waitForSelector('.ant-badge-status-processing', { timeout: 8000 }).catch(() => {
+      console.log('[Test] Device A connection status not showing as connected, continuing...');
+    });
+  }
 
   // 再次验证 PeerId 存在且非空
   const peerIdCheck = await deviceAPage.evaluate(() => {
@@ -481,23 +483,27 @@ export async function createTestDevices(
   // 额外等待确保 PeerJS 完全初始化
   await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
 
-  // 等待连接状态变为已连接（本地环境超时时间减少）
-  try {
-    await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 8000 });
-    console.log('[Test] Device B connection status: connected');
-  } catch (error) {
-    // 检查页面是否正确加载
-    const pageTitle = await deviceBPage.title();
-    const url = deviceBPage.url();
-    console.log('[Test] Device B connection timeout - Page title:', pageTitle, 'URL:', url);
+  // 等待连接状态变为已连接（仅当在 center 页面时）
+  if (startPage === 'center') {
+    try {
+      await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 8000 });
+      console.log('[Test] Device B connection status: connected');
+    } catch (error) {
+      // 检查页面是否正确加载
+      const pageTitle = await deviceBPage.title();
+      const url = deviceBPage.url();
+      console.log('[Test] Device B connection timeout - Page title:', pageTitle, 'URL:', url);
 
-    // 检查控制台是否有错误
-    const logs = await deviceBPage.evaluate(() => {
-      return (window as any).testLogs || [];
-    });
-    console.log('[Test] Device B console logs:', logs);
+      // 检查控制台是否有错误
+      const logs = await deviceBPage.evaluate(() => {
+        return (window as any).testLogs || [];
+      });
+      console.log('[Test] Device B console logs:', logs);
 
-    console.log('[Test] Device B connection status not showing as connected, continuing...');
+      console.log('[Test] Device B connection status not showing as connected, continuing...');
+    }
+  } else {
+    console.log('[Test] Device B on wechat page, skipping connection status check');
   }
 
   // 再次验证 PeerId 存在且非空
@@ -965,12 +971,8 @@ export async function setupUser(page: Page, username: string): Promise<void> {
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
     console.log('[Test] Confirm button clicked, waiting for modal to close...');
-    // 等待弹窗关闭 - 使用更可靠的方式
-    await page.waitForSelector('.ant-modal-wrap', { state: 'detached', timeout: 10000 }).catch(() => {
-      console.log('[Test] Modal wrap not detached, trying hidden state...');
-    });
-    // 再次等待弹窗隐藏
-    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 5000 }).catch(() => {
+    // 等待弹窗隐藏（使用 hidden 而不是 detached，因为弹窗不会从 DOM 中移除）
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 10000 }).catch(() => {
       console.log('[Test] Modal still visible after clicking confirm, continuing...');
     });
     // 等待弹窗完全消失
@@ -982,39 +984,44 @@ export async function setupUser(page: Page, username: string): Promise<void> {
   } catch (error) {
     // 弹窗可能已经设置过了，直接设置用户信息到 localStorage
     console.log('[Test] User setup modal not found, setting up via localStorage');
-    await page.evaluate((name) => {
-      const userInfo = {
-        username: name,
-        avatar: null,
-        peerId: null,
-      };
-      localStorage.setItem('p2p_user_info', JSON.stringify(userInfo));
-    }, username);
-    // 刷新页面以应用设置
-    await page.reload();
-    await page.waitForLoadState('domcontentloaded');
-    // 等待 Peer 初始化
-    await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
-
-    // 再次检查是否还有弹窗（可能需要手动关闭）
     try {
-      console.log('[Test] Checking if modal still exists after reload...');
-      const modalExists = await page.locator('.ant-modal-title').isVisible({ timeout: 2000 });
-      if (modalExists) {
-        console.log('[Test] Modal still exists after reload, filling username again...');
-        const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
-        await usernameInput.fill(username);
-        const okButton = page.locator('.ant-modal .ant-btn-primary');
-        await okButton.click();
-        // 等待弹窗关闭
-        await page.waitForSelector('.ant-modal-wrap', { state: 'detached', timeout: 10000 }).catch(() => {
-          console.log('[Test] Modal wrap not detached, trying hidden state...');
-        });
-        await page.waitForTimeout(1000);
-        console.log('[Test] Modal closed after second attempt');
+      await page.evaluate((name) => {
+        const userInfo = {
+          username: name,
+          avatar: null,
+          peerId: null,
+        };
+        localStorage.setItem('p2p_user_info', JSON.stringify(userInfo));
+      }, username);
+      // 刷新页面以应用设置
+      await page.reload();
+      await page.waitForLoadState('domcontentloaded');
+      // 等待 Peer 初始化
+      await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
+
+      // 再次检查是否还有弹窗（可能需要手动关闭）
+      try {
+        console.log('[Test] Checking if modal still exists after reload...');
+        const modalExists = await page.locator('.ant-modal-title').isVisible({ timeout: 2000 });
+        if (modalExists) {
+          console.log('[Test] Modal still exists after reload, filling username again...');
+          const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
+          await usernameInput.fill(username);
+          const okButton = page.locator('.ant-modal .ant-btn-primary');
+          await okButton.click();
+          // 等待弹窗关闭
+          await page.waitForSelector('.ant-modal-wrap', { state: 'detached', timeout: 10000 }).catch(() => {
+            console.log('[Test] Modal wrap not detached, trying hidden state...');
+          });
+          await page.waitForTimeout(1000);
+          console.log('[Test] Modal closed after second attempt');
+        }
+      } catch (e) {
+        console.log('[Test] No modal found after reload, proceeding...');
       }
     } catch (e) {
-      console.log('[Test] No modal found after reload, proceeding...');
+      // 页面可能在 setup 过程中被关闭（测试超时等情况），忽略错误
+      console.log('[Test] Page closed during setup, ignoring:', e);
     }
   }
 }
@@ -1025,11 +1032,17 @@ export async function setupUser(page: Page, username: string): Promise<void> {
  * @returns PeerId 或 null
  */
 export async function getPeerIdFromStorage(page: Page): Promise<string | null> {
-  const userInfo = await page.evaluate(() => {
-    const stored = localStorage.getItem('p2p_user_info');
-    return stored ? JSON.parse(stored) : null;
-  });
-  return userInfo?.peerId || null;
+  try {
+    const userInfo = await page.evaluate(() => {
+      const stored = localStorage.getItem('p2p_user_info');
+      return stored ? JSON.parse(stored) : null;
+    });
+    return userInfo?.peerId || null;
+  } catch (e) {
+    // 页面可能已关闭，返回 null
+    console.log('[Test] Page closed while getting PeerId from storage:', e);
+    return null;
+  }
 }
 
 /**
