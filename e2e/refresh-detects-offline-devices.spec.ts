@@ -137,8 +137,21 @@ test.describe('刷新时检测离线设备上线', () => {
     const deviceBCard = pageA.locator(SELECTORS.deviceCard).filter({ hasText: peerIdB });
     await expect(deviceBCard).toBeVisible({ timeout: 5000 });
 
-    const offlineTagBefore = deviceBCard.locator(SELECTORS.offlineTag);
-    await expect(offlineTagBefore).toBeVisible();
+    // 等待一段时间让状态稳定
+    await pageA.waitForTimeout(1000);
+
+    // 检查离线标签 - 使用更精确的选择器，查找包含"离线"文本的标签
+    const offlineTagBefore = deviceBCard.locator('.ant-tag').filter({ hasText: '离线' });
+    const offlineTagCount = await offlineTagBefore.count();
+    console.log('[Test] 离线标签数量:', offlineTagCount);
+
+    // 如果离线标签不存在，检查是否有在线标签
+    const onlineTagBefore = deviceBCard.locator('.ant-tag').filter({ hasText: '在线' });
+    const onlineTagCount = await onlineTagBefore.count();
+    console.log('[Test] 在线标签数量:', onlineTagCount);
+
+    // 设备 B 应该显示为离线（因为手动设置为 20 分钟前）
+    expect(offlineTagCount).toBeGreaterThan(0);
     console.log('[Test] ✓ 设备 B 初始显示为离线状态');
 
     // 点击刷新按钮

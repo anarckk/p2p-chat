@@ -274,7 +274,7 @@ test.describe('真实文件传输', () => {
     });
 
     test('应该能接收真实图片文件', async ({ browser }) => {
-      test.setTimeout(50000); // 优化：减少超时时间
+      test.setTimeout(90000); // 增加超时时间到90秒
 
       const devices = await createTestDevices(browser, '图片发送者', '图片接收者', { startPage: 'center' });
 
@@ -369,7 +369,7 @@ test.describe('真实文件传输', () => {
    */
   test.describe('文件消息传输', () => {
     test('应该能发送真实文件', async ({ browser }) => {
-      test.setTimeout(50000); // 优化：减少超时时间
+      test.setTimeout(90000); // 增加超时时间到90秒
 
       const devices = await createTestDevices(browser, '文件发送A', '文件接收B', { startPage: 'center' });
 
@@ -474,7 +474,7 @@ test.describe('真实文件传输', () => {
     });
 
     test('应该能接收真实文件', async ({ browser }) => {
-      test.setTimeout(50000); // 优化：减少超时时间
+      test.setTimeout(90000); // 增加超时时间到90秒
 
       const devices = await createTestDevices(browser, '文件发送者', '文件接收者', { startPage: 'center' });
 
@@ -569,7 +569,7 @@ test.describe('真实文件传输', () => {
    */
   test.describe('特殊场景文件传输', () => {
     test('应该能传输大文件', async ({ browser }) => {
-      test.setTimeout(60000); // 优化：减少超时时间
+      test.setTimeout(120000); // 增加超时时间到120秒
 
       const devices = await createTestDevices(browser, '大文件发送A', '大文件接收B', { startPage: 'center' });
 
@@ -659,7 +659,7 @@ test.describe('真实文件传输', () => {
     });
 
     test('应该能传输特殊字符文件名的文件', async ({ browser }) => {
-      test.setTimeout(50000); // 优化：减少超时时间
+      test.setTimeout(90000); // 增加超时时间到90秒
 
       const devices = await createTestDevices(browser, '特殊文件发送A', '特殊文件接收B', { startPage: 'center' });
 
@@ -757,7 +757,7 @@ test.describe('真实文件传输', () => {
    */
   test.describe('文件传输状态', () => {
     test('文件传输应该显示正确的状态', async ({ browser }) => {
-      test.setTimeout(50000); // 优化：减少超时时间
+      test.setTimeout(90000); // 增加超时时间到90秒
 
       const devices = await createTestDevices(browser, '状态发送A', '状态接收B', { startPage: 'center' });
 

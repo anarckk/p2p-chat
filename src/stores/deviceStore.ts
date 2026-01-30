@@ -46,20 +46,22 @@ export const useDeviceStore = defineStore('device', () => {
           avatars.map((a) => [a.peerId, a.avatar])
         );
 
-        // 合并数据
+        // 合并数据，同时更新在线状态
+        const now = Date.now();
         devices.value = new Map(
           deviceList.map((device) => [
             device.peerId,
             {
               ...device,
               avatar: avatarMap.get(device.peerId) || null,
+              isOnline: now - device.lastHeartbeat < OFFLINE_THRESHOLD,
             },
           ])
         );
 
         console.log(`[DeviceStore] Loaded ${devices.value.size} devices from storage (${avatarMap.size} avatars from IndexedDB)`);
         // 加载后更新设备的在线状态
-        updateOnlineStatus();
+        await updateOnlineStatus();
       }
     } catch (e) {
       console.error('[DeviceStore] Failed to load devices:', e);
