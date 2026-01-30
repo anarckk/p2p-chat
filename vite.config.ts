@@ -5,12 +5,34 @@ import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
+/**
+ * Vite 插件：在生产构建时自动注入 <base> 标签
+ * 用于修复 GitHub Pages 部署时动态导入模块路径解析问题
+ */
+function injectBaseTag() {
+  return {
+    name: 'inject-base-tag',
+    transformIndexHtml(html: string) {
+      // 通过 process.env.NODE_ENV 判断是否为生产环境
+      if (process.env.NODE_ENV === 'production') {
+        // 在 <head> 中插入 <base href="/p2p-chat/">
+        return html.replace(
+          /<head>/i,
+          '<head>\n    <base href="/p2p-chat/">'
+        );
+      }
+      return html;
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
       vueJsx(),
+      injectBaseTag(),
       // vueDevTools(),
     ],
     base: mode === 'production' ? '/p2p-chat/' : '/',
