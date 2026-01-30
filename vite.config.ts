@@ -5,54 +5,45 @@ import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
 
 /**
- * Vite 插件：在生产构建时自动注入 <base> 标签
+ * Vite 插件：在生产构建时注入修复脚本
  * 用于修复 GitHub Pages 部署时动态导入模块路径解析问题
  */
-function injectBaseTag() {
+function injectFixScript() {
   return {
-    name: 'inject-base-tag',
+    name: 'inject-fix-script',
     transformIndexHtml(html: string) {
       // 通过 process.env.NODE_ENV 判断是否为生产环境
-      if (process.env.NODE_ENV === 'production') {
-        // 在 <head> 中插入 <base href="/p2p-chat/">
-        return html.replace(
-          /<head>/i,
-          '<head>\n    <base href="/p2p-chat/">'
-        );
-      }
-      return html;
-    },
-  };
-}
-
-/**
- * Vite 插件：修复 __vite__mapDeps 中的路径解析问题
- * 将相对路径 "assets/xxx.js" 修正为 "./assets/xxx.js"
- * 确保浏览器正确解析动态导入模块的路径
- */
-function fixViteMapDepsPaths() {
-  return {
-    name: 'fix-vite-map-deps-paths',
-    renderChunk(code: string) {
-      // 只在生产环境处理
       if (process.env.NODE_ENV !== 'production') {
-        return null;
+        return html;
       }
-      // 修复 __vite__mapDeps 数组中的路径，添加 "./" 前缀
-      // Vite 生成的格式: __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/xxx.js",...])))
-      return code.replace(
-        /__vite__mapDeps=\(i,m=__vite__mapDeps,d=\(m\.f\|\|\(m\.f=\[([^\]]+)\]\)\)\)/,
-        (match, pathsArray) => {
-          // 在每个路径字符串前添加 "./"
-          const fixedPaths = pathsArray.replace(/"([^"]+)"/g, (_match: string, path: string) => {
-            // 如果路径不是以 "./" 或 "/" 开头，添加 "./"
-            if (!path.startsWith('./') && !path.startsWith('/')) {
-              return `"./${path}"`;
+      // 在 </head> 前注入 base 标签和修复脚本
+      const fixScript = `
+    <base href="/p2p-chat/">
+    <script>
+      // 修复 __vite__mapDeps 中的路径解析问题
+      // 使用拦截器在 __vite__mapDeps 被设置时自动修复路径
+      (function() {
+        const originalDeps = { f: [] };
+        Object.defineProperty(window, '__vite__mapDeps', {
+          configurable: true,
+          get: function() { return originalDeps; },
+          set: function(value) {
+            if (value && value.f) {
+              originalDeps.f = value.f.map(path => {
+                if (typeof path === 'string' && path.startsWith('assets/')) {
+                  return './' + path;
+                }
+                return path;
+              });
             }
-            return `"${path}"`;
-          });
-          return `__vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=[${fixedPaths}])))`;
-        }
+          }
+        });
+      })();
+    </script>
+`;
+      return html.replace(
+        /<\/head>/i,
+        fixScript + '\n  </head>'
       );
     },
   };
@@ -64,8 +55,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       vueJsx(),
-      injectBaseTag(),
-      fixViteMapDepsPaths(),
+      injectFixScript(),
     ],
     base: mode === 'production' ? '/p2p-chat/' : '/',
     resolve: {
