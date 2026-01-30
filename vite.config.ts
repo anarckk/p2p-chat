@@ -22,33 +22,30 @@ function injectFixScript() {
     <script>
       // 修复 __vite__mapDeps 中的路径解析问题（必须在主脚本加载前执行）
       (function() {
-        // 存储 __vite__mapDeps 函数
-        let viteMapDepsFunc = null;
-        // 拦截 __vite__mapDeps 的赋值
-        Object.defineProperty(window, '__vite__mapDeps', {
-          configurable: true,
-          get: function() {
-            return viteMapDepsFunc;
-          },
-          set: function(value) {
-            viteMapDepsFunc = value;
-            // 同时拦截 value.f 的赋值
-            if (value && typeof value === 'function') {
-              Object.defineProperty(value, 'f', {
-                configurable: true,
-                get: function() { return this._f || []; },
-                set: function(paths) {
-                  this._f = paths.map(path => {
-                    if (typeof path === 'string' && path.startsWith('assets/')) {
-                      return './' + path;
-                    }
-                    return path;
-                  });
-                }
-              });
-            }
+        const originalDeps = window.__vite__mapDeps;
+        window.__vite__mapDeps = function(i, m, d) {
+          const result = originalDeps ? originalDeps(i, m, d) : { f: [] };
+          // 修复 result.f 中的路径
+          if (result && result.f) {
+            result.f = result.f.map(path => {
+              if (typeof path === 'string' && path.startsWith('assets/')) {
+                return './' + path;
+              }
+              return path;
+            });
           }
-        });
+          return result;
+        };
+        // 复制原始函数的其他属性（如果有的话）
+        if (originalDeps) {
+          Object.getOwnPropertyNames(originalDeps).forEach(key => {
+            if (key !== 'length' && key !== 'name' && key !== 'prototype') {
+              try {
+                window.__vite__mapDeps[key] = originalDeps[key];
+              } catch (e) {}
+            }
+          });
+        }
       })();
     </script>
 `;
