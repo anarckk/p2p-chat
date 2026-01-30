@@ -5,32 +5,38 @@ import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
 
 /**
- * Vite 插件：在生产构建时注入修复脚本
- * 通过 fetch 获取主脚本，修复 __vite__mapDeps 路径后执行
+ * Vite 插件：修复 GitHub Pages 部署时 __vite__mapDeps 路径问题
+ * 通过注入运行时修复脚本来解决相对路径解析问题
  */
-function injectFixScript(): Plugin {
+function fixViteMapDepsPlugin(): Plugin {
   return {
-    name: 'inject-fix-script',
-    transformIndexHtml(html: string) {
-      if (process.env.NODE_ENV !== 'production') {
-        return html;
-      }
-      // 移除原来的主脚本标签，我们会动态加载
-      html = html.replace(
-        /<script type="module" crossorigin src="\/p2p-chat\/assets\/index-tfmkhWZT\.js"><\/script>/,
-        ''
-      );
-      // 注入修复脚本和 base 标签
-      const fixScript = `
-    <base href="/p2p-chat/">
+    name: 'fix-vite-map-deps',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        // 只在生产环境应用修复
+        if (process.env.NODE_ENV !== 'production') {
+          return html;
+        }
+
+        // 查找主入口 JS 文件名（通过查找 <script type="module"> 标签）
+        const scriptMatch = html.match(/<script type="module" crossorigin src="\/p2p-chat\/assets\/([^"]+\.js)">/);
+        if (!scriptMatch) {
+          return html;
+        }
+
+        const mainScriptName = scriptMatch[1];
+
+        // 注入修复脚本：替换 __vite__mapDeps 中的路径后动态执行主脚本
+        const fixScript = `
     <script>
       // 修复 __vite__mapDeps 并动态加载主脚本
       (function() {
-        fetch('/p2p-chat/assets/index-tfmkhWZT.js')
+        fetch('/p2p-chat/assets/${mainScriptName}')
           .then(r => r.text())
           .then(code => {
             // 修复 __vite__mapDeps 中的路径
-            code = code.replace(/"assets\//g, '"./assets/');
+            code = code.replace(/"assets\\//g, '"./assets/');
             // 执行修复后的代码
             const script = document.createElement('script');
             script.type = 'module';
@@ -42,10 +48,12 @@ function injectFixScript(): Plugin {
       })();
     </script>
 `;
-      return html.replace(
-        /<head>/i,
-        '<head>' + fixScript
-      );
+
+        // 移除原始的 script 标签
+        const fixedHtml = html.replace(/<script type="module" crossorigin src="\/p2p-chat\/assets\/[^"]+\.js"><\/script>\n/, fixScript);
+
+        return fixedHtml;
+      },
     },
   };
 }
@@ -56,7 +64,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       vueJsx(),
-      injectFixScript(),
+      fixViteMapDepsPlugin(),
     ],
     base: mode === 'production' ? '/p2p-chat/' : '/',
     resolve: {
