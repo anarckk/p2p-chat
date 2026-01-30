@@ -9,6 +9,7 @@ import vueJsx from '@vitejs/plugin-vue-jsx'
 /**
  * Vite 插件：修复 GitHub Pages 部署时 __vite__mapDeps 路径问题
  * 通过 closeBundle 钩子在构建完成后修改文件
+ * 修复 __vite__mapDeps 数组和动态 import 语句中的相对路径
  */
 function fixViteMapDepsPlugin(): Plugin {
   return {
@@ -29,22 +30,27 @@ function fixViteMapDepsPlugin(): Plugin {
 
         for (const fileName of jsFiles) {
           const filePath = resolve(assetsDir, fileName);
-          const content = readFileSync(filePath, 'utf-8');
+          let content = readFileSync(filePath, 'utf-8');
 
-          // 检查是否包含 __vite__mapDeps
+          // 修复 __vite__mapDeps 数组中的路径
           if (content.includes('__vite__mapDeps')) {
             console.log(`[fixViteMapDeps] Processing: ${fileName}`);
 
             // 修复 __vite__mapDeps 数组中的路径
-            // 将 "assets/ 替换为 "./assets/
-            const fixed = content.replace(/"assets\//g, '"./assets/');
+            // 将 "assets/ 替换为 "/p2p-chat/assets/
+            content = content.replace(/"assets\//g, '"/p2p-chat/assets/');
+
+            // 修复动态 import 语句中的相对路径
+            // 将 import("./File.js") 替换为 import("/p2p-chat/assets/File.js")
+            content = content.replace(/import\("\.\/([^"]+\.js)"/g, 'import("/p2p-chat/assets/$1"');
+            // 修复 from 语句中的相对路径
+            content = content.replace(/from"\.\/([^"]+\.js)"/g, 'from"/p2p-chat/assets/$1"');
 
             const matchCount = (content.match(/"assets\//g) || []).length;
-            const fixedCount = (fixed.match(/"\.\/assets\//g) || []).length;
-            console.log(`[fixViteMapDeps] Fixed ${matchCount} paths, result: ${fixedCount} paths`);
+            console.log(`[fixViteMapDeps] Fixed ${matchCount} paths`);
 
             // 写入修复后的文件
-            writeFileSync(filePath, fixed, 'utf-8');
+            writeFileSync(filePath, content, 'utf-8');
             console.log(`[fixViteMapDeps] Updated: ${fileName}`);
           }
         }
