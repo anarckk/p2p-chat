@@ -230,7 +230,7 @@ test.describe('网络加速功能', () => {
    */
   test.describe('网络加速消息中转', () => {
     test('设备A通过设备B中转发送消息给设备C', async ({ browser }) => {
-      test.setTimeout(180000); // 增加超时时间
+      test.setTimeout(60000); // 优化：减少超时时间
 
       const devices = await createThreeTestDevices(
         browser,
@@ -308,7 +308,7 @@ test.describe('网络加速功能', () => {
     });
 
     test('关闭网络加速后不应该中转消息', async ({ browser }) => {
-      test.setTimeout(180000);
+      test.setTimeout(60000); // 优化：减少超时时间
 
       const devices = await createThreeTestDevices(
         browser,

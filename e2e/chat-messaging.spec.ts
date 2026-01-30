@@ -35,7 +35,7 @@ test.describe('聊天消息发送与接收', () => {
    */
   test.describe('多设备消息发送', () => {
     test('设备 A 向设备 B 发送文本消息，设备 B 能正常接收', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间
+      test.setTimeout(45000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '发送者A', '接收者B', { startPage: 'center' });
 
       console.log('[Test] Device A UserInfo:', devices.deviceA.userInfo);
@@ -123,7 +123,7 @@ test.describe('聊天消息发送与接收', () => {
     });
 
     test('被动添加聊天：对端主动发起通信时自动加入列表', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间
+      test.setTimeout(45000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '主动发起者', '被动接收者', { startPage: 'center' });
 
       try {

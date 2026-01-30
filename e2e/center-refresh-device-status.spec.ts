@@ -309,7 +309,7 @@ test.describe('发现中心刷新设备状态显示', () => {
   });
 
   test('刷新耗时能够反映网络状态差异', async ({ browser }) => {
-    test.setTimeout(120000); // 增加超时时间到 2 分钟
+    test.setTimeout(50000); // 优化：减少超时时间
     console.log('[Test] 开始测试：刷新耗时能够反映网络状态差异');
 
     // 创建两个设备

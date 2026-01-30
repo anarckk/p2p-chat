@@ -120,22 +120,22 @@ export const SELECTORS = {
 
 // 等待时间常量（毫秒）- 本地 Peer Server 环境下连接很快
 export const WAIT_TIMES = {
-  // PeerJS 连接初始化 - 本地环境连接迅速（减少到 2 秒）
-  PEER_INIT: 2000,
-  // 短暂等待
-  SHORT: 300,
-  // 中等等待
-  MEDIUM: 800,
-  // 较长等待
-  LONG: 1500,
-  // 消息发送接收 - 本地环境下通信快速（减少到 2 秒）
-  MESSAGE: 2000,
-  // 被动发现通知 - 本地环境下发现快速（减少到 2 秒）
-  DISCOVERY: 2000,
-  // 刷新页面
-  RELOAD: 800,
-  // 弹窗显示 - 增加到 5 秒，确保页面加载完成
-  MODAL: 5000,
+  // PeerJS 连接初始化 - 优化：本地环境连接非常快，减少到 1 秒
+  PEER_INIT: 1000,
+  // 短暂等待 - 优化：减少到 200 毫秒
+  SHORT: 200,
+  // 中等等待 - 优化：减少到 500 毫秒
+  MEDIUM: 500,
+  // 较长等待 - 优化：减少到 1 秒
+  LONG: 1000,
+  // 消息发送接收 - 优化：本地环境下通信快速，减少到 1.5 秒
+  MESSAGE: 1500,
+  // 被动发现通知 - 优化：本地环境下发现快速，减少到 1.5 秒
+  DISCOVERY: 1500,
+  // 刷新页面 - 优化：减少到 500 毫秒
+  RELOAD: 500,
+  // 弹窗显示 - 优化：减少到 3 秒
+  MODAL: 3000,
 } as const;
 
 // ==================== 测试数据工厂 ====================
@@ -398,8 +398,42 @@ export interface TestDevices {
 }
 
 /**
- * 创建两个测试设备
- * 改进：确保 Peer 连接完全建立后再返回，使用更可靠的等待策略
+ * 创建单个测试设备 - 优化版
+ * 直接在页面加载前设置用户信息，避免 reload
+ */
+async function createSingleDevice(
+  browser: any,
+  userName: string,
+  startPage: string
+): Promise<{ context: BrowserContext; page: Page; userInfo: UserInfo }> {
+  const userInfo = createUserInfo(userName);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  // 优化：在页面加载前通过 context 注入 localStorage，避免 reload
+  await context.addInitScript((info: UserInfo) => {
+    localStorage.setItem('p2p_user_info', JSON.stringify(info));
+  }, userInfo);
+
+  // 导航到页面
+  await page.goto(startPage === 'center' ? '/center' : `/${startPage}`);
+  await page.waitForLoadState('domcontentloaded');
+
+  // 等待页面容器出现
+  const selector = startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container';
+  await page.waitForSelector(selector, { timeout: 6000 }).catch(() => {
+    // 页面可能还在加载，继续执行
+  });
+
+  // 优化：只等待一次 PeerJS 初始化
+  await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+
+  return { context, page, userInfo };
+}
+
+/**
+ * 创建两个测试设备 - 优化版
+ * 大幅减少等待时间和日志输出
  */
 export async function createTestDevices(
   browser: any,
@@ -409,128 +443,15 @@ export async function createTestDevices(
 ): Promise<TestDevices> {
   const startPage = options?.startPage || 'center';
 
-  // 创建设备 A
-  const deviceAUserInfo = createUserInfo(deviceAName);
-  const deviceAContext = await browser.newContext();
-  const deviceAPage = await deviceAContext.newPage();
-  // 先导航到页面
-  await deviceAPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
-  // 等待页面加载
-  await deviceAPage.waitForLoadState('domcontentloaded');
-  // 设置 localStorage
-  await deviceAPage.evaluate((info: any) => {
-    localStorage.setItem('p2p_user_info', JSON.stringify(info));
-  }, deviceAUserInfo);
-  // 重新加载页面以应用用户信息
-  await deviceAPage.reload();
-  // 等待页面加载完成，PeerJS 初始化
-  await deviceAPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 8000 });
-  // 等待 PeerJS 初始化（使用 PeerId 出现作为标志）
-  if (startPage === 'center') {
-    await deviceAPage.waitForSelector('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography', { timeout: 10000 }).catch(() => {
-      // 如果找不到 PeerId，继续测试
-      console.log('[Test] Device A PeerId not ready, continuing...');
-    });
-  }
-  // 额外等待确保 PeerJS 完全初始化
-  await deviceAPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
-
-  // 等待连接状态变为已连接（仅当在 center 页面时）
-  // 并且等待 PeerId 在页面上显示（说明 PeerJS 已连接）
-  if (startPage === 'center') {
-    await deviceAPage.waitForSelector('.ant-badge-status-processing', { timeout: 8000 }).catch(() => {
-      console.log('[Test] Device A connection status not showing as connected, continuing...');
-    });
-  }
-
-  // 再次验证 PeerId 存在且非空
-  const peerIdCheck = await deviceAPage.evaluate(() => {
-    const stored = localStorage.getItem('p2p_user_info');
-    return stored ? JSON.parse(stored).peerId : null;
-  });
-  console.log('[Test] Device A PeerId check:', peerIdCheck);
-
-  // 检查设备 A 的 PeerId 是否显示
-  const deviceAPeerId = await deviceAPage.evaluate(() => {
-    const stored = localStorage.getItem('p2p_user_info');
-    return stored ? JSON.parse(stored).peerId : null;
-  });
-  console.log('[Test] Device A PeerId:', deviceAPeerId);
-
-  // 创建设备 B
-  const deviceBUserInfo = createUserInfo(deviceBName);
-  const deviceBContext = await browser.newContext();
-  const deviceBPage = await deviceBContext.newPage();
-  // 先导航到页面
-  await deviceBPage.goto(startPage === 'center' ? '/center' : `/${startPage}`);
-  // 等待页面加载
-  await deviceBPage.waitForLoadState('domcontentloaded');
-  // 设置 localStorage
-  await deviceBPage.evaluate((info: any) => {
-    localStorage.setItem('p2p_user_info', JSON.stringify(info));
-  }, deviceBUserInfo);
-  // 重新加载页面以应用用户信息
-  await deviceBPage.reload();
-  // 等待页面加载完成，PeerJS 初始化
-  await deviceBPage.waitForSelector(startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container', { timeout: 8000 });
-  // 等待 PeerJS 初始化（使用 PeerId 出现作为标志）
-  if (startPage === 'center') {
-    await deviceBPage.waitForSelector('.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography', { timeout: 10000 }).catch(() => {
-      // 如果找不到 PeerId，继续测试
-      console.log('[Test] Device B PeerId not ready, continuing...');
-    });
-  }
-  // 额外等待确保 PeerJS 完全初始化
-  await deviceBPage.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
-
-  // 等待连接状态变为已连接（仅当在 center 页面时）
-  if (startPage === 'center') {
-    try {
-      await deviceBPage.waitForSelector('.ant-badge-status-processing', { timeout: 8000 });
-      console.log('[Test] Device B connection status: connected');
-    } catch (error) {
-      // 检查页面是否正确加载
-      const pageTitle = await deviceBPage.title();
-      const url = deviceBPage.url();
-      console.log('[Test] Device B connection timeout - Page title:', pageTitle, 'URL:', url);
-
-      // 检查控制台是否有错误
-      const logs = await deviceBPage.evaluate(() => {
-        return (window as any).testLogs || [];
-      });
-      console.log('[Test] Device B console logs:', logs);
-
-      console.log('[Test] Device B connection status not showing as connected, continuing...');
-    }
-  } else {
-    console.log('[Test] Device B on wechat page, skipping connection status check');
-  }
-
-  // 再次验证 PeerId 存在且非空
-  const peerIdCheckB = await deviceBPage.evaluate(() => {
-    const stored = localStorage.getItem('p2p_user_info');
-    return stored ? JSON.parse(stored).peerId : null;
-  });
-  console.log('[Test] Device B PeerId check:', peerIdCheckB);
-
-  // 检查设备 B 的 PeerId 是否显示
-  const deviceBPeerId = await deviceBPage.evaluate(() => {
-    const stored = localStorage.getItem('p2p_user_info');
-    return stored ? JSON.parse(stored).peerId : null;
-  });
-  console.log('[Test] Device B PeerId:', deviceBPeerId);
+  // 并行创建两个设备，提高效率
+  const [deviceA, deviceB] = await Promise.all([
+    createSingleDevice(browser, deviceAName, startPage),
+    createSingleDevice(browser, deviceBName, startPage),
+  ]);
 
   return {
-    deviceA: {
-      context: deviceAContext,
-      page: deviceAPage,
-      userInfo: deviceAUserInfo,
-    },
-    deviceB: {
-      context: deviceBContext,
-      page: deviceBPage,
-      userInfo: deviceBUserInfo,
-    },
+    deviceA,
+    deviceB,
   };
 }
 

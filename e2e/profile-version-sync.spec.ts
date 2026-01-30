@@ -31,7 +31,7 @@ test.describe('个人信息版本同步', () => {
    */
   test.describe('用户名同步', () => {
     test('设备A修改用户名后，设备B应该通过心跳检查自动更新显示', async ({ browser }) => {
-      test.setTimeout(180000); // 增加超时时间以等待心跳检查
+      test.setTimeout(60000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '原始用户A', '观察者B', { startPage: 'center' });
 
       try {
@@ -126,7 +126,7 @@ test.describe('个人信息版本同步', () => {
     });
 
     test('被动发现时应该检查并同步个人信息版本', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '被动发现A', '被动发现B', { startPage: 'center' });
 
       try {
@@ -217,7 +217,7 @@ test.describe('个人信息版本同步', () => {
    */
   test.describe('头像同步', () => {
     test('设备A修改头像后，设备B应该通过心跳检查自动更新显示', async ({ browser }) => {
-      test.setTimeout(180000);
+      test.setTimeout(60000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '头像测试A', '头像观察者B', { startPage: 'center' });
 
       try {
@@ -338,7 +338,7 @@ test.describe('个人信息版本同步', () => {
     });
 
     test('心跳检查应该发送个人信息版本号', async ({ browser }) => {
-      test.setTimeout(90000);
+      test.setTimeout(45000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '心跳版本A', '心跳版本B', { startPage: 'center' });
 
       try {
@@ -395,7 +395,7 @@ test.describe('个人信息版本同步', () => {
    */
   test.describe('定时心跳检查', () => {
     test('定时心跳检查应该自动同步个人信息', async ({ browser }) => {
-      test.setTimeout(180000); // 需要等待定时器触发
+      test.setTimeout(60000); // 优化：减少超时时间 // 需要等待定时器触发
       const devices = await createTestDevices(browser, '定时同步A', '定时同步B', { startPage: 'center' });
 
       try {

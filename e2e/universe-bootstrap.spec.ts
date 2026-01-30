@@ -23,7 +23,7 @@ import {
  * 3. 验证固定 ID 相关的控制台日志
  */
 test.describe('宇宙启动者', () => {
-  test.setTimeout(120000);
+  test.setTimeout(50000); // 优化：减少超时时间
 
   test('第一个设备应该尝试使用固定 ID 成为启动者', async ({ page }) => {
     await page.goto('/center');

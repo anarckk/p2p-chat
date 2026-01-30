@@ -269,7 +269,7 @@ test.describe('聊天图片发送功能', () => {
   });
 
   test('发送多张图片，所有图片都能正确传输', async ({ browser }) => {
-    test.setTimeout(120000);
+    test.setTimeout(50000); // 优化：减少超时时间
     // 创建两个测试设备（从发现中心开始，确保 Peer 连接稳定）
     const devices = await createTestDevices(browser, '多图发送者', '多图接收者', { startPage: 'center' });
 

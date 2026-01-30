@@ -165,7 +165,7 @@ test.describe('错误处理', () => {
    */
   test.describe('聊天错误处理', () => {
     test('向不存在的设备发送消息应该显示错误状态', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
 
       const deviceA = await createTestDevices(browser, '发送者A', '不存在的设备B', { startPage: 'wechat' });
 
@@ -216,7 +216,7 @@ test.describe('错误处理', () => {
     });
 
     test('快速连续发送应该不会导致状态错误', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '快速发送A', '快速接收B', { startPage: 'wechat' });
 
@@ -279,7 +279,7 @@ test.describe('错误处理', () => {
    */
   test.describe('网络异常处理', () => {
     test('网络断开时发送消息应该显示错误状态', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '网络异常A', '网络异常B', { startPage: 'wechat' });
 
@@ -344,7 +344,7 @@ test.describe('错误处理', () => {
     });
 
     test('网络频繁切换应该不会导致状态混乱', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '网络切换A', '网络切换B', { startPage: 'wechat' });
 

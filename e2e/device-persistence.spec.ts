@@ -300,7 +300,7 @@ test.describe('设备持久化功能', () => {
   test.describe('被动发现持久化', () => {
     test('被动发现的设备应该保存到 localStorage', async ({ browser }) => {
       // 增加超时时间以适应 P2P 连接建立和被动发现
-      test.setTimeout(90000);
+      test.setTimeout(45000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '主动发现者', '被动被发现者', { startPage: 'center' });
 
       try {

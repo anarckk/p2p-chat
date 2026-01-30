@@ -33,7 +33,7 @@ test.describe('边界条件测试', () => {
    */
   test.describe('网络断开重连', () => {
     test('网络断开后应该能自动重连', async ({ browser }) => {
-      test.setTimeout(180000);
+      test.setTimeout(60000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '重连测试A', '重连测试B', { startPage: 'wechat' });
 
@@ -100,7 +100,7 @@ test.describe('边界条件测试', () => {
     });
 
     test('频繁网络切换应该不影响消息传输', async ({ browser }) => {
-      test.setTimeout(180000);
+      test.setTimeout(60000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '网络切换A', '网络切换B', { startPage: 'wechat' });
 
@@ -158,7 +158,7 @@ test.describe('边界条件测试', () => {
    */
   test.describe('大量消息', () => {
     test('应该能发送和接收大量消息', async ({ browser }) => {
-      test.setTimeout(240000); // 增加超时时间
+      test.setTimeout(60000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '大量消息A', '大量消息B', { startPage: 'wechat' });
 
@@ -230,7 +230,7 @@ test.describe('边界条件测试', () => {
     });
 
     test('大量消息后应该能继续正常发送', async ({ browser }) => {
-      test.setTimeout(240000);
+      test.setTimeout(60000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '后续发送A', '后续发送B', { startPage: 'wechat' });
 
@@ -294,7 +294,7 @@ test.describe('边界条件测试', () => {
    */
   test.describe('特殊字符和长文本', () => {
     test('应该能发送包含特殊字符的消息', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '特殊字符A', '特殊字符B', { startPage: 'wechat' });
 
@@ -358,7 +358,7 @@ test.describe('边界条件测试', () => {
     });
 
     test('应该能发送超长文本消息', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '长文本A', '长文本B', { startPage: 'wechat' });
 
@@ -412,7 +412,7 @@ test.describe('边界条件测试', () => {
    */
   test.describe('快速连续发送', () => {
     test('快速连续发送多条消息应该都能送达', async ({ browser }) => {
-      test.setTimeout(180000);
+      test.setTimeout(60000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '快速发送A', '快速接收B', { startPage: 'wechat' });
 
@@ -476,7 +476,7 @@ test.describe('边界条件测试', () => {
    */
   test.describe('极端用户名长度', () => {
     test('最大长度用户名应该能正常工作', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
 
       // 创建20字符的用户名（最大长度）
       const maxUsername = '最大长度用户名123456';
@@ -510,7 +510,7 @@ test.describe('边界条件测试', () => {
     });
 
     test('最小长度用户名应该能正常工作', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
 
       // 创建1字符的用户名（最小长度）
       const minUsername = 'A';
@@ -551,7 +551,7 @@ test.describe('边界条件测试', () => {
    */
   test.describe('并发操作', () => {
     test('同时进行多项操作应该不会崩溃', async ({ browser }) => {
-      test.setTimeout(180000);
+      test.setTimeout(60000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '并发操作A', '并发操作B', { startPage: 'wechat' });
 
@@ -622,7 +622,7 @@ test.describe('边界条件测试', () => {
    */
   test.describe('空消息和空白字符', () => {
     test('纯空格消息应该被过滤不发送', async ({ browser }) => {
-      test.setTimeout(120000);
+      test.setTimeout(50000); // 优化：减少超时时间
 
       const devices = await createTestDevices(browser, '空格消息A', '空格消息B', { startPage: 'wechat' });
 

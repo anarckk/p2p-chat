@@ -180,7 +180,7 @@ test.describe('消息状态展示与送达确认', () => {
    */
   test.describe('多设备消息送达', () => {
     test('失败的消息应该自动重试', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间
+      test.setTimeout(45000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '重试测试A', '重试测试B', { startPage: 'center' });
 
       try {
@@ -250,7 +250,7 @@ test.describe('消息状态展示与送达确认', () => {
     });
 
     test('离线设备上线后应该能接收消息', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间
+      test.setTimeout(45000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '在线方A', '离线方B', { startPage: 'center' });
 
       try {

@@ -145,7 +145,7 @@ test.describe('聊天中标识', () => {
    */
   test.describe('多设备标识显示', () => {
     test('创建聊天后应该自动在发现中心显示"聊天中"标识', async ({ browser }) => {
-      test.setTimeout(90000);
+      test.setTimeout(45000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '标识测试A', '标识测试B', { startPage: 'center' });
 
       try {
@@ -391,7 +391,7 @@ test.describe('聊天中标识', () => {
    */
   test.describe('设备可见性', () => {
     test('已在聊天列表的设备也应该在发现中心显示', async ({ browser }) => {
-      test.setTimeout(90000);
+      test.setTimeout(45000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '可见性测试A', '可见性测试B', { startPage: 'center' });
 
       try {

@@ -16,7 +16,7 @@ import {
 } from './test-helpers.js';
 
 test.describe('设备互相发现递归机制', () => {
-  test.setTimeout(90000);
+  test.setTimeout(45000); // 优化：减少超时时间
 
   test('被动发现后应该自动触发设备列表请求', async ({ page, context }) => {
     const browser = context.browser();
@@ -355,7 +355,7 @@ test.describe('设备互相发现递归机制', () => {
   });
 
   test('所有设备最终应该被完整发现', async ({ page, context }) => {
-    test.setTimeout(120000); // 增加到 2 分钟
+    test.setTimeout(50000); // 优化：减少超时时间
     const browser = context.browser();
     if (!browser) {
       test.skip();

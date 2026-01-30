@@ -39,7 +39,7 @@ test.describe('五段式消息传递协议', () => {
    */
   test.describe('多设备协议通信', () => {
     test('应该使用五段式协议发送消息', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间
+      test.setTimeout(45000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '发送方', '接收方', { startPage: 'center' });
 
       try {
@@ -108,7 +108,7 @@ test.describe('五段式消息传递协议', () => {
     });
 
     test('第一段通知应该持续重发直到收到响应', async ({ browser }) => {
-      test.setTimeout(120000); // 增加超时时间到 2 分钟
+      test.setTimeout(50000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '重试发送方', '重试接收方', { startPage: 'wechat' });
 
       try {
@@ -173,7 +173,7 @@ test.describe('五段式消息传递协议', () => {
     });
 
     test('应该正确处理网络波动导致的消息丢失', async ({ browser }) => {
-      test.setTimeout(120000); // 增加超时时间
+      test.setTimeout(50000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '波动测试A', '波动测试B', { startPage: 'wechat' });
 
       try {
@@ -569,7 +569,7 @@ test.describe('五段式消息传递协议', () => {
    */
   test.describe('文件消息上传', () => {
     test('应该支持大文件消息的五段式传输', async ({ browser }) => {
-      test.setTimeout(120000); // 增加超时时间到 2 分钟
+      test.setTimeout(50000); // 优化：减少超时时间
       const devices = await createTestDevices(browser, '文件发送方', '文件接收方', { startPage: 'wechat' });
 
       try {

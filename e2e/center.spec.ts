@@ -61,7 +61,7 @@ test.describe('发现中心页面 - 基础 UI', () => {
  */
 test.describe('P2P 发现功能 - 多设备测试', () => {
   test('设备 A 添加设备 B 时，设备 B 应该在设备 A 的发现列表中', async ({ browser }) => {
-    test.setTimeout(120000); // 增加到 2 分钟
+    test.setTimeout(50000); // 优化：减少超时时间
     const devices = await createTestDevices(browser, '设备A', '设备B', { startPage: 'center' });
 
     try {
@@ -107,7 +107,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
 
   test('被动发现：设备 A 添加设备 B 时，设备 A 应该出现在设备 B 的发现列表中', async ({ browser }) => {
     // 增加超时时间，给予足够时间完成 P2P 通信
-    test.setTimeout(180000); // 增加到 3 分钟
+    test.setTimeout(60000); // 优化：减少超时时间
 
     const devices = await createTestDevices(browser, '发现者A', '被发现的B', { startPage: 'center' });
 
@@ -279,7 +279,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
  */
 test.describe('设备用户名显示', () => {
   test('添加设备后应该显示对端的用户名', async ({ browser }) => {
-    test.setTimeout(90000);
+    test.setTimeout(45000); // 优化：减少超时时间
     const devices = await createTestDevices(browser, '查看用户名A', '被查看用户名B', { startPage: 'center' });
 
     try {
@@ -392,7 +392,7 @@ test.describe('设备用户名显示', () => {
   });
 
   test('设备卡片的头像首字母应该来自用户名', async ({ browser }) => {
-    test.setTimeout(120000); // 增加超时时间到120秒
+    test.setTimeout(50000); // 优化：减少超时时间
     const devices = await createTestDevices(browser, '头像测试A', '头像测试B', { startPage: 'center' });
 
     // 监听控制台日志
