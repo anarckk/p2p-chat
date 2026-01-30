@@ -1,4 +1,6 @@
 import { fileURLToPath, URL } from 'node:url'
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import { defineConfig, Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -6,54 +8,49 @@ import vueJsx from '@vitejs/plugin-vue-jsx'
 
 /**
  * Vite 插件：修复 GitHub Pages 部署时 __vite__mapDeps 路径问题
- * 通过注入运行时修复脚本来解决相对路径解析问题
+ * 通过 closeBundle 钩子在构建完成后修改文件
  */
 function fixViteMapDepsPlugin(): Plugin {
   return {
     name: 'fix-vite-map-deps',
-    transformIndexHtml: {
-      order: 'post',
-      handler(html) {
-        // 只在生产环境应用修复
-        if (process.env.NODE_ENV !== 'production') {
-          return html;
+    closeBundle() {
+      // 只在生产环境应用修复
+      if (process.env.NODE_ENV !== 'production') {
+        return;
+      }
+
+      const outDir = 'dist';
+      const assetsDir = resolve(outDir, 'assets');
+
+      try {
+        // 读取 assets 目录中的所有 .js 文件
+        const files = readdirSync(assetsDir);
+        const jsFiles = files.filter((f: string) => f.endsWith('.js'));
+
+        for (const fileName of jsFiles) {
+          const filePath = resolve(assetsDir, fileName);
+          const content = readFileSync(filePath, 'utf-8');
+
+          // 检查是否包含 __vite__mapDeps
+          if (content.includes('__vite__mapDeps')) {
+            console.log(`[fixViteMapDeps] Processing: ${fileName}`);
+
+            // 修复 __vite__mapDeps 数组中的路径
+            // 将 "assets/ 替换为 "./assets/
+            const fixed = content.replace(/"assets\//g, '"./assets/');
+
+            const matchCount = (content.match(/"assets\//g) || []).length;
+            const fixedCount = (fixed.match(/"\.\/assets\//g) || []).length;
+            console.log(`[fixViteMapDeps] Fixed ${matchCount} paths, result: ${fixedCount} paths`);
+
+            // 写入修复后的文件
+            writeFileSync(filePath, fixed, 'utf-8');
+            console.log(`[fixViteMapDeps] Updated: ${fileName}`);
+          }
         }
-
-        // 查找主入口 JS 文件名（通过查找 <script type="module"> 标签）
-        const scriptMatch = html.match(/<script type="module" crossorigin src="\/p2p-chat\/assets\/([^"]+\.js)">/);
-        if (!scriptMatch) {
-          return html;
-        }
-
-        const mainScriptName = scriptMatch[1];
-
-        // 注入修复脚本：替换 __vite__mapDeps 中的路径后动态执行主脚本
-        const fixScript = `
-    <script>
-      // 修复 __vite__mapDeps 并动态加载主脚本
-      (function() {
-        fetch('/p2p-chat/assets/${mainScriptName}')
-          .then(r => r.text())
-          .then(code => {
-            // 修复 __vite__mapDeps 中的路径
-            code = code.replace(/"assets\\//g, '"./assets/');
-            // 执行修复后的代码
-            const script = document.createElement('script');
-            script.type = 'module';
-            script.crossOrigin = 'anonymous';
-            script.textContent = code;
-            document.head.appendChild(script);
-          })
-          .catch(e => console.error('Failed to load main script:', e));
-      })();
-    </script>
-`;
-
-        // 移除原始的 script 标签
-        const fixedHtml = html.replace(/<script type="module" crossorigin src="\/p2p-chat\/assets\/[^"]+\.js"><\/script>\n/, fixScript);
-
-        return fixedHtml;
-      },
+      } catch (error) {
+        console.error('[fixViteMapDeps] Error:', error);
+      }
     },
   };
 }
