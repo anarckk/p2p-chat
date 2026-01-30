@@ -3,23 +3,32 @@ on:
   push:
     branches:
       - main    # 当推送到 main 分支时触发
+permissions:
+  contents: write
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       # 1. 检出代码
       - name: Checkout 🛎️
-        uses: actions/checkout@master
+        uses: actions/checkout@v4
 
-      # 2. 安装依赖并构建
+      # 2. 设置 Node.js 环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3. 安装依赖并构建
       - name: Install & Build
         run: |
           npm install
           npm run build
 
-      # 3. 部署到 gh-pages 分支
+      # 4. 部署到 gh-pages 分支
       - name: Build and Deploy
-        uses: JamesIves/github-pages-deploy-action@releases/v4
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: dist          # 构建产物目录
-          BRANCH: gh-pages      # 目标分支
+          branch: gh-pages      # 目标分支
