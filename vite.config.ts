@@ -1,51 +1,44 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig, Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
 
 /**
  * Vite 插件：在生产构建时注入修复脚本
- * 用于修复 GitHub Pages 部署时动态导入模块路径解析问题
+ * 通过 fetch 获取主脚本，修复 __vite__mapDeps 路径后执行
  */
-function injectFixScript() {
+function injectFixScript(): Plugin {
   return {
     name: 'inject-fix-script',
     transformIndexHtml(html: string) {
-      // 通过 process.env.NODE_ENV 判断是否为生产环境
       if (process.env.NODE_ENV !== 'production') {
         return html;
       }
-      // 在 <head> 后立即注入修复脚本和 base 标签，必须在主脚本之前
+      // 移除原来的主脚本标签，我们会动态加载
+      html = html.replace(
+        /<script type="module" crossorigin src="\/p2p-chat\/assets\/index-tfmkhWZT\.js"><\/script>/,
+        ''
+      );
+      // 注入修复脚本和 base 标签
       const fixScript = `
     <base href="/p2p-chat/">
     <script>
-      // 修复 __vite__mapDeps 中的路径解析问题（必须在主脚本加载前执行）
+      // 修复 __vite__mapDeps 并动态加载主脚本
       (function() {
-        const originalDeps = window.__vite__mapDeps;
-        window.__vite__mapDeps = function(i, m, d) {
-          const result = originalDeps ? originalDeps(i, m, d) : { f: [] };
-          // 修复 result.f 中的路径
-          if (result && result.f) {
-            result.f = result.f.map(path => {
-              if (typeof path === 'string' && path.startsWith('assets/')) {
-                return './' + path;
-              }
-              return path;
-            });
-          }
-          return result;
-        };
-        // 复制原始函数的其他属性（如果有的话）
-        if (originalDeps) {
-          Object.getOwnPropertyNames(originalDeps).forEach(key => {
-            if (key !== 'length' && key !== 'name' && key !== 'prototype') {
-              try {
-                window.__vite__mapDeps[key] = originalDeps[key];
-              } catch (e) {}
-            }
-          });
-        }
+        fetch('/p2p-chat/assets/index-tfmkhWZT.js')
+          .then(r => r.text())
+          .then(code => {
+            // 修复 __vite__mapDeps 中的路径
+            code = code.replace(/"assets\//g, '"./assets/');
+            // 执行修复后的代码
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.crossOrigin = 'anonymous';
+            script.textContent = code;
+            document.head.appendChild(script);
+          })
+          .catch(e => console.error('Failed to load main script:', e));
       })();
     </script>
 `;
