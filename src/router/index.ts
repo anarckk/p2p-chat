@@ -1,6 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 
+/**
+ * 获取路由 base 路径
+ * 生产环境（GitHub Pages）使用 /p2p-chat/，开发环境使用 /
+ */
+function getRouterBase(): string {
+  return import.meta.env.PROD ? '/p2p-chat/' : '/';
+}
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -42,7 +50,7 @@ const routes: RouteRecordRaw[] = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(getRouterBase()),
   routes,
 });
 
