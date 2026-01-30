@@ -11,6 +11,7 @@ import {
   isConnected,
 } from './state';
 import { registerProtocolHandlers } from './handlers';
+import { createMessageHandler } from './messaging';
 
 /**
  * 初始化和连接管理模块
@@ -143,6 +144,11 @@ export function createPeer(userStore: ReturnType<typeof useUserStore>): Promise<
     perfLog('before-register-protocols', '准备注册协议处理器');
     registerProtocolHandlers(instance);
     perfLog('after-register-protocols', '协议处理器注册完成');
+
+    // 注册消息处理器
+    perfLog('before-register-message', '准备注册消息处理器');
+    instance.on('message', createMessageHandler());
+    perfLog('after-register-message', '消息处理器注册完成');
 
     instance.on('open', (id: string) => {
       if (!settled) {
