@@ -16,12 +16,11 @@ function injectFixScript() {
       if (process.env.NODE_ENV !== 'production') {
         return html;
       }
-      // 在 </head> 前注入 base 标签和修复脚本
+      // 在 <head> 后立即注入修复脚本和 base 标签，必须在主脚本之前
       const fixScript = `
     <base href="/p2p-chat/">
     <script>
-      // 修复 __vite__mapDeps 中的路径解析问题
-      // 使用拦截器在 __vite__mapDeps 被设置时自动修复路径
+      // 修复 __vite__mapDeps 中的路径解析问题（必须在主脚本加载前执行）
       (function() {
         const originalDeps = { f: [] };
         Object.defineProperty(window, '__vite__mapDeps', {
@@ -42,8 +41,8 @@ function injectFixScript() {
     </script>
 `;
       return html.replace(
-        /<\/head>/i,
-        fixScript + '\n  </head>'
+        /<head>/i,
+        '<head>' + fixScript
       );
     },
   };
