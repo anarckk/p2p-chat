@@ -23,6 +23,7 @@ import type {
   ReceivingMessageState,
 } from '../types';
 import { commLog } from './logger';
+import { getPeerServerConfig } from '../config/peer';
 import {
   FiveStageProtocol,
   BusinessType,
@@ -113,7 +114,7 @@ export class PeerHttpUtil {
    * @param options - PeerJS 配置选项
    */
   constructor(peerId: string | null = null, options: any = {}) {
-    const peerOptions = { debug: 1, host: 'localhost', port: 9000, path: '/peerjs', ...options };
+    const peerOptions = { ...getPeerServerConfig(), ...options };
     this.peer = peerId ? new Peer(peerId, peerOptions) : new Peer(peerOptions);
 
     // 初始化通用五段式协议

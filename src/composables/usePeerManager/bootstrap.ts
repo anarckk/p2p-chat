@@ -3,6 +3,7 @@ import { useDeviceStore } from '../../stores/deviceStore';
 import { useUserStore } from '../../stores/userStore';
 import { commLog } from '../../util/logger';
 import { setBootstrapPeerInstance, isBootstrap } from './state';
+import { getPeerServerConfig } from '../../config/peer';
 import Peer from 'peerjs';
 
 /**
@@ -57,7 +58,7 @@ export async function tryBecomeBootstrap(): Promise<boolean> {
     try {
       perfLog('before-create-peer', '准备创建 Bootstrap Peer');
       const createPeerStart = performance.now();
-      bootstrapPeerInstance = new Peer(UNIVERSE_BOOTSTRAP_ID, { host: 'localhost', port: 9000, path: '/peerjs' });
+      bootstrapPeerInstance = new Peer(UNIVERSE_BOOTSTRAP_ID, getPeerServerConfig());
       (globalThis as any).__bootstrapPeerInstance = bootstrapPeerInstance;
       setBootstrapPeerInstance(bootstrapPeerInstance);
       perfLog('after-create-peer', `Bootstrap Peer 创建完成 (耗时 ${Math.round(performance.now() - createPeerStart)}ms)`);
@@ -214,7 +215,7 @@ export async function requestBootstrapDeviceList(bootstrapPeerId: string): Promi
 
     try {
       // 创建临时 Peer 连接
-      tempPeer = new Peer({ host: 'localhost', port: 9000, path: '/peerjs' });
+      tempPeer = new Peer(getPeerServerConfig());
 
       tempPeer.on('open', (myId: string) => {
         console.log('[Peer] Temp peer connected with ID:', myId);
