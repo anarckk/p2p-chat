@@ -214,7 +214,9 @@ export async function setUserInfo(
   userInfo: UserInfo,
   options?: { navigateTo?: string; reload?: boolean }
 ): Promise<void> {
-  const navigateTo = options?.navigateTo || '/center';
+  // 转换为哈希路由格式
+  const rawPath = options?.navigateTo || '/center';
+  const navigateTo = rawPath.startsWith('/#') ? rawPath : `/#${rawPath}`;
   const shouldReload = options?.reload !== false;
 
   await page.goto(navigateTo);
@@ -415,8 +417,8 @@ async function createSingleDevice(
     localStorage.setItem('p2p_user_info', JSON.stringify(info));
   }, userInfo);
 
-  // 导航到页面
-  await page.goto(startPage === 'center' ? '/center' : `/${startPage}`);
+  // 导航到页面（使用哈希路由）
+  await page.goto(startPage === 'center' ? '/#/center' : `/#/${startPage}`);
   await page.waitForLoadState('domcontentloaded');
 
   // 等待页面容器出现

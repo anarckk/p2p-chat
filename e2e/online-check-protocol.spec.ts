@@ -108,7 +108,7 @@ test.describe('在线检查协议', () => {
    */
   test.describe('多设备在线检查', () => {
     test('应该能够主动检查设备在线状态', async ({ browser }) => {
-      test.setTimeout(60000);
+      test.setTimeout(30000);
       const devices = await createTestDevices(browser, '检查方', '被检查方', { startPage: 'center' });
 
       try {
@@ -126,7 +126,7 @@ test.describe('在线检查协议', () => {
     });
 
     test('切换页面后定时器应该继续运行', async ({ browser }) => {
-      test.setTimeout(60000);
+      test.setTimeout(30000);
       const devices = await createTestDevices(browser, '状态检查方', '离线设备789', { startPage: 'center' });
 
       try {
