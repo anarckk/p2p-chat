@@ -23,8 +23,7 @@ export interface PeerServerConfig {
  */
 export function getPeerServerConfig(): PeerServerConfig {
   const baseConfig: PeerServerConfig = {
-    debug: 1,
-    path: '/peerjs',
+    debug: 1
   };
 
   // 本地开发环境使用本地 peer server
@@ -33,6 +32,7 @@ export function getPeerServerConfig(): PeerServerConfig {
       ...baseConfig,
       host: 'localhost',
       port: 9000,
+      path: '/peerjs',
     };
   }
 

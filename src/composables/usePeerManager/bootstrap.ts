@@ -58,7 +58,16 @@ export async function tryBecomeBootstrap(): Promise<boolean> {
     try {
       perfLog('before-create-peer', '准备创建 Bootstrap Peer');
       const createPeerStart = performance.now();
-      bootstrapPeerInstance = new Peer(UNIVERSE_BOOTSTRAP_ID, getPeerServerConfig());
+
+      // 打印 peer server 地址
+      const serverConfig = getPeerServerConfig();
+      const serverHost = serverConfig.host || 'PeerJS Cloud (default)';
+      const serverPort = serverConfig.port;
+      const serverPath = serverConfig.path;
+      const serverUrl = serverPort ? `${serverHost}:${serverPort}${serverPath}` : `${serverHost}${serverPath}`;
+      console.log('[Peer-Bootstrap] Connecting to Peer Server:', serverUrl);
+
+      bootstrapPeerInstance = new Peer(UNIVERSE_BOOTSTRAP_ID, serverConfig);
       (globalThis as any).__bootstrapPeerInstance = bootstrapPeerInstance;
       setBootstrapPeerInstance(bootstrapPeerInstance);
       perfLog('after-create-peer', `Bootstrap Peer 创建完成 (耗时 ${Math.round(performance.now() - createPeerStart)}ms)`);
@@ -215,7 +224,14 @@ export async function requestBootstrapDeviceList(bootstrapPeerId: string): Promi
 
     try {
       // 创建临时 Peer 连接
-      tempPeer = new Peer(getPeerServerConfig());
+      const serverConfig = getPeerServerConfig();
+      const serverHost = serverConfig.host || 'PeerJS Cloud (default)';
+      const serverPort = serverConfig.port;
+      const serverPath = serverConfig.path;
+      const serverUrl = serverPort ? `${serverHost}:${serverPort}${serverPath}` : `${serverHost}${serverPath}`;
+      console.log('[Peer-Bootstrap-Request] Connecting to Peer Server:', serverUrl);
+
+      tempPeer = new Peer(serverConfig);
 
       tempPeer.on('open', (myId: string) => {
         console.log('[Peer] Temp peer connected with ID:', myId);

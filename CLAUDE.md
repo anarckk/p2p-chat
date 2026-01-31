@@ -75,6 +75,8 @@ sx-peerjs-http-util/
         └── util/
             ├── PeerHttpUtil.ts - PeerJS 工具类（基于版本号的三段式通信协议、去中心化发现中心、在线检查协议 checkOnline/respondOnlineCheck、disconnected/close 事件监听、网络加速中转协议）
             └── logger.ts - 通讯日志工具（支持连接事件日志：connected/disconnected/closed）
+    └── src/config/
+        └── peer.ts - PeerJS 服务器配置（本地开发环境 path 为 /peerjs，生产环境官方地址无 path）
     ├── e2e/
         ├── test-helpers.ts - E2E 测试共享辅助函数（类型定义、SELECTORS/WAIT_TIMES 常量、数据工厂函数、页面操作、等待策略、设备管理、断言辅助、时间辅助函数）
         ├── center.spec.ts - 发现中心 E2E 测试（多浏览器 session 测试、被动发现测试）

@@ -115,6 +115,13 @@ export class PeerHttpUtil {
    */
   constructor(peerId: string | null = null, options: any = {}) {
     const peerOptions = { ...getPeerServerConfig(), ...options };
+    // 打印当前 peer server 地址
+    const serverHost = peerOptions.host || 'PeerJS Cloud (default)';
+    const serverPort = peerOptions.port;
+    const serverPath = peerOptions.path;
+    const serverUrl = serverPort ? `${serverHost}:${serverPort}${serverPath}` : `${serverHost}${serverPath}`;
+    console.log('[PeerHttp] Connecting to Peer Server:', serverUrl);
+    console.log('[PeerHttp] Peer Server Config:', JSON.stringify({ host: serverHost, port: serverPort, path: serverPath }));
     this.peer = peerId ? new Peer(peerId, peerOptions) : new Peer(peerOptions);
 
     // 初始化通用五段式协议
