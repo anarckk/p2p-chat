@@ -63,7 +63,7 @@ sx-peerjs-http-util/
         ├── stores/
         │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性、个人信息版本号）
         │   ├── chatStore.ts - 聊天 store（消息状态管理、版本号机制、重试机制、localStorage 持久化）
-        │   └── deviceStore.ts - 设备持久化 store（设备列表 localStorage 持久化、3天未在线自动删除、10分钟定时心跳检查）
+        │   └── deviceStore.ts - 设备持久化 store（设备列表 localStorage + IndexedDB 混合存储策略、3天未在线自动删除、10分钟定时心跳检查、isBootstrap 字段不持久化且离线时清除、realPeerId 字段同步）
         ├── composables/
         │   └── usePeerManager.ts - Peer 管理逻辑（基于版本号的三段式通信、送达确认、发现中心、消息重试、被动发现自动刷新、在线检查协议处理、deviceStore 集成、连接状态实时监听、10秒自动重连机制、设备互相发现、"宇宙启动者"机制、网络加速）
         │       ├── 11-12 - 新增 bootstrapPeerInstance 模块变量，保持固定 ID 的启动者连接

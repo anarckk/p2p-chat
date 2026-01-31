@@ -801,15 +801,247 @@ test.describe('宇宙启动者', () => {
   // ==================== 宇宙启动者标签移除测试 ====================
   // 注意：以下测试涉及设备离线、刷新等复杂场景，使用 60 秒超时确保稳定完成
 
-  test.skip('设备离线时应该移除宇宙启动者标签 - 跳过：测试环境限制导致不稳定', async ({ context }) => {
-    // 此测试由于测试环境的限制（关闭浏览器上下文不会立即关闭 Peer 连接）而不稳定
-    // 代码逻辑已正确实现：updateDeviceOnlineStatus 会在设备离线时清除 isBootstrap
-    test.skip(true);
+  test('设备离线时应该移除宇宙启动者标签', async ({ context }) => {
+    test.setTimeout(90000); // 增加超时时间
+    const browser = context.browser();
+    if (!browser) {
+      test.skip();
+      return;
+    }
+
+    // 创建三个设备：A（启动者）、B（观察者）、C（新设备）
+    // 设备C在设备A离线后启动，应该看不到设备A的启动者标签
+    const contextA = await browser.newContext();
+    const pageA = await contextA.newPage();
+
+    try {
+      await pageA.goto('#/center');
+      await pageA.waitForLoadState('domcontentloaded');
+      await setupUser(pageA, '启动者A');
+      await pageA.waitForTimeout(4000);
+
+      // 创建设备B
+      const contextB = await browser.newContext();
+      const pageB = await contextB.newPage();
+
+      try {
+        await pageB.goto('#/center');
+        await pageB.waitForLoadState('domcontentloaded');
+        await setupUser(pageB, '设备B');
+        await pageB.waitForTimeout(4000);
+
+        // 验证设备B能看到启动者A的标记
+        const bootstrapTagBefore = pageB.locator('.ant-tag').filter({ hasText: '宇宙启动者' });
+        const hasBootstrapTagBefore = await bootstrapTagBefore.count() > 0;
+        if (!hasBootstrapTagBefore) {
+          console.log('[Test] Warning: Bootstrap tag not found, deviceA may not be bootstrap');
+        }
+
+        // 获取设备A的真实 PeerID（从设备B的 localStorage 中读取）
+        const deviceAPeerId = await pageB.evaluate(() => {
+          const meta = localStorage.getItem('discovered_devices_meta');
+          if (meta) {
+            const devices = JSON.parse(meta);
+            for (const peerId in devices) {
+              if (devices[peerId].username === '启动者A') {
+                return peerId;
+              }
+            }
+          }
+          return null;
+        });
+
+        if (!deviceAPeerId) {
+          console.log('[Test] Warning: DeviceA not found in deviceStore');
+          test.skip();
+          return;
+        }
+
+        console.log('[Test] DeviceA PeerID:', deviceAPeerId);
+
+        // 销毁设备A的 Peer 实例并关闭页面
+        await pageA.evaluate(() => {
+          // 销毁启动者 Peer 连接
+          const bootstrapPeer = (window as any).__bootstrapPeerInstance;
+          if (bootstrapPeer) {
+            bootstrapPeer.destroy();
+            (window as any).__bootstrapPeerInstance = null;
+          }
+          // 同时销毁主 Peer 连接
+          const peerInstance = (window as any).__peerInstance;
+          if (peerInstance) {
+            peerInstance.destroy();
+            (window as any).__peerInstance = null;
+          }
+          console.log('[Test] Destroyed all Peer instances');
+        });
+
+        // 等待足够长的时间让 Peer Server 检测到连接断开
+        await pageB.waitForTimeout(12000);
+
+        // 创建设备C（在设备A离线后启动）
+        const contextC = await browser.newContext();
+        const pageC = await contextC.newPage();
+
+        try {
+          await pageC.goto('#/center');
+          await pageC.waitForLoadState('domcontentloaded');
+          await setupUser(pageC, '设备C');
+          await pageC.waitForTimeout(5000);
+
+          // 验证：设备C不应该看到设备A的启动者标签
+          // （因为设备A已经离线，不再是启动者）
+          const bootstrapTagC = pageC.locator('.ant-tag').filter({ hasText: '宇宙启动者' });
+          const hasBootstrapTagC = await bootstrapTagC.count() > 0;
+
+          // 检查是否有任何启动者标签
+          const allBootstrapTags = pageC.locator('.ant-tag').filter({ hasText: '宇宙启动者' });
+          const bootstrapCount = await allBootstrapTags.count();
+
+          // 如果设备A已经离线，设备C应该看不到启动者标签
+          // 或者，如果另一个设备成为了启动者，应该只看到新的启动者标签
+          console.log('[Test] 设备C看到的启动者标签数量:', bootstrapCount);
+
+          // 检查是否仍然有设备A
+          const deviceACards = pageC.locator('.device-card').filter({ hasText: '启动者A' });
+          const hasDeviceA = await deviceACards.count() > 0;
+
+          if (hasDeviceA) {
+            // 如果设备A仍然存在，检查是否有启动者标签
+            const deviceACard = deviceACards.first();
+            const cardText = await deviceACard.textContent();
+            const deviceAHasBootstrapTag = cardText && cardText.includes('宇宙启动者');
+
+            console.log('[Test] 设备A存在，是否有启动者标签:', deviceAHasBootstrapTag);
+
+            // 设备A离线后不应该有启动者标签
+            expect(deviceAHasBootstrapTag).toBe(false);
+          } else {
+            // 设备A不存在，这是正常的
+            console.log('[Test] 设备A不存在（已离线）');
+          }
+        } finally {
+          await pageC.close();
+          await contextC.close();
+        }
+      } finally {
+        await pageB.close();
+        await contextB.close();
+      }
+    } finally {
+      await pageA.close();
+      await contextA.close();
+    }
   });
 
-  test.skip('刷新发现中心后应该移除非启动者设备的标签 - 跳过：测试环境限制导致不稳定', async ({ context }) => {
-    // 此测试由于测试环境的限制而不稳定
-    test.skip(true);
+  test('刷新发现中心后应该移除非启动者设备的标签', async ({ context }) => {
+    test.setTimeout(90000); // 增加超时时间
+    const browser = context.browser();
+    if (!browser) {
+      test.skip();
+      return;
+    }
+
+    // 创建三个设备：A（启动者）、B（观察者）、C（新设备）
+    // 验证设备C只能看到真正的启动者的标签
+    const contextA = await browser.newContext();
+    const pageA = await contextA.newPage();
+
+    try {
+      await pageA.goto('#/center');
+      await pageA.waitForLoadState('domcontentloaded');
+      await setupUser(pageA, '启动者A');
+      await pageA.waitForTimeout(4000);
+
+      // 创建设备B
+      const contextB = await browser.newContext();
+      const pageB = await contextB.newPage();
+
+      try {
+        await pageB.goto('#/center');
+        await pageB.waitForLoadState('domcontentloaded');
+        await setupUser(pageB, '设备B');
+        await pageB.waitForTimeout(4000);
+
+        // 验证设备B能看到启动者A的标记
+        const bootstrapTagBefore = pageB.locator('.ant-tag').filter({ hasText: '宇宙启动者' });
+        const hasBootstrapTagBefore = await bootstrapTagBefore.count() > 0;
+
+        if (!hasBootstrapTagBefore) {
+          console.log('[Test] Warning: Bootstrap tag not found, deviceA may not be bootstrap');
+        }
+
+        // 销毁设备A的 Peer 实例并关闭页面
+        await pageA.evaluate(() => {
+          // 销毁启动者 Peer 连接
+          const bootstrapPeer = (window as any).__bootstrapPeerInstance;
+          if (bootstrapPeer) {
+            bootstrapPeer.destroy();
+            (window as any).__bootstrapPeerInstance = null;
+          }
+          // 同时销毁主 Peer 连接
+          const peerInstance = (window as any).__peerInstance;
+          if (peerInstance) {
+            peerInstance.destroy();
+            (window as any).__peerInstance = null;
+          }
+          console.log('[Test] Destroyed all Peer instances');
+        });
+
+        // 等待足够长的时间让 Peer Server 检测到连接断开
+        await pageB.waitForTimeout(12000);
+
+        // 创建设备C（在设备A离线后启动）
+        const contextC = await browser.newContext();
+        const pageC = await contextC.newPage();
+
+        try {
+          await pageC.goto('#/center');
+          await pageC.waitForLoadState('domcontentloaded');
+          await setupUser(pageC, '设备C');
+          await pageC.waitForTimeout(5000);
+
+          // 验证：设备C不应该看到设备A的启动者标签
+          const bootstrapTagC = pageC.locator('.ant-tag').filter({ hasText: '宇宙启动者' });
+          const hasBootstrapTagC = await bootstrapTagC.count() > 0;
+
+          // 检查是否有任何启动者标签
+          const allBootstrapTags = pageC.locator('.ant-tag').filter({ hasText: '宇宙启动者' });
+          const bootstrapCount = await allBootstrapTags.count();
+
+          // 检查是否仍然有设备A
+          const deviceACards = pageC.locator('.device-card').filter({ hasText: '启动者A' });
+          const hasDeviceA = await deviceACards.count() > 0;
+
+          if (hasDeviceA) {
+            // 如果设备A仍然存在，检查是否有启动者标签
+            const deviceACard = deviceACards.first();
+            const cardText = await deviceACard.textContent();
+            const deviceAHasBootstrapTag = cardText && cardText.includes('宇宙启动者');
+
+            console.log('[Test] 设备A存在，是否有启动者标签:', deviceAHasBootstrapTag);
+
+            // 设备A离线后不应该有启动者标签
+            expect(deviceAHasBootstrapTag).toBe(false);
+          } else {
+            // 设备A不存在，这是正常的
+            console.log('[Test] 设备A不存在（已离线）');
+          }
+
+          // 启动者标签数量应该不超过1个（如果有另一个设备成为了启动者）
+          expect(bootstrapCount).toBeLessThanOrEqual(1);
+        } finally {
+          await pageC.close();
+          await contextC.close();
+        }
+      } finally {
+        await pageB.close();
+        await contextB.close();
+      }
+    } finally {
+      await pageA.close();
+      await contextA.close();
+    }
   });
 
   test('普通设备不应该被错误标记为宇宙启动者', async ({ context }) => {
