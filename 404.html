@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Redirecting...</title>
+    <script type="text/javascript">
+      // Single Page Apps for GitHub Pages
+      // MIT License
+      // https://github.com/rafgraph/spa-github-pages
+      // This script takes the current url and converts the path and query
+      // string into just a query string, and then redirects to index.html
+      // with that query string. The path information is preserved in the
+      // query string, so Vue Router can parse it and restore the original path.
+      var l = window.location;
+      var newUrl =
+        l.protocol +
+        '//' +
+        l.host +
+        l.pathname.replace(/\/$/, '') +
+        (l.search ? l.search : '') +
+        '/index.html' +
+        l.hash;
+      window.location.replace(newUrl);
+    </script>
+  </head>
+  <body></body>
+</html>
