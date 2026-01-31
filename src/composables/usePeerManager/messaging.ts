@@ -1,6 +1,7 @@
 import type { ChatMessage, MessageType, MessageContent } from '../../types';
 import { useChatStore } from '../../stores/chatStore';
 import { useUserStore } from '../../stores/userStore';
+import { useDeviceStore } from '../../stores/deviceStore';
 import { commLog } from '../../util/logger';
 import { peerInstance, isConnected } from './state';
 
@@ -26,6 +27,7 @@ export function handleIncomingMessage(data: { from: string; data: any }) {
  */
 async function handleChatMessage(from: string, chatMessage: ChatMessage) {
   const chatStore = useChatStore();
+  const deviceStore = useDeviceStore();
   const { id, type } = chatMessage;
 
   commLog.message.received({ from, msgType: type, messageId: id });
@@ -43,6 +45,8 @@ async function handleChatMessage(from: string, chatMessage: ChatMessage) {
 
   // 对方发送消息，说明对方在线了
   chatStore.setContactOnline(from, true);
+  // 同步更新 deviceStore 中的设备在线状态
+  await deviceStore.updateDeviceOnlineStatus(from, true);
 
   console.log('[Peer] Contact online: ' + from);
 

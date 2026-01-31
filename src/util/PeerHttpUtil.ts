@@ -1720,10 +1720,20 @@ export class PeerHttpUtil {
       if (!existing) {
         newDeviceCount++;
       }
-      this.discoveredDevices.set(device.peerId, {
+
+      // 如果响应中明确指定了 isBootstrap，则使用响应中的值
+      // 否则，如果该设备之前被标记为启动者，但响应中没有确认，则清除标记
+      const updatedDevice: OnlineDevice = {
         ...device,
         firstDiscovered: existing?.firstDiscovered || device.firstDiscovered || Date.now(),
-      });
+        // 如果响应中明确指定了 isBootstrap，使用响应中的值
+        // 否则，如果设备之前不是启动者，或响应中未指定，则设为 false
+        isBootstrap: 'isBootstrap' in device ? device.isBootstrap : false,
+        // 同样处理 realPeerId
+        realPeerId: 'realPeerId' in device ? device.realPeerId : undefined,
+      };
+
+      this.discoveredDevices.set(device.peerId, updatedDevice);
     });
 
     // 如果响应者是宇宙启动者，添加启动者设备（使用真实 PeerID）

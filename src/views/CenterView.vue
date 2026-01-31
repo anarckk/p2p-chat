@@ -185,6 +185,12 @@ onMounted(async () => {
     console.log('[Center] Discovery devices updated, refreshing...');
     // 触发重新渲染
     deviceStore.updateOnlineStatus();
+    // 同步更新 chatStore 中所有联系人的在线状态，确保发现中心和聊天列表的在线状态保持一致
+    deviceStore.allDevices.forEach((device) => {
+      if (chatStore.getContact(device.peerId)) {
+        chatStore.setContactOnline(device.peerId, device.isOnline ?? false);
+      }
+    });
   };
 
   window.addEventListener('discovery-devices-updated', handleDiscoveryUpdate);
@@ -417,6 +423,11 @@ async function refreshDiscovery() {
 
         // 更新设备的在线状态
         deviceStore.updateDeviceOnlineStatus(peerId, isOnline);
+
+        // 同步更新 chatStore 中的联系人在线状态，确保发现中心和聊天列表的在线状态保持一致
+        if (chatStore.getContact(peerId)) {
+          chatStore.setContactOnline(peerId, isOnline);
+        }
 
         // 更新刷新状态（完成，显示耗时）
         deviceRefreshStatus.value.set(peerId, {

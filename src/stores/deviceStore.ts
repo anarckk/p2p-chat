@@ -59,6 +59,11 @@ export const useDeviceStore = defineStore('device', () => {
           ])
         );
 
+        // 添加调试信息：检查加载后的 isBootstrap 状态
+        devices.value.forEach((device, peerId) => {
+          console.log('[DeviceStore] Loaded device: ' + peerId + ' isBootstrap=' + device.isBootstrap + ' realPeerId=' + device.realPeerId);
+        });
+
         console.log(`[DeviceStore] Loaded ${devices.value.size} devices from storage (${avatarMap.size} avatars from IndexedDB)`);
         // 加载后更新设备的在线状态
         await updateOnlineStatus();
@@ -127,14 +132,16 @@ export const useDeviceStore = defineStore('device', () => {
    * 保存设备列表（混合策略：localStorage + IndexedDB）
    * 小数据（元数据）→ localStorage
    * 大数据（头像）→ IndexedDB
+   *
+   * 注意：isBootstrap 字段不会持久化，每次运行时重新获取
    */
   async function saveDevices() {
     try {
-      const metadata: Record<string, Omit<OnlineDevice, 'avatar'>> = {};
+      const metadata: Record<string, Omit<OnlineDevice, 'avatar' | 'isBootstrap'>> = {};
 
       // 遍历所有设备，分离元数据和头像
       for (const [peerId, device] of devices.value) {
-        const { avatar, ...meta } = device;
+        const { avatar, isBootstrap, ...meta } = device;
         metadata[peerId] = meta;
 
         // 如果有头像，保存到 IndexedDB
@@ -197,6 +204,20 @@ export const useDeviceStore = defineStore('device', () => {
       existing.avatar = device.avatar;
       existing.lastHeartbeat = device.lastHeartbeat;
       existing.isOnline = now - device.lastHeartbeat < OFFLINE_THRESHOLD;
+      // 如果设备离线，清除 isBootstrap 状态（因为离线的设备不可能是宇宙启动者）
+      if (!existing.isOnline) {
+        existing.isBootstrap = false;
+        existing.realPeerId = undefined;
+      } else {
+        // 同步更新 isBootstrap 字段（只在新数据中明确指定时才更新）
+        if ('isBootstrap' in device) {
+          existing.isBootstrap = device.isBootstrap;
+        }
+        // 同步更新 realPeerId 字段
+        if ('realPeerId' in device) {
+          existing.realPeerId = device.realPeerId;
+        }
+      }
     } else {
       // 添加新设备
       devices.value.set(device.peerId, {
@@ -234,13 +255,24 @@ export const useDeviceStore = defineStore('device', () => {
   async function updateDeviceOnlineStatus(peerId: string, isOnline: boolean) {
     const device = devices.value.get(peerId);
     if (device) {
+      const wasBootstrap = device.isBootstrap;
       device.isOnline = isOnline;
       if (isOnline) {
         device.lastHeartbeat = Date.now();
+      } else {
+        // 设备离线时，清除宇宙启动者相关字段（离线的设备不可能是宇宙启动者）
+        if (device.isBootstrap) {
+          console.log('[DeviceStore] 设备离线，清除启动者标签: ' + peerId + ' (wasBootstrap: ' + wasBootstrap + ')');
+        }
+        device.isBootstrap = false;
+        device.realPeerId = undefined;
       }
       await saveDevices();
       // 手动触发响应式更新
       triggerRef(devices);
+      console.log('[DeviceStore] updateDeviceOnlineStatus: ' + peerId + ' isOnline=' + isOnline + ' (wasBootstrap: ' + wasBootstrap + ', isBootstrap: ' + device.isBootstrap + ')');
+    } else {
+      console.warn('[DeviceStore] updateDeviceOnlineStatus: device not found: ' + peerId);
     }
   }
 
@@ -254,6 +286,14 @@ export const useDeviceStore = defineStore('device', () => {
       if (existing) {
         existing.lastHeartbeat = Math.max(existing.lastHeartbeat, device.lastHeartbeat);
         existing.isOnline = now - existing.lastHeartbeat < OFFLINE_THRESHOLD;
+        // 同步更新 isBootstrap 字段（如果响应中明确指定了）
+        if ('isBootstrap' in device) {
+          existing.isBootstrap = device.isBootstrap;
+        }
+        // 同步更新 realPeerId 字段
+        if ('realPeerId' in device) {
+          existing.realPeerId = device.realPeerId;
+        }
       } else {
         devices.value.set(device.peerId, {
           ...device,

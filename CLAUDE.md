@@ -118,10 +118,11 @@ sx-peerjs-http-util/
 - **回复机制**: from 变量用于标识消息来源，对端通过 from 变量向发起端回复消息
 
 ### 路由结构
-- `/test` - 隐藏路由（不显示在菜单中），只有主动输入路由才能进入
-- `/center` - 去中心化发现中心
-- `/wechat` - 聊天应用
-- `/settings` - 设置页面（用户名、头像、网络加速开关）
+- 使用哈希路由（Hash Router）以支持 GitHub Pages 部署
+- `#/test` - 隐藏路由（不显示在菜单中），只有主动输入路由才能进入
+- `#/center` - 去中心化发现中心
+- `#/wechat` - 聊天应用
+- `#/settings` - 设置页面（用户名、头像、网络加速开关）
 
 ### 五段式通信协议
 
@@ -220,9 +221,10 @@ sx-peerjs-http-util/
 - 避免整个宇宙陷入没有"宇宙启动者"，人人互相隔绝的境地
 
 **发现中心标记**:
-- 发现中心里，宇宙启动者要加标记
+- 发现中心里，宇宙启动者要加标记（只在这个设备真的是宇宙启动者时才给予）
 - 宇宙启动者要向全宇宙告知自己的个人 PeerID
 - 如果本设备是宇宙启动者，在发现中心里也要有宇宙启动者标记
+- 宇宙启动者标签应实时更新，当设备不再是启动者时应移除标签
 
 #### 设备状态标识
 - **在线**: 设备可通信
@@ -250,7 +252,10 @@ sx-peerjs-http-util/
 #### Peer Server 连接管理
 - **连接状态展示**: 发现中心左侧实时显示与 Peer Server 的连接状态（已连接/未连接）
 - **自动重连机制**: 如果意外断网，自动定时 10 秒钟重新连接 Peer Server
-- **Peer Server**: 本地搭建的 Peer Server（端口 9000），不使用公共 server
+- **Peer Server 配置**:
+  - 本地开发环境：使用本地搭建的 Peer Server（localhost:9000，path 为 /peerjs）
+  - 生产环境：使用官方 Peer Server（无 path）
+- 启动时打印当前 peer server 地址到 console
 
 #### 发现通知机制
 1. 设备 A 在发现中心添加设备 B
@@ -350,7 +355,7 @@ sx-peerjs-http-util/
 #### 测试环境
 - **多浏览器 Session**: 测试被动发现需要两个浏览器 session
 - **浏览器范围**: 仅需 Chrome 测试，无需 webkit
-- **Peer Server**: 使用本机 peer server，理论非常稳定
+- **Peer Server**: 使用本机 peer server（端口 9000，path 为 /peerjs），理论非常稳定
 
 #### 测试覆盖范围
 - 主动发现和被动发现
@@ -384,6 +389,7 @@ sx-peerjs-http-util/
 
 ### 持久化策略
 - **LocalStorage**: 用户信息、设备列表、聊天记录、消息状态
+- **IndexDB**: 大数据量存储（如网络数据日志），避免 LocalStorage 配额限制
 - **自动刷新**: 页面刷新后保持数据
 - **跨页面同步**: 使用 Pinia store 共享状态
 
