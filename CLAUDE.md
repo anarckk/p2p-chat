@@ -119,6 +119,8 @@ sx-peerjs-http-util/
 
 ### 路由结构
 - 使用哈希路由（Hash Router）以支持 GitHub Pages 部署
+  - 项目部署到 GitHub Pages: https://anarckk.github.io/p2p-chat/
+  - public\.nojekyll 是 vue3 发布 gitpage 重要的空文件
 - `#/test` - 隐藏路由（不显示在菜单中），只有主动输入路由才能进入
 - `#/center` - 去中心化发现中心
 - `#/wechat` - 聊天应用
@@ -386,6 +388,7 @@ sx-peerjs-http-util/
   - 大批量测试场景下连接时间难以预估，需根据实际情况调整
   - 超时时间最长定为 30 秒
   - PeerJS 的连接建立很快，一般不超过 5 秒（以实际测试为准）
+- **时间限制**: 所有 e2e 测试时间都不能超过 30 秒，超过 30 秒则测试失败（特殊场景需有足够理由才能突破限制）
 
 ### 持久化策略
 - **LocalStorage**: 用户信息、设备列表、聊天记录、消息状态
