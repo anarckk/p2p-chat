@@ -11,7 +11,7 @@ import { expect } from '@playwright/test';
 export interface UserInfo {
   username: string;
   avatar: string | null;
-  peerId: string;
+  peerId: string | null;
 }
 
 export interface DeviceInfo {
@@ -432,6 +432,12 @@ async function createSingleDevice(
 
   // 优化：只等待一次 PeerJS 初始化
   await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+
+  // 从 localStorage 获取真实的 peerId（由 PeerJS 生成后存储）
+  const realPeerId = await getPeerIdFromStorage(page);
+  if (realPeerId) {
+    userInfo.peerId = realPeerId;
+  }
 
   return { context, page, userInfo };
 }

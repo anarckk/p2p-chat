@@ -307,9 +307,9 @@ test.describe('设置页面', () => {
     const backButton = page.locator('button:has-text("返回发现中心")');
     await backButton.click();
 
-    // 验证跳转到了发现中心页面
-    await page.waitForURL('/center');
-    expect(page.url()).toContain('/center');
+    // 验证跳转到了发现中心页面（hash 路由格式）
+    await page.waitForURL('/#/center');
+    expect(page.url()).toContain('/#/center');
   });
 
   test('应该能从导航菜单进入设置页面', async ({ page }) => {
@@ -328,8 +328,8 @@ test.describe('设置页面', () => {
     const settingsMenuItem = page.locator('.ant-menu-item:has-text("设置")');
     await settingsMenuItem.click();
 
-    // 验证跳转到了设置页面
-    await page.waitForURL('/settings');
-    expect(page.url()).toContain('/settings');
+    // 验证跳转到了设置页面（hash 路由格式）
+    await page.waitForURL('/#/settings');
+    expect(page.url()).toContain('/#/settings');
   });
 });

@@ -26,9 +26,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  /* - 优化：本地环境使用 4 个 worker 并行运行，加快整体测试速度 */
-  workers: process.env.CI ? 1 : 4,
+  /* Opt out of parallel tests. E2E 测试要单独运行，同一时间仅运行一个测试 */
+  workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */

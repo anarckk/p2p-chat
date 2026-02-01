@@ -52,22 +52,11 @@ export const useUserStore = defineStore('user', () => {
 
     // 检查旧的 key 'user_info'（向后兼容）
     const oldKeyData = localStorage.getItem('user_info');
-    const hasNewUserInfo = localStorage.getItem(USER_INFO_KEY) || localStorage.getItem(USER_INFO_META_KEY);
 
     // 如果旧 key 存在但没有新 key，说明数据在旧 key 中
     if (!saved && oldKeyData) {
       saved = oldKeyData;
       console.log('[UserStore] Loading from old key "user_info"');
-    }
-    // 如果旧 key 被清除（不存在）但新 key 存在，说明是 E2E 测试清除旧 key
-    // 此时需要同步清除新 key，让弹窗能正确显示
-    else if (!oldKeyData && hasNewUserInfo && localStorage.getItem('__E2E_DISABLE_AUTO_SETUP__') === 'true') {
-      // 清除新 key，让测试正确触发弹窗
-      localStorage.removeItem(USER_INFO_KEY);
-      localStorage.removeItem(USER_INFO_META_KEY);
-      console.log('[UserStore] Old key removed, clearing new keys for E2E test');
-      isSetup.value = false;
-      return false;
     }
 
     if (saved) {

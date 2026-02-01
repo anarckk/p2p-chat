@@ -86,6 +86,13 @@ onMounted(async () => {
     const isSetup = await userStore.loadUserInfo();
     console.log('[MainLayout] E2E 测试模式：用户信息加载结果 isSetup =', isSetup);
 
+    // 如果用户信息未设置，显示设置弹窗（与正常模式保持一致）
+    if (!isSetup) {
+      console.log('[MainLayout] E2E 测试模式：用户信息未设置，显示设置弹窗');
+      isUserSetupModalVisible.value = true;
+      return; // 等待用户完成设置后再继续
+    }
+
     // 导航到目标路由（首字母大写）
     const routeName = targetRoute.charAt(0).toUpperCase() + targetRoute.slice(1);
     console.log('[MainLayout] E2E 测试模式：导航到', routeName);

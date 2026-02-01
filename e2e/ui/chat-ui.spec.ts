@@ -102,8 +102,8 @@ test.describe('聊天页面 UI 测试', () => {
     });
     console.log('[Test] Debug info:', debugInfo);
 
-    // 选择联系人
-    await page.click('.contact-item');
+    // 选择联系人（点击包含"测试联系人"文本的联系人项）
+    await page.click('.contact-item:has-text("测试联系人")');
 
     // 等待消息区域加载
     await page.waitForSelector('.messages-area');
@@ -176,13 +176,13 @@ test.describe('聊天页面 UI 测试', () => {
     // 等待联系人列表加载
     await page.waitForSelector('.contacts-list');
 
-    // 直接设置不同状态的消息
+    // 设置不同状态的消息，并设置第二个联系人为主要测试对象
     await page.evaluate(() => {
       const messagesWithStatus = [
         {
           id: 'msg-sending',
           from: 'test-self-peer-id-123',
-          to: 'test-contact-peer-id-456',
+          to: 'test-unread-peer-id-789',
           content: '发送中的消息',
           type: 'text',
           status: 'sending',
@@ -191,7 +191,7 @@ test.describe('聊天页面 UI 测试', () => {
         {
           id: 'msg-delivered',
           from: 'test-self-peer-id-123',
-          to: 'test-contact-peer-id-456',
+          to: 'test-unread-peer-id-789',
           content: '已送达的消息',
           type: 'text',
           status: 'delivered',
@@ -200,20 +200,43 @@ test.describe('聊天页面 UI 测试', () => {
         {
           id: 'msg-failed',
           from: 'test-self-peer-id-123',
-          to: 'test-contact-peer-id-456',
+          to: 'test-unread-peer-id-789',
           content: '发送失败的消息',
           type: 'text',
           status: 'failed',
           timestamp: Date.now() - 2000,
         },
       ];
-      localStorage.setItem('p2p_messages_test-contact-peer-id-456', JSON.stringify(messagesWithStatus));
+      localStorage.setItem('p2p_messages_test-unread-peer-id-789', JSON.stringify(messagesWithStatus));
+      // 更新当前聊天到第二个联系人
+      localStorage.setItem('p2p_current_chat', 'test-unread-peer-id-789');
     });
 
-    // 选择联系人
-    await page.click('.contact-item');
+    // 重新加载页面以触发 store 重新读取数据
+    await page.reload();
+    await page.waitForSelector('.wechat-container', { timeout: 6000 });
+    await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+
+    // 选择"未读消息联系人"（现在包含测试状态消息）
+    await page.click('.contact-item:has-text("未读消息联系人")');
     await page.waitForSelector('.messages-area');
-    await page.waitForTimeout(WAIT_TIMES.SHORT);
+    // 等待消息元素出现
+    await page.waitForSelector('.message-item', { timeout: 5000 }).catch(() => {
+      console.log('[Test] No messages found, continuing anyway...');
+    });
+    await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+
+    // 调试：检查页面上的消息元素
+    const debugInfo = await page.evaluate(() => {
+      const messageItems = document.querySelectorAll('.message-item');
+      const messageStatusElements = document.querySelectorAll('.message-status');
+      return {
+        messageCount: messageItems.length,
+        messageStatusCount: messageStatusElements.length,
+        messageStatusClasses: Array.from(messageStatusElements).map(el => el.className),
+      };
+    });
+    console.log('[Test] Debug info:', debugInfo);
 
     // 验证发送中状态图标颜色为 #999
     const sendingIconColor = await page.evaluate(() => {
@@ -247,12 +270,12 @@ test.describe('聊天页面 UI 测试', () => {
     // 等待联系人列表加载
     await page.waitForSelector('.contacts-list');
 
-    // 直接设置图片消息数据
+    // 设置图片消息数据（自己发送的消息，使用第二个联系人作为接收者）
     await page.evaluate(() => {
       const imageMessage = {
         id: 'msg-image',
-        from: 'test-contact-peer-id-456',
-        to: 'test-self-peer-id-123',
+        from: 'test-self-peer-id-123',
+        to: 'test-unread-peer-id-789',
         content: {
           name: 'test-image.png',
           size: 102400,
@@ -264,11 +287,18 @@ test.describe('聊天页面 UI 测试', () => {
         status: 'delivered',
         timestamp: Date.now(),
       };
-      localStorage.setItem('p2p_messages_test-contact-peer-id-456', JSON.stringify([imageMessage]));
+      localStorage.setItem('p2p_messages_test-unread-peer-id-789', JSON.stringify([imageMessage]));
+      // 更新当前聊天到第二个联系人
+      localStorage.setItem('p2p_current_chat', 'test-unread-peer-id-789');
     });
 
-    // 选择联系人
-    await page.click('.contact-item');
+    // 重新加载页面以触发 store 重新读取数据
+    await page.reload();
+    await page.waitForSelector('.wechat-container', { timeout: 6000 });
+    await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+
+    // 选择"未读消息联系人"（现在包含图片消息）
+    await page.click('.contact-item:has-text("未读消息联系人")');
     await page.waitForSelector('.messages-area');
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
@@ -307,12 +337,12 @@ test.describe('聊天页面 UI 测试', () => {
     // 等待联系人列表加载
     await page.waitForSelector('.contacts-list');
 
-    // 直接设置视频消息数据
+    // 设置视频消息数据（自己发送的消息，使用第二个联系人作为接收者）
     await page.evaluate(() => {
       const videoMessage = {
         id: 'msg-video',
-        from: 'test-contact-peer-id-456',
-        to: 'test-self-peer-id-123',
+        from: 'test-self-peer-id-123',
+        to: 'test-unread-peer-id-789',
         content: {
           name: 'test-video.mp4',
           size: 512000,
@@ -322,11 +352,18 @@ test.describe('聊天页面 UI 测试', () => {
         status: 'delivered',
         timestamp: Date.now(),
       };
-      localStorage.setItem('p2p_messages_test-contact-peer-id-456', JSON.stringify([videoMessage]));
+      localStorage.setItem('p2p_messages_test-unread-peer-id-789', JSON.stringify([videoMessage]));
+      // 更新当前聊天到第二个联系人
+      localStorage.setItem('p2p_current_chat', 'test-unread-peer-id-789');
     });
 
-    // 选择联系人
-    await page.click('.contact-item');
+    // 重新加载页面以触发 store 重新读取数据
+    await page.reload();
+    await page.waitForSelector('.wechat-container', { timeout: 6000 });
+    await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+
+    // 选择"未读消息联系人"（现在包含视频消息）
+    await page.click('.contact-item:has-text("未读消息联系人")');
     await page.waitForSelector('.messages-area');
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
@@ -355,12 +392,12 @@ test.describe('聊天页面 UI 测试', () => {
     // 等待联系人列表加载
     await page.waitForSelector('.contacts-list');
 
-    // 直接设置文件消息数据
+    // 设置文件消息数据（自己发送的消息，使用第二个联系人作为接收者）
     await page.evaluate(() => {
       const fileMessage = {
         id: 'msg-file',
-        from: 'test-contact-peer-id-456',
-        to: 'test-self-peer-id-123',
+        from: 'test-self-peer-id-123',
+        to: 'test-unread-peer-id-789',
         content: {
           name: 'test-document.pdf',
           size: 204800,
@@ -371,11 +408,18 @@ test.describe('聊天页面 UI 测试', () => {
         status: 'delivered',
         timestamp: Date.now(),
       };
-      localStorage.setItem('p2p_messages_test-contact-peer-id-456', JSON.stringify([fileMessage]));
+      localStorage.setItem('p2p_messages_test-unread-peer-id-789', JSON.stringify([fileMessage]));
+      // 更新当前聊天到第二个联系人
+      localStorage.setItem('p2p_current_chat', 'test-unread-peer-id-789');
     });
 
-    // 选择联系人
-    await page.click('.contact-item');
+    // 重新加载页面以触发 store 重新读取数据
+    await page.reload();
+    await page.waitForSelector('.wechat-container', { timeout: 6000 });
+    await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+
+    // 选择"未读消息联系人"（现在包含文件消息）
+    await page.click('.contact-item:has-text("未读消息联系人")');
     await page.waitForSelector('.messages-area');
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
@@ -457,8 +501,8 @@ test.describe('聊天页面 UI 测试', () => {
   });
 
   test('输入框禁用状态测试', async ({ page }) => {
-    // 选择联系人
-    await page.click('.contact-item');
+    // 选择联系人（点击包含"测试联系人"文本的联系人项）
+    await page.click('.contact-item:has-text("测试联系人")');
     await page.waitForSelector('.input-area');
 
     // 获取发送按钮
@@ -484,8 +528,8 @@ test.describe('聊天页面 UI 测试', () => {
   });
 
   test('消息时间显示测试', async ({ page }) => {
-    // 选择联系人
-    await page.click('.contact-item');
+    // 选择联系人（点击包含"测试联系人"文本的联系人项）
+    await page.click('.contact-item:has-text("测试联系人")');
     await page.waitForSelector('.messages-area');
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
@@ -523,8 +567,8 @@ test.describe('聊天页面 UI 测试', () => {
   });
 
   test('聊天头部在线状态显示测试', async ({ page }) => {
-    // 选择联系人
-    await page.click('.contact-item');
+    // 选择联系人（点击包含"测试联系人"文本的联系人项）
+    await page.click('.contact-item:has-text("测试联系人")');
     await page.waitForSelector('.chat-header');
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 

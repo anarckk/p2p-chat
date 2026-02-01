@@ -38,9 +38,9 @@ test.describe('网络数据日志功能', () => {
     const networkLogMenuItem = page.locator(SELECTORS.networkLogMenuItem);
     await networkLogMenuItem.click();
 
-    // 验证跳转到了网络数据日志页面
-    await page.waitForURL('/network-log');
-    expect(page.url()).toContain('/network-log');
+    // 验证跳转到了网络数据日志页面（hash 路由格式）
+    await page.waitForURL('/#/network-log');
+    expect(page.url()).toContain('/#/network-log');
 
     // 验证页面标题
     const pageTitle = page.locator('.network-log-view .ant-card-head-title');
@@ -282,9 +282,9 @@ test.describe('网络数据日志功能', () => {
     await expect(viewLogButton).toBeVisible({ timeout: 5000 });
     await viewLogButton.click();
 
-    // 验证跳转到了网络数据日志页面
-    await page.waitForURL('/network-log');
-    expect(page.url()).toContain('/network-log');
+    // 验证跳转到了网络数据日志页面（hash 路由格式）
+    await page.waitForURL('/#/network-log');
+    expect(page.url()).toContain('/#/network-log');
   });
 
   test('网络数据日志页面应该显示空状态', async ({ page }) => {

@@ -99,23 +99,29 @@ test.describe('刷新功能边缘场景', () => {
   });
 
   test('用户信息未设置时应该弹窗而不是报错', async ({ page }) => {
-    // 清空用户信息
-    await page.goto('/center');
-    await page.waitForLoadState('domcontentloaded');
-
-    await page.evaluate(() => {
-      localStorage.removeItem('user_info');
-    });
-
-    // 刷新页面
-    await page.reload();
-    await page.waitForLoadState('domcontentloaded');
-
     // 监听所有控制台日志
     const logs: string[] = [];
     page.on('console', msg => {
       logs.push(msg.text());
     });
+
+    // 首先导航到任意页面（触发 E2E 模式标记）
+    await page.goto('/center');
+    await page.waitForLoadState('domcontentloaded');
+
+    // 然后清空所有用户信息并设置禁用标记
+    await page.evaluate(() => {
+      // 清除所有用户信息相关的 keys
+      localStorage.removeItem('user_info');
+      localStorage.removeItem('p2p_user_info');
+      localStorage.removeItem('p2p_user_info_meta');
+      // 设置 E2E 禁用标记，防止自动设置用户信息
+      localStorage.setItem('__E2E_DISABLE_AUTO_SETUP__', 'true');
+    });
+
+    // 刷新页面以应用更改
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
 
     // 等待用户名设置弹窗出现（验证弹窗而不是报错）
     const modal = page.locator('.ant-modal');

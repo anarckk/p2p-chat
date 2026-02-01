@@ -41,7 +41,8 @@ async function createThreeTestDevices(
 ): Promise<ThreeDevices> {
   const startPage = options?.startPage || 'center';
   const pageSelector = startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container';
-  const url = startPage === 'center' ? '/center' : '/wechat';
+  // 使用哈希路由格式，避免触发 main.ts 的 E2E 测试模式逻辑
+  const url = startPage === 'center' ? '/#/center' : '/#/wechat';
 
   // 创建设备 A
   const deviceAUserInfo = createUserInfo(deviceAName);
@@ -235,6 +236,30 @@ test.describe('网络加速功能', () => {
    * 网络加速多设备测试
    */
   test.describe('网络加速消息中转', () => {
+    /**
+     * 从页面获取实际的 peerId，等待 PeerJS 连接完成
+     */
+    async function getPeerIdWithRetry(page: Page, deviceName: string): Promise<string> {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const peerId = await page.evaluate(() => {
+          const stored = localStorage.getItem('p2p_user_info_meta') || localStorage.getItem('p2p_user_info');
+          if (!stored) return null;
+          const userInfo = JSON.parse(stored);
+          return userInfo.peerId || null;
+        });
+
+        if (peerId) {
+          console.log(`[Test] Got peerId for ${deviceName} (attempt ${attempt + 1}):`, peerId);
+          return peerId;
+        }
+
+        console.log(`[Test] Waiting for peerId for ${deviceName} (attempt ${attempt + 1})...`);
+        await page.waitForTimeout(500);
+      }
+
+      throw new Error(`Failed to get peerId for ${deviceName} after 20 attempts`);
+    }
+
     test('设备A通过设备B中转发送消息给设备C', async ({ browser }) => {
       test.setTimeout(60000); // 优化：减少超时时间
 
@@ -247,6 +272,10 @@ test.describe('网络加速功能', () => {
       );
 
       try {
+        // 从页面获取实际的 peerId（等待 PeerJS 连接完成）
+        const deviceCPeerId = await getPeerIdWithRetry(devices.deviceC.page, 'Device C');
+        const deviceAPeerId = await getPeerIdWithRetry(devices.deviceA.page, 'Device A');
+
         // 设备 B 开启网络加速
         await devices.deviceB.page.click('.ant-menu-item:has-text("设置")');
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -267,14 +296,14 @@ test.describe('网络加速功能', () => {
         // 设备 A 添加设备 C 的聊天
         await devices.deviceA.page.click(SELECTORS.plusButton);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
-        await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceC.userInfo.peerId);
+        await devices.deviceA.page.fill(SELECTORS.peerIdInput, deviceCPeerId);
         await devices.deviceA.page.click(SELECTORS.modalOkButton);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
         // 设备 C 添加设备 A 的聊天
         await devices.deviceC.page.click(SELECTORS.plusButton);
         await devices.deviceC.page.waitForTimeout(WAIT_TIMES.SHORT);
-        await devices.deviceC.page.fill(SELECTORS.peerIdInput, devices.deviceA.userInfo.peerId);
+        await devices.deviceC.page.fill(SELECTORS.peerIdInput, deviceAPeerId);
         await devices.deviceC.page.click(SELECTORS.modalOkButton);
         await devices.deviceC.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
@@ -325,6 +354,10 @@ test.describe('网络加速功能', () => {
       );
 
       try {
+        // 从页面获取实际的 peerId（等待 PeerJS 连接完成）
+        const deviceCPeerId = await getPeerIdWithRetry(devices.deviceC.page, 'Device C');
+        const deviceAPeerId = await getPeerIdWithRetry(devices.deviceA.page, 'Device A');
+
         // 设备 B 确保关闭网络加速
         await devices.deviceB.page.click('.ant-menu-item:has-text("设置")');
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -347,13 +380,13 @@ test.describe('网络加速功能', () => {
         // 设备 A 和设备 C 直接建立聊天
         await devices.deviceA.page.click(SELECTORS.plusButton);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
-        await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceC.userInfo.peerId);
+        await devices.deviceA.page.fill(SELECTORS.peerIdInput, deviceCPeerId);
         await devices.deviceA.page.click(SELECTORS.modalOkButton);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
         await devices.deviceC.page.click(SELECTORS.plusButton);
         await devices.deviceC.page.waitForTimeout(WAIT_TIMES.SHORT);
-        await devices.deviceC.page.fill(SELECTORS.peerIdInput, devices.deviceA.userInfo.peerId);
+        await devices.deviceC.page.fill(SELECTORS.peerIdInput, deviceAPeerId);
         await devices.deviceC.page.click(SELECTORS.modalOkButton);
         await devices.deviceC.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
