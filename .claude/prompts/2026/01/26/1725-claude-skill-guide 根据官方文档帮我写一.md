@@ -1,1 +1,0 @@
-/claude-skill-guide 根据官方文档帮我写一个 claude skill ，这个skill是一个说明性skill，说明 peerjs 种官方文档是怎么说明的

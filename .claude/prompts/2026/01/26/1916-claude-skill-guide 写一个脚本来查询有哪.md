@@ -1,1 +1,0 @@
-/claude-skill-guide 写一个脚本来查询有哪些e2e测试，并封装成 claude skill
