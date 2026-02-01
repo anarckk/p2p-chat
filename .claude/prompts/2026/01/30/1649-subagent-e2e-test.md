@@ -1,3 +1,0 @@
-session_id:5a2d009f-1263-4b2b-a267-e05c573acee5
-
-/subagent-e2e-test
