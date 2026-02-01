@@ -1,5 +1,0 @@
-# Prompt
-
-`
-/update-require
-`
