@@ -254,8 +254,8 @@ test.describe('设备互相发现递归机制', () => {
       await queryInputA.fill(peerIdB);
       await page.locator(SELECTORS.addButton).click();
 
-      // 等待递归发现完成
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 2);
+      // 等待递归发现完成（增加等待时间以确保多级发现完成）
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 5);
 
       // 验证有多次设备列表请求（一次给 B，一次给 C）
       const deviceListRequests = logsA.filter(log =>
@@ -408,8 +408,8 @@ test.describe('设备互相发现递归机制', () => {
       await queryInputA.fill(peerIds[1]);
       await page.locator(SELECTORS.addButton).click();
 
-      // 等待递归发现传播
-      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 3);
+      // 等待递归发现传播（增加等待时间以确保多级发现完成）
+      await page.waitForTimeout(WAIT_TIMES.DISCOVERY * 5);
 
       // 验证设备 A 最终发现了所有设备
       const deviceCards = page.locator(SELECTORS.deviceCard);

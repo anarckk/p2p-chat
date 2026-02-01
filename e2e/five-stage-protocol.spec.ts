@@ -12,6 +12,8 @@ import {
   sendTextMessage,
   assertMessageExists,
   retry,
+  getPeerIdFromElement,
+  getPeerIdFromStorage,
 } from './test-helpers.js';
 
 /**
@@ -47,6 +49,9 @@ test.describe('五段式消息传递协议', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
 
+        // 在发现中心页面获取设备 B 的实际 PeerId
+        const deviceBPeerId = await getPeerIdFromElement(devices.deviceB.page);
+
         // 切换到聊天页面
         await devices.deviceA.page.click(SELECTORS.wechatMenuItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -58,7 +63,7 @@ test.describe('五段式消息传递协议', () => {
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
 
         // 设备 A 创建与设备 B 的聊天
-        await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
+        await createChat(devices.deviceA.page, deviceBPeerId);
 
         // 选择聊天
         await devices.deviceA.page.click(SELECTORS.contactItem);
@@ -116,8 +121,11 @@ test.describe('五段式消息传递协议', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
+        // 获取设备 B 的实际 PeerId（从 localStorage）
+        const deviceBPeerId = await getPeerIdFromStorage(devices.deviceB.page);
+
         // 设备 A 创建聊天
-        await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
+        await createChat(devices.deviceA.page, deviceBPeerId);
 
         await devices.deviceA.page.click(SELECTORS.contactItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
@@ -143,7 +151,6 @@ test.describe('五段式消息传递协议', () => {
         expect(hasMessage).toBeTruthy();
 
         // 验证消息状态 - 检查消息有唯一ID和messageStage
-        const deviceBPeerId = devices.deviceB.userInfo.peerId;
 
         // 等待消息存储到 localStorage（增加等待时间）
         let messageStatus: any = null;
@@ -180,7 +187,10 @@ test.describe('五段式消息传递协议', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
-        await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
+        // 获取设备 B 的实际 PeerId（从 localStorage）
+        const deviceBPeerId = await getPeerIdFromStorage(devices.deviceB.page);
+
+        await createChat(devices.deviceA.page, deviceBPeerId);
         await devices.deviceA.page.click(SELECTORS.contactItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
@@ -573,8 +583,11 @@ test.describe('五段式消息传递协议', () => {
       const devices = await createTestDevices(browser, '文件发送方', '文件接收方', { startPage: 'wechat' });
 
       try {
+        // 获取设备 B 的实际 PeerId（从 localStorage）
+        const deviceBPeerId = await getPeerIdFromStorage(devices.deviceB.page);
+
         // 发送方创建聊天
-        await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
+        await createChat(devices.deviceA.page, deviceBPeerId);
 
         await devices.deviceA.page.click(SELECTORS.contactItem);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);

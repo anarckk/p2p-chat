@@ -153,13 +153,13 @@ export function generatePeerId(): string {
 }
 
 /**
- * 创建用户信息
+ * 创建用户信息（不预设 peerId，让 PeerJS 自己生成）
  */
 export function createUserInfo(username: string, peerId?: string): UserInfo {
   return {
     username,
     avatar: null,
-    peerId: peerId || generatePeerId(),
+    peerId: peerId || null, // 不预设 peerId，让 PeerJS 初始化时生成
   };
 }
 
@@ -255,6 +255,9 @@ export async function clearAllStorage(page: Page): Promise<void> {
     await page.evaluate(() => {
       localStorage.clear();
       sessionStorage.clear();
+      // 设置禁用标记，让 E2E 测试模式不自动设置用户信息
+      // 这样测试可以正确测试弹窗行为
+      localStorage.setItem('__E2E_DISABLE_AUTO_SETUP__', 'true');
     });
   } catch (error) {
     // 如果当前页面不支持 localStorage（比如 about:blank），忽略错误
@@ -913,8 +916,14 @@ export async function setupUser(page: Page, username: string): Promise<void> {
           username: name,
           avatar: null,
           peerId: null,
+          version: 0,
         };
         localStorage.setItem('p2p_user_info', JSON.stringify(userInfo));
+        localStorage.setItem('p2p_user_info_meta', JSON.stringify({
+          username: name,
+          peerId: null,
+          version: 0,
+        }));
       }, username);
       // 刷新页面以应用设置
       await page.reload();

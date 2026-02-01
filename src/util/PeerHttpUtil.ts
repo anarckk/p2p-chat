@@ -1232,12 +1232,14 @@ export class PeerHttpUtil {
    * @param _username - 当前用户名（用于响应，已废弃，保留参数兼容性）
    * @param _avatar - 当前头像（用于响应，已废弃，保留参数兼容性）
    * @param userInfoVersion - 当前用户信息版本号
+   * @param timeoutMs - 超时时间（毫秒），默认 5000ms
    */
   async checkOnline(
     peerId: string,
     _username: string,
     _avatar: string | null,
     userInfoVersion: number,
+    timeoutMs: number = 5000,
   ): Promise<{ isOnline: boolean; username: string; avatar: string | null; userInfoVersion: number } | null> {
     return new Promise((resolve) => {
       // 设置一次性处理器
@@ -1696,6 +1698,10 @@ export class PeerHttpUtil {
     commLog.deviceDiscovery.requestReceived({ from });
     // 响应我已发现的设备列表
     const devices = Array.from(this.discoveredDevices.values());
+    console.log('[PeerHttp] handleDeviceListRequest: returning ' + devices.length + ' devices to ' + from);
+    devices.forEach((device) => {
+      console.log('[PeerHttp]   - ' + device.peerId + ' (' + device.username + ')');
+    });
 
     this.sendProtocol(from, {
       type: 'device_list_response',

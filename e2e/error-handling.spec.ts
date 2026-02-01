@@ -28,9 +28,8 @@ async function setupUserForTest(page: any) {
     sessionStorage.clear();
   });
 
-  // 导航到 /center 再回到 /wechat，触发弹窗
-  await page.goto('/center', { waitUntil: 'domcontentloaded' });
-  await page.goto('/wechat', { waitUntil: 'domcontentloaded' });
+  // 刷新页面以重新触发 onMounted 和用户设置弹窗
+  await page.reload({ waitUntil: 'domcontentloaded' });
 
   // 等待用户设置弹窗
   await page.waitForSelector('.ant-modal', { timeout: 8000 });

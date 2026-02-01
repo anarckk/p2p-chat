@@ -3,7 +3,7 @@ import { ref, onMounted, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import { usePeerManager } from '../composables/usePeerManager';
-import { SaveOutlined, UserOutlined, ThunderboltOutlined, FileTextOutlined } from '@ant-design/icons-vue';
+import { SaveOutlined, UserOutlined, ThunderboltOutlined, FileTextOutlined, ClockCircleOutlined } from '@ant-design/icons-vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -30,6 +30,12 @@ const originalNetworkAcceleration = ref(false);
 // 网络数据日志记录
 const networkLogging = ref(false);
 const originalNetworkLogging = ref(false);
+
+// 设备状态检测配置
+const deviceCheckInterval = ref(20);
+const originalDeviceCheckInterval = ref(20);
+const deviceCheckTimeout = ref(5);
+const originalDeviceCheckTimeout = ref(5);
 
 // 加载中状态
 const isLoading = ref(false);
@@ -66,6 +72,12 @@ onMounted(async () => {
   networkLogging.value = userStore.loadNetworkLogging();
   originalNetworkLogging.value = networkLogging.value;
 
+  // 加载设备状态检测配置
+  deviceCheckInterval.value = userStore.loadDeviceCheckInterval();
+  originalDeviceCheckInterval.value = deviceCheckInterval.value;
+  deviceCheckTimeout.value = userStore.loadDeviceCheckTimeout();
+  originalDeviceCheckTimeout.value = deviceCheckTimeout.value;
+
   userInfoLoaded.value = true;
 });
 
@@ -81,7 +93,9 @@ const hasChanges = computed(() => {
   return username.value !== originalUsername.value ||
     avatarFile.value !== null || avatarRemoved.value ||
     networkAcceleration.value !== originalNetworkAcceleration.value ||
-    networkLogging.value !== originalNetworkLogging.value;
+    networkLogging.value !== originalNetworkLogging.value ||
+    deviceCheckInterval.value !== originalDeviceCheckInterval.value ||
+    deviceCheckTimeout.value !== originalDeviceCheckTimeout.value;
 });
 
 // 处理文件选择
@@ -180,6 +194,17 @@ async function handleSave() {
       showInlineMessage(networkLogging.value ? '已开启网络数据日志记录' : '已关闭网络数据日志记录', 'success');
     }
 
+    // 保存设备状态检测配置
+    if (deviceCheckInterval.value !== originalDeviceCheckInterval.value) {
+      userStore.setDeviceCheckInterval(deviceCheckInterval.value);
+      showInlineMessage('设备状态检测间隔已更新为 ' + deviceCheckInterval.value + ' 秒', 'success');
+    }
+
+    if (deviceCheckTimeout.value !== originalDeviceCheckTimeout.value) {
+      userStore.setDeviceCheckTimeout(deviceCheckTimeout.value);
+      showInlineMessage('设备状态检测超时已更新为 ' + deviceCheckTimeout.value + ' 秒', 'success');
+    }
+
     originalUsername.value = username.value;
     originalNetworkAcceleration.value = networkAcceleration.value;
     originalNetworkLogging.value = networkLogging.value;
@@ -202,6 +227,8 @@ function handleCancel() {
   avatarFile.value = null;
   networkAcceleration.value = originalNetworkAcceleration.value;
   networkLogging.value = originalNetworkLogging.value;
+  deviceCheckInterval.value = originalDeviceCheckInterval.value;
+  deviceCheckTimeout.value = originalDeviceCheckTimeout.value;
 }
 
 // 跳转到发现中心
@@ -387,6 +414,66 @@ function clearInlineMessage() {
         </a-card>
       </a-col>
 
+      <!-- 设备状态检测配置 -->
+      <a-col :xs="24" :md="12">
+        <a-card title="设备状态检测" :bordered="false">
+          <template #extra>
+            <ClockCircleOutlined />
+          </template>
+
+          <div class="device-check-section">
+            <p class="description">
+              配置设备在线状态检测的时间间隔和超时时间。
+              较短的间隔可以更快发现设备离线，但会增加网络流量。
+            </p>
+
+            <a-form layout="vertical">
+              <!-- 检测间隔 -->
+              <a-form-item label="检测间隔（秒）">
+                <a-input-number
+                  v-model:value="deviceCheckInterval"
+                  :min="5"
+                  :max="600"
+                  :step="5"
+                  style="width: 100%;"
+                  aria-label="device-check-interval-input"
+                />
+                <div class="hint-text">
+                  范围：5-600 秒，默认 20 秒
+                </div>
+              </a-form-item>
+
+              <!-- 超时时间 -->
+              <a-form-item label="超时时间（秒）">
+                <a-input-number
+                  v-model:value="deviceCheckTimeout"
+                  :min="3"
+                  :max="30"
+                  :step="1"
+                  style="width: 100%;"
+                  aria-label="device-check-timeout-input"
+                />
+                <div class="hint-text">
+                  范围：3-30 秒，默认 5 秒。超时后设备将被标记为离线
+                </div>
+              </a-form-item>
+            </a-form>
+
+            <div class="status-info">
+              <a-alert
+                type="info"
+                show-icon
+                message="设备状态检测配置"
+              >
+                <template #description>
+                  <div>当前配置：每 {{ deviceCheckInterval }} 秒检测一次，超时时间为 {{ deviceCheckTimeout }} 秒</div>
+                </template>
+              </a-alert>
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+
       <!-- 操作按钮 -->
       <a-col :span="24">
         <!-- 内联提示 -->
@@ -469,6 +556,24 @@ function clearInlineMessage() {
   color: #666;
   line-height: 1.6;
   margin: 0;
+}
+
+.device-check-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.device-check-section .description {
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.device-check-section .hint-text {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
 }
 
 .status-info {

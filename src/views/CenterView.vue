@@ -100,8 +100,10 @@ async function checkDeviceOnline(device: OnlineDevice): Promise<boolean> {
   }
 
   try {
+    // 获取超时配置（毫秒）
+    const timeout = userStore.loadDeviceCheckTimeout() * 1000;
     // 发送在线检查请求（携带版本号，自动触发用户信息同步）
-    return await checkOnline(device.peerId);
+    return await checkOnline(device.peerId, timeout);
   } catch (error) {
     console.error('[Center] Check online error:', error);
     return false;
@@ -164,6 +166,9 @@ onMounted(async () => {
 
   // 启动心跳定时器
   perfLog('before-heartbeat', '准备启动心跳定时器');
+  // 加载设备状态检测间隔配置
+  const checkInterval = userStore.loadDeviceCheckInterval();
+  const checkTimeout = userStore.loadDeviceCheckTimeout() * 1000;
   deviceStore.startHeartbeatTimer(async (device: OnlineDevice) => {
     // 定时检查设备在线状态的回调函数
     if (!isConnected.value) {
@@ -172,12 +177,12 @@ onMounted(async () => {
 
     try {
       // 发送在线检查请求（携带版本号，自动触发用户信息同步）
-      return await checkOnline(device.peerId);
+      return await checkOnline(device.peerId, checkTimeout);
     } catch (error) {
       console.error('[Center] Heartbeat check error:', error);
       return false;
     }
-  });
+  }, checkInterval);
   perfLog('after-heartbeat', '心跳定时器启动完成');
 
   // 监听发现设备更新事件，自动刷新

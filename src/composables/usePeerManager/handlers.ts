@@ -376,6 +376,8 @@ export function registerProtocolHandlers(instance: any): any {
           if (isNewDevice && !processingDeviceListRequests.has(device.peerId)) {
             newDevices.push(device);
           }
+          // 同时添加到 instance.discoveredDevices，确保数据同步
+          instance?.addDiscoveredDevice(device);
         });
 
         // 添加所有设备到 deviceStore

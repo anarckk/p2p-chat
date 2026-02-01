@@ -144,6 +144,16 @@ export const useChatStore = defineStore('chat', () => {
     // 首次加载时检查是否需要迁移旧数据
     await migrateOldMessageDataIfNeeded();
 
+    // 加载当前聊天
+    const currentChatData = localStorage.getItem('p2p_current_chat');
+    if (currentChatData) {
+      try {
+        currentChatPeerId.value = currentChatData;
+      } catch (e) {
+        console.error('[ChatStore] Failed to load current chat:', e);
+      }
+    }
+
     const contactsData = localStorage.getItem(CONTACTS_KEY);
     if (contactsData) {
       try {
@@ -420,12 +430,16 @@ export const useChatStore = defineStore('chat', () => {
 
   function setCurrentChat(peerId: string | null) {
     currentChatPeerId.value = peerId;
+    // 保存当前聊天到 localStorage
     if (peerId) {
+      localStorage.setItem('p2p_current_chat', peerId);
       const contact = contacts.value.get(peerId);
       if (contact) {
         contact.unreadCount = 0;
         saveContacts();
       }
+    } else {
+      localStorage.removeItem('p2p_current_chat');
     }
   }
 

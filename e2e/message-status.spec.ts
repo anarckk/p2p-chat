@@ -21,25 +21,61 @@ import {
  * 3. 消息持久化
  */
 test.describe('消息状态展示与送达确认', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/wechat');
-    await clearAllStorage(page);
-  });
+  // 不使用 beforeEach，在每个测试中单独处理
 
   /**
    * 单设备消息状态测试
    */
   test.describe('单设备消息状态', () => {
     test('应该正确显示各种消息状态', async ({ page }) => {
-      await setUserInfo(page, createUserInfo('测试用户', 'my-peer-123'), { navigateTo: '/wechat' });
+      // 清理存储并刷新页面，触发弹窗
+      await page.goto('/wechat');
+      await clearAllStorage(page);
+      await page.reload();
 
-      // 获取实际的 PeerId（因为 setUserInfo 可能会生成新的 PeerId）
-      const actualPeerId = await page.evaluate(() => {
+      // 设置用户信息并等待 Peer 初始化完成
+      await setUserInfo(page, createUserInfo('测试用户'), { navigateTo: '/wechat' });
+
+      // 等待 Peer 初始化完成
+      await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 5);
+
+      // 检查用户信息
+      const userInfoCheck = await page.evaluate(() => {
         const stored = localStorage.getItem('p2p_user_info');
-        return stored ? JSON.parse(stored).peerId : null;
+        return {
+          stored: !!stored,
+          parsed: stored ? JSON.parse(stored) : null,
+        };
       });
+      console.log('[Test] User info check:', JSON.stringify(userInfoCheck));
 
-      console.log('[Test] Actual PeerId:', actualPeerId);
+      // 检查 userStore 中的 myPeerId（通过 DOM 推断）
+      const storePeerIdCheck = await page.evaluate(() => {
+        // 检查页面上是否有显示 PeerId 的元素
+        const peerIdElements = document.querySelectorAll('[data-peer-id]');
+        if (peerIdElements.length > 0) {
+          return {
+            method: 'data-attribute',
+            peerId: peerIdElements[0].getAttribute('data-peer-id'),
+          };
+        }
+        // 检查 localStorage 中的用户信息
+        const stored = localStorage.getItem('p2p_user_info');
+        return {
+          method: 'localStorage',
+          peerId: stored ? JSON.parse(stored).peerId : null,
+        };
+      });
+      console.log('[Test] Store PeerId check:', JSON.stringify(storePeerIdCheck));
+
+      // 获取实际的 PeerId（由 Peer 实例生成）
+      const actualPeerId = userInfoCheck.parsed?.peerId || null;
+
+      console.log('[Test] Actual PeerId after init:', actualPeerId);
+
+      if (!actualPeerId) {
+        throw new Error('PeerId is null after initialization');
+      }
 
       const contacts = {
         'contact-1': {
@@ -54,11 +90,16 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
+      // 设置当前聊天，这样页面会加载该联系人的消息
+      await page.evaluate(() => {
+        localStorage.setItem('p2p_current_chat', 'contact-1');
+      });
+
       // 模拟不同状态的消息（使用实际的 PeerId）
       const messages = [
         {
           id: 'msg-sending-1',
-          from: actualPeerId || 'my-peer-123',
+          from: actualPeerId,
           to: 'contact-1',
           content: '发送中的消息',
           type: 'text',
@@ -67,7 +108,7 @@ test.describe('消息状态展示与送达确认', () => {
         },
         {
           id: 'msg-delivered-1',
-          from: actualPeerId || 'my-peer-123',
+          from: actualPeerId,
           to: 'contact-1',
           content: '已送达的消息',
           type: 'text',
@@ -76,7 +117,7 @@ test.describe('消息状态展示与送达确认', () => {
         },
         {
           id: 'msg-failed-1',
-          from: actualPeerId || 'my-peer-123',
+          from: actualPeerId,
           to: 'contact-1',
           content: '发送失败的消息',
           type: 'text',
@@ -89,9 +130,76 @@ test.describe('消息状态展示与送达确认', () => {
       await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
+      // 等待模态框完全隐藏（如果存在）
+      try {
+        await page.waitForSelector('.ant-modal-wrap', { state: 'hidden', timeout: 5000 });
+      } catch {
+        // 模态框可能不存在或已隐藏
+      }
+
+      // 等待联系人出现
+      await page.waitForSelector(SELECTORS.contactItem, { timeout: 8000 });
+
       // 现在联系人有消息了，可以点击了
-      await page.click(SELECTORS.contactItem);
-      await page.waitForTimeout(WAIT_TIMES.SHORT);
+      // 使用 force: true 绕过任何可能的覆盖层
+      await page.click(SELECTORS.contactItem, { force: true });
+
+      // 等待消息区域加载完成
+      await page.waitForTimeout(WAIT_TIMES.LONG);
+
+      // 检查当前聊天状态
+      const currentChatState = await page.evaluate(() => {
+        const currentChat = localStorage.getItem('p2p_current_chat');
+        const messages = localStorage.getItem('p2p_messages_contact-1');
+        const contacts = localStorage.getItem('p2p_contacts');
+        const userInfo = localStorage.getItem('p2p_user_info');
+        return {
+          currentChat,
+          messagesExists: !!messages,
+          messagesCount: messages ? JSON.parse(messages).length : 0,
+          contactsExists: !!contacts,
+          contactsData: contacts ? Object.keys(JSON.parse(contacts)) : [],
+          userPeerId: userInfo ? JSON.parse(userInfo).peerId : null,
+        };
+      });
+      console.log('[Test] Current chat state:', JSON.stringify(currentChatState));
+
+      // 检查页面中第一条消息的 from 属性
+      const messageCheck = await page.evaluate(() => {
+        const messages = JSON.parse(localStorage.getItem('p2p_messages_contact-1') || '[]');
+        const firstMessage = messages[0];
+        return {
+          firstMessageFrom: firstMessage?.from,
+          firstMessageStatus: firstMessage?.status,
+        };
+      });
+      console.log('[Test] Message check:', JSON.stringify(messageCheck));
+
+      // 点击联系人前后的状态检查
+      // 检查 chatStore 内部状态（通过 window 全局变量或控制台日志）
+      const chatStoreState = await page.evaluate(() => {
+        // 尝试通过 Vue devtools 或内部状态获取
+        // 由于无法直接访问 Pinia store，我们通过 DOM 状态推断
+        const messageContainer = document.querySelector('.messages-container');
+        const currentContact = document.querySelector('.contact-item.active');
+        return {
+          hasMessageContainer: !!messageContainer,
+          hasActiveContact: !!currentContact,
+          messageContainerHTML: messageContainer ? messageContainer.innerHTML.substring(0, 200) : null,
+        };
+      });
+      console.log('[Test] Chat store state:', JSON.stringify(chatStoreState));
+
+      // 等待消息容器出现
+      try {
+        await page.waitForSelector('.message-item', { timeout: 5000 });
+      } catch {
+        console.log('[Test] No message items found, continuing...');
+      }
+
+      // 如果没有消息，检查页面状态
+      const messageCount = await page.locator('.message-item').count();
+      console.log('[Test] Message item count:', messageCount);
 
       // 验证消息显示
       const sendingMessage = page.locator(SELECTORS.messageText).filter({ hasText: '发送中的消息' });
@@ -127,7 +235,28 @@ test.describe('消息状态展示与送达确认', () => {
     });
 
     test('消息应该持久化到 localStorage', async ({ page }) => {
-      await setUserInfo(page, createUserInfo('测试用户', 'my-peer-123'), { navigateTo: '/wechat' });
+      // 清理存储并刷新页面，触发弹窗
+      await page.goto('/wechat');
+      await clearAllStorage(page);
+      await page.reload();
+
+      // 设置用户信息并等待 Peer 初始化完成
+      await setUserInfo(page, createUserInfo('测试用户'), { navigateTo: '/wechat' });
+
+      // 等待 Peer 初始化完成
+      await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 5);
+
+      // 获取实际的 PeerId
+      const actualPeerId = await page.evaluate(() => {
+        const stored = localStorage.getItem('p2p_user_info');
+        return stored ? JSON.parse(stored).peerId : null;
+      });
+
+      console.log('[Test] Actual PeerId after init:', actualPeerId);
+
+      if (!actualPeerId) {
+        throw new Error('PeerId is null after initialization');
+      }
 
       const contacts = {
         'contact-1': {
@@ -142,10 +271,15 @@ test.describe('消息状态展示与送达确认', () => {
       };
       await setContactList(page, contacts);
 
+      // 设置当前聊天，这样页面会加载该联系人的消息
+      await page.evaluate(() => {
+        localStorage.setItem('p2p_current_chat', 'contact-1');
+      });
+
       const messages = [
         {
           id: 'msg-persist-1',
-          from: 'my-peer-123',
+          from: actualPeerId,
           to: 'contact-1',
           content: '持久化消息',
           type: 'text',
@@ -158,9 +292,29 @@ test.describe('消息状态展示与送达确认', () => {
       await page.reload();
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
+      // 等待模态框完全隐藏（如果存在）
+      try {
+        await page.waitForSelector('.ant-modal-wrap', { state: 'hidden', timeout: 5000 });
+      } catch {
+        // 模态框可能不存在或已隐藏
+      }
+
+      // 等待联系人出现
+      await page.waitForSelector(SELECTORS.contactItem, { timeout: 8000 });
+
       // 现在联系人有消息了，可以点击了
-      await page.click(SELECTORS.contactItem);
-      await page.waitForTimeout(WAIT_TIMES.SHORT);
+      // 使用 force: true 绕过任何可能的覆盖层
+      await page.click(SELECTORS.contactItem, { force: true });
+
+      // 等待消息区域加载完成
+      await page.waitForTimeout(WAIT_TIMES.LONG);
+
+      // 等待消息容器出现
+      try {
+        await page.waitForSelector('.message-item', { timeout: 5000 });
+      } catch {
+        console.log('[Test] No message items found, continuing...');
+      }
 
       const messageText = page.locator(SELECTORS.messageText).filter({ hasText: '持久化消息' });
       await expect(messageText).toBeVisible();

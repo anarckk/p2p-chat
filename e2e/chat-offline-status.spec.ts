@@ -41,12 +41,14 @@ test.describe('聊天离线状态测试', () => {
     await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
     // 验证离线设备显示离线状态
-    const offlineStatus = await page
-      .locator('.device-card')
-      .filter({ hasText: '离线设备UserB' })
-      .locator('text=离线')
-      .count();
-    expect(offlineStatus).toBeGreaterThan(0);
+    const deviceCard = page.locator('.device-card').filter({ hasText: '离线设备UserB' });
+    await expect(deviceCard).toBeVisible();
+    // 使用 is-offline class 验证离线状态
+    const cardClass = await deviceCard.getAttribute('class');
+    expect(cardClass).toContain('is-offline');
+    // 验证离线标签存在
+    const offlineTagCount = await deviceCard.locator(SELECTORS.offlineTag).count();
+    expect(offlineTagCount).toBeGreaterThan(0);
     console.log('[Test] ✓ 离线设备正确显示离线状态');
   });
 
@@ -72,12 +74,14 @@ test.describe('聊天离线状态测试', () => {
     await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
     // 验证离线状态
-    const offlineStatus = await page
-      .locator('.device-card')
-      .filter({ hasText: '测试设备UserA' })
-      .locator('text=离线')
-      .count();
-    expect(offlineStatus).toBeGreaterThan(0);
+    const deviceCard = page.locator('.device-card').filter({ hasText: '测试设备UserA' });
+    await expect(deviceCard).toBeVisible();
+    // 使用 is-offline class 验证离线状态
+    const cardClass = await deviceCard.getAttribute('class');
+    expect(cardClass).toContain('is-offline');
+    // 验证离线标签存在
+    const offlineTagCount = await deviceCard.locator(SELECTORS.offlineTag).count();
+    expect(offlineTagCount).toBeGreaterThan(0);
     console.log('[Test] ✓ 设备显示离线');
 
     // 模拟设备重新上线（更新 lastHeartbeat 为当前时间）
@@ -96,12 +100,14 @@ test.describe('聊天离线状态测试', () => {
     await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
     // 验证在线状态
-    const onlineStatus = await page
-      .locator('.device-card')
-      .filter({ hasText: '测试设备UserA' })
-      .locator('text=在线')
-      .count();
-    expect(onlineStatus).toBeGreaterThan(0);
+    const deviceCardOnline = page.locator('.device-card').filter({ hasText: '测试设备UserA' });
+    await expect(deviceCardOnline).toBeVisible();
+    // 验证在线标签存在
+    const onlineTagCount = await deviceCardOnline.locator(SELECTORS.onlineTag).count();
+    expect(onlineTagCount).toBeGreaterThan(0);
+    // 验证没有 is-offline class
+    const cardClassOnline = await deviceCardOnline.getAttribute('class');
+    expect(cardClassOnline).not.toContain('is-offline');
     console.log('[Test] ✓ 设备重新上线后显示在线');
   });
 });

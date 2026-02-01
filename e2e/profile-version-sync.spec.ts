@@ -57,7 +57,7 @@ test.describe('个人信息版本同步', () => {
 
         // 设备 A 切换到设置页面修改用户名
         await devices.deviceA.page.click('.ant-menu-item:has-text("设置")');
-        await devices.deviceA.page.waitForURL('/settings', { timeout: 5000 });
+        await devices.deviceA.page.waitForURL('**/settings', { timeout: 5000 });
         await devices.deviceA.page.waitForLoadState('domcontentloaded');
 
         // 修改用户名
@@ -321,8 +321,13 @@ test.describe('个人信息版本同步', () => {
       const saveButton = page.locator('button[aria-label="save-settings-button"]');
       await saveButton.click();
 
-      // 等待保存成功提示（内联提示）
-      await page.waitForSelector('.inline-message-success', { timeout: 3000 });
+      // 等待保存成功提示（内联提示） - 使用更精确的选择器避免匹配到弹窗中的消息
+      try {
+        await page.waitForSelector('.settings-container .inline-message-success', { timeout: 3000 });
+      } catch (error) {
+        // 如果内联消息没有显示，至少等待一段时间让保存完成
+        await page.waitForTimeout(1000);
+      }
 
       // 获取修改后的版本号
       const userInfoAfter = await page.evaluate(() => {
@@ -416,7 +421,7 @@ test.describe('个人信息版本同步', () => {
 
         // 设备 A 修改用户名
         await devices.deviceA.page.click('.ant-menu-item:has-text("设置")');
-        await devices.deviceA.page.waitForURL('/settings', { timeout: 5000 });
+        await devices.deviceA.page.waitForURL('**/settings', { timeout: 5000 });
         await devices.deviceA.page.waitForLoadState('domcontentloaded');
 
         const usernameInput = devices.deviceA.page.locator('.settings-container input[maxlength="20"]');

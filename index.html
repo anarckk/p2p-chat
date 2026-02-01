@@ -5,6 +5,49 @@
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2P 聊天</title>
+    <!-- E2E 测试支持：在页面加载前处理测试路径 -->
+    <script>
+      (function() {
+        const pathname = window.location.pathname;
+        // 如果路径不是根路径且没有 hash，说明是 E2E 测试直接访问路径（如 /center）
+        if (pathname !== '/' && !window.location.hash) {
+          console.log('[index.html] E2E 测试模式：检测到非根路径访问', pathname);
+
+          // 检查是否有禁用标记（某些测试需要测试弹窗行为）
+          const disableAutoSetup = localStorage.getItem('__E2E_DISABLE_AUTO_SETUP__') === 'true';
+
+          // 设置默认用户信息（避免弹窗阻塞），除非被禁用
+          // 同时检查旧的 key 'user_info' 以向后兼容
+          const hasOldUserInfo = localStorage.getItem('user_info');
+          const hasNewUserInfo = localStorage.getItem('p2p_user_info_meta') || localStorage.getItem('p2p_user_info');
+
+          if (!disableAutoSetup && !hasNewUserInfo && !hasOldUserInfo) {
+            const defaultUserInfo = {
+              username: 'E2E测试用户',
+              avatar: null,
+              peerId: null,
+              version: 0,
+            };
+            localStorage.setItem('p2p_user_info', JSON.stringify(defaultUserInfo));
+            localStorage.setItem('p2p_user_info_meta', JSON.stringify({
+              username: defaultUserInfo.username,
+              peerId: defaultUserInfo.peerId,
+              version: defaultUserInfo.version,
+            }));
+            console.log('[index.html] E2E 测试模式：已自动设置默认用户信息');
+          }
+
+          // 存储 E2E 测试标记和目标路由
+          localStorage.setItem('__E2E_TEST_MODE__', 'true');
+          localStorage.setItem('__E2E_TARGET_ROUTE__', pathname.substring(1)); // 去掉开头的 /
+
+          // 直接导航到 hash 路由，避免 pathname + hash 重复
+          const targetRoute = pathname.substring(1);
+          window.location.replace('/#/' + targetRoute);
+          console.log('[index.html] E2E 测试模式：导航到 /#/' + targetRoute);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

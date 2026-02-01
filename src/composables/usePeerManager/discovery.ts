@@ -167,8 +167,10 @@ export async function queryUsername(peerId: string): Promise<{ username: string;
 
 /**
  * 在线检查：查询指定设备是否在线（带上版本号）
+ * @param peerId - 目标设备 PeerId
+ * @param timeoutMs - 超时时间（毫秒），默认 5000ms
  */
-export async function checkOnline(peerId: string): Promise<boolean> {
+export async function checkOnline(peerId: string, timeoutMs: number = 5000): Promise<boolean> {
   const instance = peerInstance;
   const userStore = useUserStore();
 
@@ -178,7 +180,7 @@ export async function checkOnline(peerId: string): Promise<boolean> {
 
   try {
     commLog.heartbeat.check({ to: peerId, version: userStore.userInfo.version });
-    const result = await instance.checkOnline(peerId, userStore.userInfo.username || '', userStore.userInfo.avatar, userStore.userInfo.version);
+    const result = await instance.checkOnline(peerId, userStore.userInfo.username || '', userStore.userInfo.avatar, userStore.userInfo.version, timeoutMs);
     if (result !== null && result.isOnline) {
       commLog.heartbeat.online({ from: peerId });
       return true;

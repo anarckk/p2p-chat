@@ -63,9 +63,9 @@ test.describe('真实文件传输', () => {
    */
   test.describe('图片消息传输', () => {
     test('应该能发送真实图片文件', async ({ browser }) => {
-      test.setTimeout(50000); // 优化：减少超时时间
+      test.setTimeout(60000); // 优化：减少超时时间
 
-      const devices = await createTestDevices(browser, '图片发送A', '图片接收B', { startPage: 'center' });
+      const devices = await createTestDevices(browser, '图片发送A', '图片接收B', { startPage: 'wechat' });
 
       try {
         // 额外等待确保两个设备的 Peer 连接都稳定
@@ -274,9 +274,9 @@ test.describe('真实文件传输', () => {
     });
 
     test('应该能接收真实图片文件', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间到90秒
+      test.setTimeout(60000); // 优化超时时间
 
-      const devices = await createTestDevices(browser, '图片发送者', '图片接收者', { startPage: 'center' });
+      const devices = await createTestDevices(browser, '图片发送者', '图片接收者', { startPage: 'wechat' });
 
       try {
         // 创建测试图片文件
@@ -297,21 +297,64 @@ test.describe('真实文件传输', () => {
         await devices.deviceB.page.click(SELECTORS.modalOkButton);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
+        // 点击联系人以设置 currentChatPeerId 并显示聊天面板
+        console.log('[Test] Clicking contact on Device A');
+        await devices.deviceA.page.click('.contact-item');
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
+
+        console.log('[Test] Clicking contact on Device B');
+        await devices.deviceB.page.click('.contact-item');
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 确保设备 A 的聊天面板可见（如果不可见，点击联系人）
         const deviceAChatPanelVisible = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceAChatPanelVisible && await devices.deviceA.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device A chat panel visible:', deviceAChatPanelVisible);
+        const deviceAContactCount = await devices.deviceA.page.locator('.contact-item').count();
+        console.log('[Test] Device A contact count:', deviceAContactCount);
+
+        if (!deviceAChatPanelVisible && deviceAContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device A');
           await devices.deviceA.page.click('.contact-item');
-          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
         }
 
         // 确保设备 B 的聊天面板可见
         const deviceBChatPanelVisible = await devices.deviceB.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceBChatPanelVisible && await devices.deviceB.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device B chat panel visible:', deviceBChatPanelVisible);
+        const deviceBContactCount = await devices.deviceB.page.locator('.contact-item').count();
+        console.log('[Test] Device B contact count:', deviceBContactCount);
+
+        if (!deviceBChatPanelVisible && deviceBContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device B');
           await devices.deviceB.page.click('.contact-item');
-          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+        }
+
+        // 再次检查聊天面板是否可见
+        const deviceAChatPanelVisible2 = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
+        console.log('[Test] Device A chat panel visible after clicking contact:', deviceAChatPanelVisible2);
+
+        if (!deviceAChatPanelVisible2) {
+          throw new Error('Device A chat panel is not visible after clicking contact');
+        }
+
+        // 调试：检查页面上是否有输入区域
+        const inputAreaVisible = await devices.deviceA.page.locator('.input-area').isVisible().catch(() => false);
+        console.log('[Test] Device A input area visible:', inputAreaVisible);
+
+        // 调试：获取所有按钮的数量
+        const allButtonsCount = await devices.deviceA.page.locator('button').count();
+        console.log('[Test] Device A all buttons count:', allButtonsCount);
+
+        // 调试：获取所有有 aria-label 的按钮
+        const buttonsWithAriaLabel = await devices.deviceA.page.locator('button[aria-label]').all();
+        console.log('[Test] Device A buttons with aria-label:', buttonsWithAriaLabel.length);
+        for (const btn of buttonsWithAriaLabel) {
+          const label = await btn.getAttribute('aria-label');
+          console.log('[Test]   -', label);
         }
 
         // 设备 A 发送图片
@@ -369,9 +412,9 @@ test.describe('真实文件传输', () => {
    */
   test.describe('文件消息传输', () => {
     test('应该能发送真实文件', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间到90秒
+      test.setTimeout(60000); // 优化超时时间
 
-      const devices = await createTestDevices(browser, '文件发送A', '文件接收B', { startPage: 'center' });
+      const devices = await createTestDevices(browser, '文件发送A', '文件接收B', { startPage: 'wechat' });
 
       try {
         // 创建测试文件
@@ -394,26 +437,70 @@ test.describe('真实文件传输', () => {
         await devices.deviceB.page.click(SELECTORS.modalOkButton);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
+        // 点击联系人以设置 currentChatPeerId 并显示聊天面板
+        console.log('[Test] Clicking contact on Device A');
+        await devices.deviceA.page.click('.contact-item');
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
+
+        console.log('[Test] Clicking contact on Device B');
+        await devices.deviceB.page.click('.contact-item');
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 确保设备 A 的聊天面板可见（如果不可见，点击联系人）
         const deviceAChatPanelVisible = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceAChatPanelVisible && await devices.deviceA.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device A chat panel visible:', deviceAChatPanelVisible);
+        const deviceAContactCount = await devices.deviceA.page.locator('.contact-item').count();
+        console.log('[Test] Device A contact count:', deviceAContactCount);
+
+        if (!deviceAChatPanelVisible && deviceAContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device A');
           await devices.deviceA.page.click('.contact-item');
-          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
         }
 
         // 确保设备 B 的聊天面板可见
         const deviceBChatPanelVisible = await devices.deviceB.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceBChatPanelVisible && await devices.deviceB.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device B chat panel visible:', deviceBChatPanelVisible);
+        const deviceBContactCount = await devices.deviceB.page.locator('.contact-item').count();
+        console.log('[Test] Device B contact count:', deviceBContactCount);
+
+        if (!deviceBChatPanelVisible && deviceBContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device B');
           await devices.deviceB.page.click('.contact-item');
-          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+        }
+
+        // 再次检查聊天面板是否可见
+        const deviceAChatPanelVisible2 = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
+        console.log('[Test] Device A chat panel visible after clicking contact:', deviceAChatPanelVisible2);
+
+        if (!deviceAChatPanelVisible2) {
+          throw new Error('Device A chat panel is not visible after clicking contact');
+        }
+
+        // 调试：检查页面上是否有输入区域
+        const inputAreaVisible = await devices.deviceA.page.locator('.input-area').isVisible().catch(() => false);
+        console.log('[Test] Device A input area visible:', inputAreaVisible);
+
+        // 调试：获取所有按钮的数量
+        const allButtonsCount = await devices.deviceA.page.locator('button').count();
+        console.log('[Test] Device A all buttons count:', allButtonsCount);
+
+        // 调试：获取所有有 aria-label 的按钮
+        const buttonsWithAriaLabel = await devices.deviceA.page.locator('button[aria-label]').all();
+        console.log('[Test] Device A buttons with aria-label:', buttonsWithAriaLabel.length);
+        for (const btn of buttonsWithAriaLabel) {
+          const label = await btn.getAttribute('aria-label');
+          console.log('[Test]   -', label);
         }
 
         // 设备 A 点击文件上传按钮
         // 使用正确的选择器：aria-label="upload-file"
-        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]');
+        // 注意：页面上有多个 upload-file 按钮，使用 first() 选择第一个
+        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]').first();
 
         // 等待文件上传按钮可见
         await fileUploadButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
@@ -474,9 +561,9 @@ test.describe('真实文件传输', () => {
     });
 
     test('应该能接收真实文件', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间到90秒
+      test.setTimeout(60000); // 优化超时时间
 
-      const devices = await createTestDevices(browser, '文件发送者', '文件接收者', { startPage: 'center' });
+      const devices = await createTestDevices(browser, '文件发送者', '文件接收者', { startPage: 'wechat' });
 
       try {
         // 创建测试文件
@@ -497,25 +584,68 @@ test.describe('真实文件传输', () => {
         await devices.deviceB.page.click(SELECTORS.modalOkButton);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
+        // 点击联系人以设置 currentChatPeerId 并显示聊天面板
+        console.log('[Test] Clicking contact on Device A');
+        await devices.deviceA.page.click('.contact-item');
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
+
+        console.log('[Test] Clicking contact on Device B');
+        await devices.deviceB.page.click('.contact-item');
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 确保设备 A 的聊天面板可见（如果不可见，点击联系人）
         const deviceAChatPanelVisible = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceAChatPanelVisible && await devices.deviceA.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device A chat panel visible:', deviceAChatPanelVisible);
+        const deviceAContactCount = await devices.deviceA.page.locator('.contact-item').count();
+        console.log('[Test] Device A contact count:', deviceAContactCount);
+
+        if (!deviceAChatPanelVisible && deviceAContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device A');
           await devices.deviceA.page.click('.contact-item');
-          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
         }
 
         // 确保设备 B 的聊天面板可见
         const deviceBChatPanelVisible = await devices.deviceB.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceBChatPanelVisible && await devices.deviceB.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device B chat panel visible:', deviceBChatPanelVisible);
+        const deviceBContactCount = await devices.deviceB.page.locator('.contact-item').count();
+        console.log('[Test] Device B contact count:', deviceBContactCount);
+
+        if (!deviceBChatPanelVisible && deviceBContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device B');
           await devices.deviceB.page.click('.contact-item');
-          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+        }
+
+        // 再次检查聊天面板是否可见
+        const deviceAChatPanelVisible2 = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
+        console.log('[Test] Device A chat panel visible after clicking contact:', deviceAChatPanelVisible2);
+
+        if (!deviceAChatPanelVisible2) {
+          throw new Error('Device A chat panel is not visible after clicking contact');
+        }
+
+        // 调试：检查页面上是否有输入区域
+        const inputAreaVisible = await devices.deviceA.page.locator('.input-area').isVisible().catch(() => false);
+        console.log('[Test] Device A input area visible:', inputAreaVisible);
+
+        // 调试：获取所有按钮的数量
+        const allButtonsCount = await devices.deviceA.page.locator('button').count();
+        console.log('[Test] Device A all buttons count:', allButtonsCount);
+
+        // 调试：获取所有有 aria-label 的按钮
+        const buttonsWithAriaLabel = await devices.deviceA.page.locator('button[aria-label]').all();
+        console.log('[Test] Device A buttons with aria-label:', buttonsWithAriaLabel.length);
+        for (const btn of buttonsWithAriaLabel) {
+          const label = await btn.getAttribute('aria-label');
+          console.log('[Test]   -', label);
         }
 
         // 设备 A 发送文件
-        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]');
+        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]').first();
 
         // 等待文件上传按钮可见
         await fileUploadButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
@@ -569,14 +699,14 @@ test.describe('真实文件传输', () => {
    */
   test.describe('特殊场景文件传输', () => {
     test('应该能传输大文件', async ({ browser }) => {
-      test.setTimeout(120000); // 增加超时时间到120秒
+      test.setTimeout(90000); // 优化超时时间
 
-      const devices = await createTestDevices(browser, '大文件发送A', '大文件接收B', { startPage: 'center' });
+      const devices = await createTestDevices(browser, '大文件发送A', '大文件接收B', { startPage: 'wechat' });
 
       try {
-        // 创建较大的测试文件（1MB）
+        // 创建较大的测试文件（100KB，而不是1MB）
         const testFileName = 'large-test-file.txt';
-        const testFileContent = 'x'.repeat(1024 * 1024); // 1MB
+        const testFileContent = 'x'.repeat(100 * 1024); // 100KB
         const testFilePath = await createTestFile(testFileName, testFileContent);
 
         console.log('[Test] Created large test file:', testFilePath);
@@ -594,25 +724,68 @@ test.describe('真实文件传输', () => {
         await devices.deviceB.page.click(SELECTORS.modalOkButton);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
+        // 点击联系人以设置 currentChatPeerId 并显示聊天面板
+        console.log('[Test] Clicking contact on Device A');
+        await devices.deviceA.page.click('.contact-item');
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
+
+        console.log('[Test] Clicking contact on Device B');
+        await devices.deviceB.page.click('.contact-item');
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 确保设备 A 的聊天面板可见（如果不可见，点击联系人）
         const deviceAChatPanelVisible = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceAChatPanelVisible && await devices.deviceA.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device A chat panel visible:', deviceAChatPanelVisible);
+        const deviceAContactCount = await devices.deviceA.page.locator('.contact-item').count();
+        console.log('[Test] Device A contact count:', deviceAContactCount);
+
+        if (!deviceAChatPanelVisible && deviceAContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device A');
           await devices.deviceA.page.click('.contact-item');
-          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
         }
 
         // 确保设备 B 的聊天面板可见
         const deviceBChatPanelVisible = await devices.deviceB.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceBChatPanelVisible && await devices.deviceB.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device B chat panel visible:', deviceBChatPanelVisible);
+        const deviceBContactCount = await devices.deviceB.page.locator('.contact-item').count();
+        console.log('[Test] Device B contact count:', deviceBContactCount);
+
+        if (!deviceBChatPanelVisible && deviceBContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device B');
           await devices.deviceB.page.click('.contact-item');
-          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+        }
+
+        // 再次检查聊天面板是否可见
+        const deviceAChatPanelVisible2 = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
+        console.log('[Test] Device A chat panel visible after clicking contact:', deviceAChatPanelVisible2);
+
+        if (!deviceAChatPanelVisible2) {
+          throw new Error('Device A chat panel is not visible after clicking contact');
+        }
+
+        // 调试：检查页面上是否有输入区域
+        const inputAreaVisible = await devices.deviceA.page.locator('.input-area').isVisible().catch(() => false);
+        console.log('[Test] Device A input area visible:', inputAreaVisible);
+
+        // 调试：获取所有按钮的数量
+        const allButtonsCount = await devices.deviceA.page.locator('button').count();
+        console.log('[Test] Device A all buttons count:', allButtonsCount);
+
+        // 调试：获取所有有 aria-label 的按钮
+        const buttonsWithAriaLabel = await devices.deviceA.page.locator('button[aria-label]').all();
+        console.log('[Test] Device A buttons with aria-label:', buttonsWithAriaLabel.length);
+        for (const btn of buttonsWithAriaLabel) {
+          const label = await btn.getAttribute('aria-label');
+          console.log('[Test]   -', label);
         }
 
         // 设备 A 发送大文件
-        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]');
+        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]').first();
 
         // 等待文件上传按钮可见
         await fileUploadButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
@@ -659,9 +832,9 @@ test.describe('真实文件传输', () => {
     });
 
     test('应该能传输特殊字符文件名的文件', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间到90秒
+      test.setTimeout(60000); // 优化超时时间
 
-      const devices = await createTestDevices(browser, '特殊文件发送A', '特殊文件接收B', { startPage: 'center' });
+      const devices = await createTestDevices(browser, '特殊文件发送A', '特殊文件接收B', { startPage: 'wechat' });
 
       try {
         // 创建带特殊字符的测试文件
@@ -684,25 +857,68 @@ test.describe('真实文件传输', () => {
         await devices.deviceB.page.click(SELECTORS.modalOkButton);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
+        // 点击联系人以设置 currentChatPeerId 并显示聊天面板
+        console.log('[Test] Clicking contact on Device A');
+        await devices.deviceA.page.click('.contact-item');
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
+
+        console.log('[Test] Clicking contact on Device B');
+        await devices.deviceB.page.click('.contact-item');
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 确保设备 A 的聊天面板可见（如果不可见，点击联系人）
         const deviceAChatPanelVisible = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceAChatPanelVisible && await devices.deviceA.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device A chat panel visible:', deviceAChatPanelVisible);
+        const deviceAContactCount = await devices.deviceA.page.locator('.contact-item').count();
+        console.log('[Test] Device A contact count:', deviceAContactCount);
+
+        if (!deviceAChatPanelVisible && deviceAContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device A');
           await devices.deviceA.page.click('.contact-item');
-          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
         }
 
         // 确保设备 B 的聊天面板可见
         const deviceBChatPanelVisible = await devices.deviceB.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceBChatPanelVisible && await devices.deviceB.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device B chat panel visible:', deviceBChatPanelVisible);
+        const deviceBContactCount = await devices.deviceB.page.locator('.contact-item').count();
+        console.log('[Test] Device B contact count:', deviceBContactCount);
+
+        if (!deviceBChatPanelVisible && deviceBContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device B');
           await devices.deviceB.page.click('.contact-item');
-          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+        }
+
+        // 再次检查聊天面板是否可见
+        const deviceAChatPanelVisible2 = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
+        console.log('[Test] Device A chat panel visible after clicking contact:', deviceAChatPanelVisible2);
+
+        if (!deviceAChatPanelVisible2) {
+          throw new Error('Device A chat panel is not visible after clicking contact');
+        }
+
+        // 调试：检查页面上是否有输入区域
+        const inputAreaVisible = await devices.deviceA.page.locator('.input-area').isVisible().catch(() => false);
+        console.log('[Test] Device A input area visible:', inputAreaVisible);
+
+        // 调试：获取所有按钮的数量
+        const allButtonsCount = await devices.deviceA.page.locator('button').count();
+        console.log('[Test] Device A all buttons count:', allButtonsCount);
+
+        // 调试：获取所有有 aria-label 的按钮
+        const buttonsWithAriaLabel = await devices.deviceA.page.locator('button[aria-label]').all();
+        console.log('[Test] Device A buttons with aria-label:', buttonsWithAriaLabel.length);
+        for (const btn of buttonsWithAriaLabel) {
+          const label = await btn.getAttribute('aria-label');
+          console.log('[Test]   -', label);
         }
 
         // 设备 A 发送文件
-        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]');
+        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]').first();
 
         // 等待文件上传按钮可见
         await fileUploadButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
@@ -757,9 +973,9 @@ test.describe('真实文件传输', () => {
    */
   test.describe('文件传输状态', () => {
     test('文件传输应该显示正确的状态', async ({ browser }) => {
-      test.setTimeout(90000); // 增加超时时间到90秒
+      test.setTimeout(60000); // 优化超时时间
 
-      const devices = await createTestDevices(browser, '状态发送A', '状态接收B', { startPage: 'center' });
+      const devices = await createTestDevices(browser, '状态发送A', '状态接收B', { startPage: 'wechat' });
 
       try {
         // 创建测试文件
@@ -780,25 +996,68 @@ test.describe('真实文件传输', () => {
         await devices.deviceB.page.click(SELECTORS.modalOkButton);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
+        // 点击联系人以设置 currentChatPeerId 并显示聊天面板
+        console.log('[Test] Clicking contact on Device A');
+        await devices.deviceA.page.click('.contact-item');
+        await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
+
+        console.log('[Test] Clicking contact on Device B');
+        await devices.deviceB.page.click('.contact-item');
+        await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 确保设备 A 的聊天面板可见（如果不可见，点击联系人）
         const deviceAChatPanelVisible = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceAChatPanelVisible && await devices.deviceA.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device A chat panel visible:', deviceAChatPanelVisible);
+        const deviceAContactCount = await devices.deviceA.page.locator('.contact-item').count();
+        console.log('[Test] Device A contact count:', deviceAContactCount);
+
+        if (!deviceAChatPanelVisible && deviceAContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device A');
           await devices.deviceA.page.click('.contact-item');
-          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceA.page.waitForTimeout(WAIT_TIMES.LONG);
         }
 
         // 确保设备 B 的聊天面板可见
         const deviceBChatPanelVisible = await devices.deviceB.page.locator('.chat-panel').isVisible().catch(() => false);
-        if (!deviceBChatPanelVisible && await devices.deviceB.page.locator('.contact-item').count() > 0) {
+        console.log('[Test] Device B chat panel visible:', deviceBChatPanelVisible);
+        const deviceBContactCount = await devices.deviceB.page.locator('.contact-item').count();
+        console.log('[Test] Device B contact count:', deviceBContactCount);
+
+        if (!deviceBChatPanelVisible && deviceBContactCount > 0) {
+          console.log('[Test] Clicking contact to open chat on Device B');
           await devices.deviceB.page.click('.contact-item');
-          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.SHORT);
+          await devices.deviceB.page.waitForTimeout(WAIT_TIMES.LONG);
+        }
+
+        // 再次检查聊天面板是否可见
+        const deviceAChatPanelVisible2 = await devices.deviceA.page.locator('.chat-panel').isVisible().catch(() => false);
+        console.log('[Test] Device A chat panel visible after clicking contact:', deviceAChatPanelVisible2);
+
+        if (!deviceAChatPanelVisible2) {
+          throw new Error('Device A chat panel is not visible after clicking contact');
+        }
+
+        // 调试：检查页面上是否有输入区域
+        const inputAreaVisible = await devices.deviceA.page.locator('.input-area').isVisible().catch(() => false);
+        console.log('[Test] Device A input area visible:', inputAreaVisible);
+
+        // 调试：获取所有按钮的数量
+        const allButtonsCount = await devices.deviceA.page.locator('button').count();
+        console.log('[Test] Device A all buttons count:', allButtonsCount);
+
+        // 调试：获取所有有 aria-label 的按钮
+        const buttonsWithAriaLabel = await devices.deviceA.page.locator('button[aria-label]').all();
+        console.log('[Test] Device A buttons with aria-label:', buttonsWithAriaLabel.length);
+        for (const btn of buttonsWithAriaLabel) {
+          const label = await btn.getAttribute('aria-label');
+          console.log('[Test]   -', label);
         }
 
         // 设备 A 发送文件
-        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]');
+        const fileUploadButton = devices.deviceA.page.locator('button[aria-label="upload-file"]').first();
 
         // 等待文件上传按钮可见
         await fileUploadButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {

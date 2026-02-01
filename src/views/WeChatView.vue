@@ -176,7 +176,7 @@ async function handleAddChat() {
   console.log('[WeChat] Creating chat with peerId:', peerId, 'username:', username);
 
   // 创建聊天
-  chatStore.createChat(peerId, username);
+  await chatStore.createChat(peerId, username);
   chatStore.setCurrentChat(peerId);
 
   showAddChatModal.value = false;

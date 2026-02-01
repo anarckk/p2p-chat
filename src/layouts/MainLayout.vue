@@ -67,7 +67,57 @@ const menuItems = [
 ];
 
 onMounted(async () => {
-  // 加载用户信息（需要等待异步完成）
+  console.log('[MainLayout] onMounted: pathname =', window.location.pathname, ', hash =', window.location.hash);
+  console.log('[MainLayout] localStorage E2E_TEST_MODE =', localStorage.getItem('__E2E_TEST_MODE__'));
+  console.log('[MainLayout] localStorage E2E_TARGET_ROUTE =', localStorage.getItem('__E2E_TARGET_ROUTE__'));
+
+  // E2E 测试模式检测：检查 localStorage 中的标记
+  const e2eTestMode = localStorage.getItem('__E2E_TEST_MODE__');
+  const targetRoute = localStorage.getItem('__E2E_TARGET_ROUTE__');
+
+  if (e2eTestMode === 'true' && targetRoute) {
+    console.log('[MainLayout] E2E 测试模式：检测到标记，目标路由 =', targetRoute);
+
+    // 清除标记
+    localStorage.removeItem('__E2E_TEST_MODE__');
+    localStorage.removeItem('__E2E_TARGET_ROUTE__');
+
+    // 加载用户信息（应已在 main.ts 中设置）
+    const isSetup = await userStore.loadUserInfo();
+    console.log('[MainLayout] E2E 测试模式：用户信息加载结果 isSetup =', isSetup);
+
+    // 导航到目标路由（首字母大写）
+    const routeName = targetRoute.charAt(0).toUpperCase() + targetRoute.slice(1);
+    console.log('[MainLayout] E2E 测试模式：导航到', routeName);
+    await router.replace({ name: routeName });
+
+    // 等待路由导航完成
+    await new Promise<void>((resolve) => {
+      const unwatch = router.afterEach((to, from) => {
+        console.log('[MainLayout] E2E 测试模式：路由导航完成', to.name);
+        unwatch();
+        resolve();
+      });
+      // 如果路由已经完成，立即 resolve
+      if (router.currentRoute.value.name === routeName) {
+        console.log('[MainLayout] E2E 测试模式：路由已经是', routeName);
+        resolve();
+      }
+    });
+
+    // 初始化 Peer
+    try {
+      await init();
+      console.log('[MainLayout] E2E 测试模式：Peer 初始化完成，myPeerId =', userStore.myPeerId);
+    } catch (error) {
+      console.error('[MainLayout] E2E 测试模式：Peer init failed:', error);
+    }
+
+    console.log('[MainLayout] E2E 测试模式：导航完成');
+    return;
+  }
+
+  // 正常模式：加载用户信息（需要等待异步完成）
   const isSetup = await userStore.loadUserInfo();
 
   if (!isSetup) {

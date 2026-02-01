@@ -286,6 +286,13 @@ export const useDeviceStore = defineStore('device', () => {
       if (existing) {
         existing.lastHeartbeat = Math.max(existing.lastHeartbeat, device.lastHeartbeat);
         existing.isOnline = now - existing.lastHeartbeat < OFFLINE_THRESHOLD;
+        // 更新用户名和头像（如果响应中有新的值）
+        if (device.username) {
+          existing.username = device.username;
+        }
+        if (device.avatar !== undefined) {
+          existing.avatar = device.avatar;
+        }
         // 同步更新 isBootstrap 字段（如果响应中明确指定了）
         if ('isBootstrap' in device) {
           existing.isBootstrap = device.isBootstrap;
@@ -360,10 +367,13 @@ export const useDeviceStore = defineStore('device', () => {
   }
 
   /**
-   * 启动心跳定时器（每10分钟）
+   * 启动心跳定时器
+   * @param onCheck - 设备在线检查回调函数
+   * @param intervalSeconds - 心跳间隔（秒），默认 20 秒
    */
   function startHeartbeatTimer(
-    onCheck: (device: OnlineDevice) => Promise<boolean>
+    onCheck: (device: OnlineDevice) => Promise<boolean>,
+    intervalSeconds: number = 20,
   ) {
     if (heartbeatTimer !== null) {
       return; // 已经启动
@@ -372,7 +382,7 @@ export const useDeviceStore = defineStore('device', () => {
     // 立即执行一次清理（异步）
     cleanupExpiredDevices().catch((e) => console.error('[DeviceStore] Initial cleanup failed:', e));
 
-    // 每10分钟执行一次心跳检查
+    // 执行心跳检查
     heartbeatTimer = window.setInterval(async () => {
       console.log('[DeviceStore] Running heartbeat check...');
       const now = Date.now();
@@ -411,9 +421,9 @@ export const useDeviceStore = defineStore('device', () => {
 
       // 清理过期设备
       await cleanupExpiredDevices();
-    }, 10 * 60 * 1000); // 10分钟
+    }, intervalSeconds * 1000);
 
-    console.log('[DeviceStore] Heartbeat timer started');
+    console.log('[DeviceStore] Heartbeat timer started (interval: ' + intervalSeconds + 's)');
   }
 
   /**

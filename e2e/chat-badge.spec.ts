@@ -12,6 +12,7 @@ import {
   createChat,
   retry,
   setMessagesLegacy,
+  getPeerIdFromElement,
 } from './test-helpers.js';
 
 /**
@@ -154,12 +155,12 @@ test.describe('聊天中标识', () => {
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
 
         // 设备 A 添加设备 B
-        await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
+        await devices.deviceA.page.fill(SELECTORS.peerIdInput, await getPeerIdFromElement(devices.deviceB.page));
         await devices.deviceA.page.click(SELECTORS.addButton);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
         // 验证设备 B 出现在设备 A 的发现中心
-        const deviceBCardInA = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.peerId });
+        const deviceBCardInA = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: await getPeerIdFromElement(devices.deviceB.page) });
         await expect(deviceBCardInA).toBeVisible({ timeout: 8000 });
 
         // 切换到聊天页面
@@ -167,7 +168,7 @@ test.describe('聊天中标识', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 创建与设备 B 的聊天
-        await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
+        await createChat(devices.deviceA.page, await getPeerIdFromElement(devices.deviceB.page));
 
         // 切换回发现中心
         await devices.deviceA.page.click(SELECTORS.centerMenuItem);
@@ -175,7 +176,7 @@ test.describe('聊天中标识', () => {
 
         // 使用重试机制验证"聊天中"标识出现
         await retry(async () => {
-          const deviceBCard = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.peerId });
+          const deviceBCard = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: await getPeerIdFromElement(devices.deviceB.page) });
           const cardCount = await deviceBCard.count();
           if (cardCount === 0) {
             throw new Error('Device B card not found');
@@ -400,13 +401,13 @@ test.describe('聊天中标识', () => {
         await devices.deviceB.page.waitForTimeout(WAIT_TIMES.PEER_INIT + WAIT_TIMES.SHORT);
 
         // 设备 A 添加设备 B
-        await devices.deviceA.page.fill(SELECTORS.peerIdInput, devices.deviceB.userInfo.peerId);
+        await devices.deviceA.page.fill(SELECTORS.peerIdInput, await getPeerIdFromElement(devices.deviceB.page));
         await devices.deviceA.page.click(SELECTORS.addButton);
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
         // 验证设备 B 出现在设备 A 的发现中心
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
-        const deviceBCardInCenter = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.peerId });
+        const deviceBCardInCenter = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: await getPeerIdFromElement(devices.deviceB.page) });
         await expect(deviceBCardInCenter).toBeVisible({ timeout: 8000 });
 
         // 切换到聊天页面
@@ -414,7 +415,7 @@ test.describe('聊天中标识', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 创建与设备 B 的聊天
-        await createChat(devices.deviceA.page, devices.deviceB.userInfo.peerId);
+        await createChat(devices.deviceA.page, await getPeerIdFromElement(devices.deviceB.page));
 
         // 验证设备 B 出现在聊天列表
         const contactItem = devices.deviceA.page.locator(SELECTORS.contactItem);
@@ -425,7 +426,7 @@ test.describe('聊天中标识', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);
 
         // 验证设备 B 仍在发现中心显示
-        const deviceBCardStillInCenter = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: devices.deviceB.userInfo.peerId });
+        const deviceBCardStillInCenter = devices.deviceA.page.locator(SELECTORS.deviceCard).filter({ hasText: await getPeerIdFromElement(devices.deviceB.page) });
         await expect(deviceBCardStillInCenter).toBeVisible();
 
         // 验证有"聊天中"标识
