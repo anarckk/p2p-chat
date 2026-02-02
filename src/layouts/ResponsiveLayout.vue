@@ -689,6 +689,8 @@ async function handleTrustKeyChange() {
   background: #f0f2f5;
   margin-left: 240px;
   min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 /* 移动端样式 */
