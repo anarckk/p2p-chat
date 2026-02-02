@@ -3,6 +3,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { useDeviceStore } from '../../stores/deviceStore';
 import { useUserStore } from '../../stores/userStore';
 import { commLog } from '../../util/logger';
+import { cryptoManager } from '../../util/cryptoManager';
 import { peerInstance } from './state';
 
 /**
@@ -276,4 +277,137 @@ export async function broadcastUserInfoUpdate(): Promise<void> {
 
   await Promise.allSettled(promises);
   console.log('[Peer] User info update broadcast completed');
+}
+
+// ==================== 公钥交换 ====================
+
+/**
+ * 保存对端公钥
+ */
+async function savePeerPublicKey(peerId: string, publicKey: string): Promise<void> {
+  const deviceStore = useDeviceStore();
+  const existing = deviceStore.getDevice(peerId);
+
+  if (existing) {
+    // 检查公钥是否发生变化
+    if (existing.publicKey && existing.publicKey !== publicKey) {
+      console.warn('[Peer] Public key changed for peer:', peerId, '- This may indicate a man-in-the-middle attack!');
+
+      // 动态导入 keyExchangeStore 避免循环依赖
+      const { useKeyExchangeStore } = await import('../../stores/keyExchangeStore');
+      const keyExchangeStore = useKeyExchangeStore();
+
+      // 显示公钥变更弹窗，等待用户决策
+      const isTrusted = await keyExchangeStore.showKeyChangeDialog(
+        peerId,
+        existing.username || peerId,
+        existing.publicKey,
+        publicKey
+      );
+
+      if (isTrusted) {
+        // 用户选择信任：更新公钥和状态
+        console.log('[Peer] User trusted new public key for:', peerId);
+        existing.publicKey = publicKey;
+        existing.keyExchangeStatus = 'verified';
+      } else {
+        // 用户选择不信任：标记为被攻击
+        console.log('[Peer] User rejected new public key for:', peerId);
+        existing.keyExchangeStatus = 'compromised';
+        // 不更新公钥，保留旧公钥
+      }
+
+      await deviceStore.addOrUpdateDevice(existing);
+      console.log('[Peer] Public key decision saved for peer:', peerId, 'status:', existing.keyExchangeStatus);
+    } else if (!existing.publicKey) {
+      console.log('[Peer] First time receiving public key from:', peerId);
+      existing.publicKey = publicKey;
+      existing.keyExchangeStatus = 'exchanged';
+      await deviceStore.addOrUpdateDevice(existing);
+    }
+  } else {
+    // 设备不存在，创建新设备记录
+    await deviceStore.addOrUpdateDevice({
+      peerId,
+      username: '',
+      avatar: null,
+      lastHeartbeat: Date.now(),
+      firstDiscovered: Date.now(),
+      isOnline: true,
+      publicKey,
+      keyExchangeStatus: 'exchanged',
+    });
+  }
+}
+
+/**
+ * 发起公钥交换
+ */
+export async function exchangePublicKey(peerId: string): Promise<boolean> {
+  const instance = peerInstance;
+  const deviceStore = useDeviceStore();
+
+  if (!instance) {
+    console.warn('[Peer] exchangePublicKey: peerInstance is null');
+    return false;
+  }
+
+  try {
+    // 确保密钥管理器已初始化
+    if (!cryptoManager) {
+      console.error('[Peer] CryptoManager not initialized');
+      return false;
+    }
+
+    // 更新设备状态为"交换公钥中"
+    const existing = deviceStore.getDevice(peerId);
+    if (existing) {
+      existing.keyExchangeStatus = 'pending';
+      deviceStore.addOrUpdateDevice(existing);
+    }
+
+    console.log('[Peer] Initiating key exchange with:', peerId);
+    commLog.info('Key exchange initiated with ' + peerId.substring(0, 8) + '...');
+
+    const result = await instance.exchangePublicKey(peerId);
+    if (result && result.publicKey) {
+      // 保存对端公钥
+      savePeerPublicKey(peerId, result.publicKey);
+
+      // 更新设备状态为"已交换"
+      const updated = deviceStore.getDevice(peerId);
+      if (updated) {
+        updated.keyExchangeStatus = 'exchanged';
+        updated.lastHeartbeat = Date.now();
+        deviceStore.addOrUpdateDevice(updated);
+      }
+
+      console.log('[Peer] Key exchange completed with:', peerId);
+      commLog.info('Key exchange completed with ' + peerId.substring(0, 8) + '...');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[Peer] Key exchange error:', error);
+
+    // 标记交换失败
+    const existing = deviceStore.getDevice(peerId);
+    if (existing) {
+      existing.keyExchangeStatus = 'none';
+      deviceStore.addOrUpdateDevice(existing);
+    }
+
+    return false;
+  }
+}
+
+/**
+ * 处理收到的公钥交换请求（被动方）
+ */
+export function handleKeyExchangeRequest(peerId: string, publicKey: string): void {
+  console.log('[Peer] Received key exchange request from:', peerId);
+  commLog.info('Key exchange request from ' + peerId.substring(0, 8) + '...');
+
+  // 保存对端公钥
+  savePeerPublicKey(peerId, publicKey);
 }

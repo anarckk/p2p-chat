@@ -10,16 +10,20 @@ import {
   MenuOutlined,
   PlusOutlined,
   UserOutlined,
+  WarningOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons-vue';
 import type { UploadChangeParam, UploadProps } from 'ant-design-vue';
 import { useUserStore } from '../stores/userStore';
 import { usePeerManager } from '../composables/usePeerManager';
+import { useKeyExchangeStore } from '../stores/keyExchangeStore';
 import { fileToBase64 } from '../util/fileHelper';
 
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
 const { init } = usePeerManager();
+const keyExchangeStore = useKeyExchangeStore();
 
 // 移动端检测
 const isMobile = ref(false);
@@ -302,6 +306,51 @@ const handleRemove = () => {
   avatarUrl.value = '';
   fileList.value = [];
 };
+
+// ==================== 公钥变更弹窗 ====================
+
+/**
+ * 用户选择不信任新公钥
+ */
+async function handleNotTrustKeyChange() {
+  const dialog = keyExchangeStore.dialog;
+  console.log('[ResponsiveLayout] User does not trust key change for:', dialog.peerId);
+
+  // 标记设备为被攻击状态
+  const { useDeviceStore } = await import('../stores/deviceStore');
+  const deviceStore = useDeviceStore();
+  const device = deviceStore.getDevice(dialog.peerId);
+
+  if (device) {
+    device.keyExchangeStatus = 'compromised';
+    await deviceStore.addOrUpdateDevice(device);
+    console.log('[ResponsiveLayout] Device marked as compromised:', dialog.peerId);
+  }
+
+  keyExchangeStore.handleNotTrust();
+}
+
+/**
+ * 用户选择信任新公钥
+ */
+async function handleTrustKeyChange() {
+  const dialog = keyExchangeStore.dialog;
+  console.log('[ResponsiveLayout] User trusts key change for:', dialog.peerId);
+
+  // 更新设备公钥和状态
+  const { useDeviceStore } = await import('../stores/deviceStore');
+  const deviceStore = useDeviceStore();
+  const device = deviceStore.getDevice(dialog.peerId);
+
+  if (device) {
+    device.publicKey = dialog.newPublicKey;
+    device.keyExchangeStatus = 'verified';
+    await deviceStore.addOrUpdateDevice(device);
+    console.log('[ResponsiveLayout] Device public key updated and marked as verified:', dialog.peerId);
+  }
+
+  keyExchangeStore.handleTrust();
+}
 </script>
 
 <template>
@@ -366,6 +415,84 @@ const handleRemove = () => {
           </a-button>
         </a-form-item>
       </a-form>
+    </a-modal>
+
+    <!-- 公钥变更警告弹窗 -->
+    <a-modal
+      v-model:open="keyExchangeStore.dialog.visible"
+      title="安全警告"
+      :closable="false"
+      :mask-closable="false"
+      width="600px"
+      :footer="null"
+    >
+      <template #icon>
+        <ExclamationCircleOutlined style="color: #faad14; font-size: 24px;" />
+      </template>
+
+      <a-space direction="vertical" :size="16" style="width: 100%;">
+        <!-- 警告图标和说明 -->
+        <a-alert
+          type="warning"
+          show-icon
+          message="检测到公钥变更"
+        >
+          <template #description>
+            <div>设备 <strong>{{ keyExchangeStore.dialog.username }}</strong> ({{ keyExchangeStore.truncateKey(keyExchangeStore.dialog.peerId) }}) 的公钥已发生变化。</div>
+            <div style="margin-top: 8px;">这可能意味着：</div>
+            <ul style="margin: 8px 0; padding-left: 20px;">
+              <li>对方重新生成了密钥对（例如更换设备）</li>
+              <li>存在中间人攻击，有人正在冒充对方</li>
+            </ul>
+            <div>请通过其他渠道确认对方身份后再决定是否信任。</div>
+          </template>
+        </a-alert>
+
+        <!-- 公钥对比 -->
+        <a-card size="small" title="公钥对比">
+          <a-descriptions :column="1" size="small">
+            <a-descriptions-item label="旧公钥">
+              <a-typography-text code copyable :copy-text="keyExchangeStore.dialog.oldPublicKey">
+                {{ keyExchangeStore.truncateKey(keyExchangeStore.dialog.oldPublicKey) }}
+              </a-typography-text>
+            </a-descriptions-item>
+            <a-descriptions-item label="新公钥">
+              <a-typography-text code copyable :copy-text="keyExchangeStore.dialog.newPublicKey">
+                {{ keyExchangeStore.truncateKey(keyExchangeStore.dialog.newPublicKey) }}
+              </a-typography-text>
+            </a-descriptions-item>
+          </a-descriptions>
+        </a-card>
+
+        <!-- 操作按钮 -->
+        <a-space style="width: 100%; justify-content: flex-end;">
+          <a-button
+            @click="handleNotTrustKeyChange"
+            aria-label="not-trust-key-change"
+          >
+            <template #icon>
+              <WarningOutlined />
+            </template>
+            不信任（移除设备）
+          </a-button>
+          <a-button
+            type="primary"
+            danger
+            @click="handleTrustKeyChange"
+            aria-label="trust-key-change"
+          >
+            <template #icon>
+              <ExclamationCircleOutlined />
+            </template>
+            信任（更新公钥）
+          </a-button>
+        </a-space>
+
+        <!-- 待处理提示 -->
+        <div v-if="keyExchangeStore.pendingChanges.size > 0" style="text-align: center; color: #8c8c8c; font-size: 12px;">
+          还有 {{ keyExchangeStore.pendingChanges.size }} 个设备的公钥变更待处理
+        </div>
+      </a-space>
     </a-modal>
 
     <!-- PC 端：左侧菜单栏 -->

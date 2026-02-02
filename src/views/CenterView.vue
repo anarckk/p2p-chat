@@ -5,7 +5,10 @@ import { useChatStore } from '../stores/chatStore';
 import { useDeviceStore } from '../stores/deviceStore';
 import { usePeerManager } from '../composables/usePeerManager';
 import type { OnlineDevice } from '../types';
-import { ReloadOutlined, TeamOutlined, PlusOutlined, LoadingOutlined, SyncOutlined } from '@ant-design/icons-vue';
+import { ReloadOutlined, TeamOutlined, PlusOutlined, LoadingOutlined, SyncOutlined, LinkOutlined, KeyOutlined, EyeOutlined } from '@ant-design/icons-vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
@@ -40,6 +43,12 @@ interface DeviceRefreshStatus {
 }
 
 const deviceRefreshStatus = ref<Map<string, DeviceRefreshStatus>>(new Map());
+
+// 查看公钥弹窗状态
+const publicKeyModalVisible = ref(false);
+const selectedDevicePublicKey = ref('');
+const selectedDeviceName = ref('');
+const selectedDeviceKeyStatus = ref<string | undefined>(undefined);
 
 /**
  * 获取设备的刷新状态
@@ -458,6 +467,40 @@ function copyPeerId(id: string) {
 }
 
 /**
+ * 查看设备公钥
+ */
+function viewDevicePublicKey(device: OnlineDevice) {
+  if (!device.publicKey) {
+    showInlineMessage('该设备暂无公钥信息', 'warning');
+    return;
+  }
+  selectedDevicePublicKey.value = device.publicKey;
+  selectedDeviceName.value = device.username;
+  selectedDeviceKeyStatus.value = device.keyExchangeStatus;
+  publicKeyModalVisible.value = true;
+}
+
+/**
+ * 复制设备公钥（从弹窗中）
+ */
+async function copyPublicKeyFromModal() {
+  if (selectedDevicePublicKey.value) {
+    await navigator.clipboard.writeText(selectedDevicePublicKey.value);
+    showInlineMessage('公钥已复制到剪贴板', 'success');
+  }
+}
+
+/**
+ * 关闭公钥弹窗
+ */
+function closePublicKeyModal() {
+  publicKeyModalVisible.value = false;
+  selectedDevicePublicKey.value = '';
+  selectedDeviceName.value = '';
+  selectedDeviceKeyStatus.value = undefined;
+}
+
+/**
  * 刷新发现列表（设备互相发现 + 在线状态检查）
  */
 async function refreshDiscovery() {
@@ -672,6 +715,15 @@ async function refreshDiscovery() {
                         <a-tag v-if="isInChat(item.peerId)" color="green" size="small">聊天中</a-tag>
                         <a-tag v-if="item.isOnline" color="success" size="small">在线</a-tag>
                         <a-tag v-else color="default" size="small">离线</a-tag>
+                        <!-- 公钥交换状态标签 -->
+                        <a-tag
+                          v-if="item.keyExchangeStatus"
+                          :color="getKeyStatusColor(item.keyExchangeStatus)"
+                          size="small"
+                          :class="`key-exchange-status-${item.keyExchangeStatus}`"
+                        >
+                          {{ getKeyStatusText(item.keyExchangeStatus) }}
+                        </a-tag>
                         <!-- 刷新状态显示（仅在线设备显示） -->
                         <template v-if="item.isOnline">
                           <template v-if="getDeviceRefreshStatus(item.peerId).refreshing">
@@ -691,6 +743,18 @@ async function refreshDiscovery() {
                   </a-card-meta>
                   <template #actions>
                     <a-badge :status="item.isOnline ? 'processing' : 'default'" :text="item.isOnline ? '在线' : '离线'" />
+                    <a-button
+                      v-if="item.peerId !== userStore.myPeerId && item.peerId !== 'connecting...' && item.publicKey"
+                      type="text"
+                      size="small"
+                      @click.stop="viewDevicePublicKey(item)"
+                      aria-label="view-public-key"
+                    >
+                      <template #icon>
+                        <KeyOutlined />
+                      </template>
+                      查看公钥
+                    </a-button>
                   </template>
                 </a-card>
               </a-list-item>
@@ -737,6 +801,17 @@ async function refreshDiscovery() {
               aria-label="regenerate-keys"
             >
               重新生成密钥
+            </a-button>
+            <a-button
+              type="link"
+              size="small"
+              @click="router.push('/settings')"
+              aria-label="go-to-settings-for-keys"
+            >
+              <template #icon>
+                <LinkOutlined />
+              </template>
+              在设置页面查看详细信息
             </a-button>
           </div>
         </a-card>
@@ -797,6 +872,70 @@ async function refreshDiscovery() {
         </div>
       </a-col>
     </a-row>
+
+    <!-- 查看公钥弹窗 -->
+    <a-modal
+      v-model:open="publicKeyModalVisible"
+      :title="`${selectedDeviceName} 的公钥`"
+      :footer="null"
+      width="600px"
+      aria-label="device-public-key-modal"
+    >
+      <div class="public-key-modal-content">
+        <!-- 公钥交换状态 -->
+        <div class="key-status-section">
+          <a-descriptions :column="1" size="small">
+            <a-descriptions-item label="密钥交换状态">
+              <a-tag :color="getKeyStatusColor(selectedDeviceKeyStatus)">
+                {{ getKeyStatusText(selectedDeviceKeyStatus) }}
+              </a-tag>
+            </a-descriptions-item>
+          </a-descriptions>
+        </div>
+
+        <!-- 公钥显示 -->
+        <div class="public-key-display-section">
+          <a-typography-paragraph>
+            <a-typography-text type="secondary">公钥（SHA-256）：</a-typography-text>
+          </a-typography-paragraph>
+          <div class="public-key-box">
+            <a-typography-text code class="public-key-text">
+              {{ truncateKey(selectedDevicePublicKey) }}
+            </a-typography-text>
+          </div>
+          <div class="public-key-actions">
+            <a-button
+              type="primary"
+              size="small"
+              @click="copyPublicKeyFromModal"
+              aria-label="copy-public-key-from-modal"
+            >
+              <template #icon>
+                <LinkOutlined />
+              </template>
+              复制公钥
+            </a-button>
+          </div>
+        </div>
+
+        <!-- 被攻击警告 -->
+        <div v-if="selectedDeviceKeyStatus === 'compromised'" class="warning-section">
+          <a-alert
+            type="warning"
+            message="安全警告"
+            description="此设备的公钥已发生变化，可能存在中间人攻击。请确认对方身份后再决定是否信任。"
+            show-icon
+          />
+        </div>
+      </div>
+
+      <!-- 弹窗底部操作按钮 -->
+      <template #footer>
+        <a-button @click="closePublicKeyModal" aria-label="close-public-key-modal">
+          关闭
+        </a-button>
+      </template>
+    </a-modal>
   </div>
 </template>
 
@@ -916,6 +1055,39 @@ async function refreshDiscovery() {
   margin-top: 12px;
   display: flex;
   gap: 8px;
+}
+
+/* ==================== 公钥弹窗样式 ==================== */
+
+.public-key-modal-content {
+  padding: 8px 0;
+}
+
+.key-status-section {
+  margin-bottom: 16px;
+}
+
+.public-key-display-section {
+  margin-bottom: 16px;
+}
+
+.public-key-box {
+  background-color: #f5f5f5;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
+.public-key-text {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.public-key-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 
 </style>

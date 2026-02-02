@@ -31,6 +31,8 @@ import type {
   UserInfoResponse,
   CallRequest,
   CallResponse,
+  KeyExchangeRequest,
+  KeyExchangeResponse,
 } from '../types';
 import { commLog } from './logger';
 import { getPeerServerConfig } from '../config/peer';
@@ -56,6 +58,12 @@ export interface UserInfoProvider {
   getUsername: () => string;
   getAvatar: () => string | null;
   getVersion: () => number;
+}
+
+// 公钥获取器（需要外部注入）
+export interface PublicKeyProvider {
+  getPublicKey: () => string;
+  onPublicKeyReceived: (peerId: string, publicKey: string) => void;
 }
 
 // ==================== PeerHttpUtil ====================
@@ -107,6 +115,9 @@ export class PeerHttpUtil {
 
   // 用户信息提供器（外部注入）
   private userInfoProvider?: UserInfoProvider;
+
+  // 公钥提供器（外部注入）
+  private publicKeyProvider?: PublicKeyProvider;
 
   /**
    * 构造函数
@@ -323,6 +334,36 @@ export class PeerHttpUtil {
       return {};
     });
 
+    // 公钥交换请求处理器
+    this.rrManager.registerHandler('key_exchange_request', async (req, from) => {
+      const request = req as KeyExchangeRequest;
+      console.log('[PeerHttp] Received key exchange request from:', from);
+
+      // 通知外部保存对端公钥
+      if (this.publicKeyProvider) {
+        this.publicKeyProvider.onPublicKeyReceived(from, request.publicKey);
+      }
+
+      // 返回自己的公钥
+      return {
+        publicKey: this.getCurrentPublicKey(),
+        timestamp: Date.now(),
+      };
+    });
+
+    // 公钥交换响应处理器
+    this.rrManager.registerHandler('key_exchange_response', async (req, from) => {
+      const response = req as KeyExchangeResponse;
+      console.log('[PeerHttp] Received key exchange response from:', from);
+
+      // 通知外部保存对端公钥
+      if (this.publicKeyProvider) {
+        this.publicKeyProvider.onPublicKeyReceived(from, response.publicKey);
+      }
+
+      return {};
+    });
+
     console.log('[PeerHttp] Request-Response handlers registered');
   }
 
@@ -332,6 +373,14 @@ export class PeerHttpUtil {
   setUserInfoProvider(provider: UserInfoProvider): void {
     this.userInfoProvider = provider;
     console.log('[PeerHttp] UserInfoProvider set');
+  }
+
+  /**
+   * 设置公钥提供器
+   */
+  setPublicKeyProvider(provider: PublicKeyProvider): void {
+    this.publicKeyProvider = provider;
+    console.log('[PeerHttp] PublicKeyProvider set');
   }
 
   /**
@@ -353,6 +402,13 @@ export class PeerHttpUtil {
    */
   private getCurrentVersion(): number {
     return this.userInfoProvider?.getVersion() ?? 0;
+  }
+
+  /**
+   * 获取当前公钥
+   */
+  private getCurrentPublicKey(): string {
+    return this.publicKeyProvider?.getPublicKey() ?? '';
   }
 
   /**
@@ -959,6 +1015,29 @@ export class PeerHttpUtil {
       );
     } catch (error) {
       console.error('[PeerHttp] Send discovery notification failed:', error);
+    }
+  }
+
+  /**
+   * 发起公钥交换
+   */
+  async exchangePublicKey(peerId: string, timeoutMs: number = 5000): Promise<{ publicKey: string } | null> {
+    try {
+      console.log('[PeerHttp] Initiating key exchange with:', peerId);
+      const response = await this.rrManager.sendRequest<KeyExchangeResponse>(
+        peerId,
+        'key_exchange_request',
+        {
+          publicKey: this.getCurrentPublicKey(),
+          timestamp: Date.now(),
+        },
+        timeoutMs
+      );
+      console.log('[PeerHttp] Key exchange completed with:', peerId);
+      return response || null;
+    } catch (error) {
+      console.error('[PeerHttp] Key exchange failed:', error);
+      return null;
     }
   }
 

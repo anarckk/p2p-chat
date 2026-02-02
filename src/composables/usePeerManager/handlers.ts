@@ -6,6 +6,7 @@ import { commLog } from '../../util/logger';
 import { peerInstance, handlers, processingDeviceListRequests } from './state';
 import { requestUserInfo } from './discovery';
 import { requestDeviceList } from './discovery';
+import { exchangePublicKey } from './discovery';
 
 /**
  * 协议处理器注册模块
@@ -138,6 +139,17 @@ export function registerProtocolHandlers(instance: any): any {
       }
     }).catch((error) => {
       console.error('[Peer] Request device list error after discovery notification:', error);
+    });
+
+    // 公钥交换：与新发现的设备交换公钥
+    exchangePublicKey(from).then((success) => {
+      if (success) {
+        console.log('[Peer] Key exchange completed with:', from);
+      } else {
+        console.warn('[Peer] Key exchange failed with:', from);
+      }
+    }).catch((error) => {
+      console.error('[Peer] Key exchange error after discovery notification:', error);
     });
   };
 

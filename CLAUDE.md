@@ -56,22 +56,29 @@ sx-peerjs-http-util/
         │   ├── index.ts - 路由配置（/test、/center、/wechat、/settings）
         │   └── RouterView.vue - 路由视图组件
         ├── layouts/
-        │   └── MainLayout.vue - 主布局（顶部导航菜单：/test 为隐藏路由，不在菜单中显示）
+        │   ├── MainLayout.vue - 主布局（顶部导航菜单：/test 为隐藏路由，不在菜单中显示）
+        │   └── ResponsiveLayout.vue - 响应式布局（PC端左侧菜单、移动端底部菜单、公钥变更弹窗）
         ├── views/
         │   ├── TestView.vue - 测试页面（原 App.vue 内容迁移）
-        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听、设备持久化、在线/离线状态显示、添加设备后查询用户名更新显示、左侧"我的信息"卡片实时显示与 Peer Server 的连接状态、设备互相发现、"宇宙启动者"机制）
+        │   ├── CenterView.vue - 去中心化发现中心（查询/添加设备、展示在线设备、被动发现自动刷新监听、设备持久化、在线/离线状态显示、添加设备后查询用户名更新显示、左侧"我的信息"卡片实时显示与 Peer Server 的连接状态、设备互相发现、"宇宙启动者"机制、公钥/私钥展示、密钥状态管理）
         │   ├── WeChatView.vue - 聊天应用（新增聊天、消息状态展示、多种消息类型、移动端支持、按钮 aria-label 可访问性、消息时间独立显示优化：时间与消息气泡分离、我方消息时间深灰色、透明背景）
         │   └── SettingsView.vue - 设置页面（用户名、头像维护、网络加速开关）
         ├── stores/
         │   ├── userStore.ts - 用户信息 store（用户名、头像、peerId 持久化、myPeerId 计算属性、个人信息版本号）
         │   ├── chatStore.ts - 聊天 store（消息状态管理、版本号机制、重试机制、localStorage 持久化）
-        │   └── deviceStore.ts - 设备持久化 store（设备列表 localStorage + IndexedDB 混合存储策略、3天未在线自动删除、10分钟定时心跳检查、isBootstrap 字段不持久化且离线时清除、realPeerId 字段同步）
+        │   ├── deviceStore.ts - 设备持久化 store（设备列表 localStorage + IndexedDB 混合存储策略、3天未在线自动删除、10分钟定时心跳检查、isBootstrap 字段不持久化且离线时清除、realPeerId 字段同步）
+        │   └── keyExchangeStore.ts - 公钥变更弹窗状态管理（弹窗显示、队列处理、用户决策）
         ├── composables/
-        │   └── usePeerManager.ts - Peer 管理逻辑（基于版本号的三段式通信、送达确认、发现中心、消息重试、被动发现自动刷新、在线检查协议处理、deviceStore 集成、连接状态实时监听、10秒自动重连机制、设备互相发现、"宇宙启动者"机制、网络加速）
-        │       ├── 11-12 - 新增 bootstrapPeerInstance 模块变量，保持固定 ID 的启动者连接
-        │       ├── 834-937 - tryBecomeBootstrap() 函数，成为启动者后保持 UNIVERSE-BOOTSTRAP-PEER-ID-001 连接，监听并响应设备列表请求
-        │       ├── 939-1041 - requestBootstrapDeviceList() 函数，创建临时 Peer 连接向启动者请求设备列表
-        │       └── 1033-1038 - destroy() 函数，清理启动者连接
+        │   ├── usePeerManager.ts - Peer 管理逻辑入口
+        │   └── usePeerManager/
+        │       ├── state.ts - 状态管理
+        │       ├── init.ts - 初始化和连接
+        │       ├── handlers.ts - 协议处理器
+        │       ├── messaging.ts - 消息处理
+        │       ├── bootstrap.ts - 宇宙启动者
+        │       ├── discovery.ts - 发现中心（公钥交换、变更检测、弹窗触发）
+        │       ├── network.ts - 网络加速
+        │       └── index.ts - 主入口
         ├── types/
         │   └── index.ts - TypeScript 类型定义（消息类型、协议类型、基于版本号的三段式通信协议、在线检查协议、OnlineDevice 扩展 isOnline/firstDiscovered）
         └── util/
@@ -88,6 +95,7 @@ sx-peerjs-http-util/
         ├── center.spec.ts - 发现中心 E2E 测试（多浏览器 session 测试、被动发现测试）
         ├── device-persistence.spec.ts - 设备持久化 E2E 测试（localStorage 持久化、页面切换保持、3天过期删除、在线/离线状态、定时器跨页运行）
         ├── recursive-device-discovery.spec.ts - 设备互相发现递归机制 E2E 测试（被动发现触发递归、主动添加触发递归、设备列表响应递归发现、多级设备发现、避免无限递归、完整网络发现、控制台日志验证）
+        ├── key-verification.spec.ts - 身份校验机制 E2E 测试（公钥变更弹窗、用户信任决策、被攻击状态标记）
         ├── wechat.spec.ts - 聊天功能 E2E 测试
         ├── navigation.spec.ts - 导航测试
         ├── vue.spec.ts - Vue 基础测试
@@ -442,6 +450,26 @@ sx-peerjs-http-util/
   - 如果不信任，则标记这个用户为"被中间人攻击"状态，并不与这个用户进行通信
   - 如果信任，则记录这个公钥为这个用户的最新公钥
 - 在这个过程中，设备状态称之为："身份校验中"
+- **实现细节**：
+  - `src/stores/keyExchangeStore.ts` - Pinia store 管理公钥变更弹窗状态（支持队列处理多个变更）
+  - `src/layouts/ResponsiveLayout.vue` - 全局公钥变更弹窗组件（包含安全警告、公钥对比、信任/不信任操作）
+  - `src/composables/usePeerManager/discovery.ts` - `savePeerPublicKey()` 函数检测公钥变更并触发弹窗
+  - 弹窗队列机制：多个设备的公钥变更会排队处理，一次只显示一个弹窗
+  - 用户决策持久化：`keyExchangeStatus` 字段保存到 localStorage（compromised/verified/exchanged/pending/none）
+  - 发现中心 UI 显示：`CenterView.vue` 中根据 `keyExchangeStatus` 显示对应状态标签和操作按钮
+  - 密钥交换状态：
+    - `none` - 未交换
+    - `pending` - 交换公钥中
+    - `exchanged` - 已交换
+    - `verified` - 已验证（用户信任）
+    - `compromised` - 被攻击（用户不信任或检测到公钥变更）
+- **实现细节**：
+  - `src/stores/keyExchangeStore.ts` - Pinia store 管理公钥变更弹窗状态（支持队列处理多个变更）
+  - `src/layouts/ResponsiveLayout.vue` - 全局公钥变更弹窗组件（包含安全警告、公钥对比、信任/不信任操作）
+  - `src/composables/usePeerManager/discovery.ts` - `savePeerPublicKey()` 函数检测公钥变更并触发弹窗
+  - 弹窗队列机制：多个设备的公钥变更会排队处理，一次只显示一个弹窗
+  - 用户决策持久化：`keyExchangeStatus` 字段保存到 localStorage（compromised/verified/exchanged/pending/none）
+  - 发现中心 UI 显示：`CenterView.vue` 中根据 `keyExchangeStatus` 显示对应状态标签和操作按钮
 
 ### 3. UI 改造
 

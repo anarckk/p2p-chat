@@ -133,15 +133,17 @@ export const useDeviceStore = defineStore('device', () => {
    * 小数据（元数据）→ localStorage
    * 大数据（头像）→ IndexedDB
    *
-   * 注意：isBootstrap 字段不会持久化，每次运行时重新获取
+   * 注意：
+   * - isBootstrap 字段不会持久化，每次运行时重新获取
+   * - keyExchangeStatus 不会持久化，每次运行时重新交换
    */
   async function saveDevices() {
     try {
-      const metadata: Record<string, Omit<OnlineDevice, 'avatar' | 'isBootstrap'>> = {};
+      const metadata: Record<string, Omit<OnlineDevice, 'avatar' | 'isBootstrap' | 'keyExchangeStatus'>> = {};
 
       // 遍历所有设备，分离元数据和头像
       for (const [peerId, device] of devices.value) {
-        const { avatar, isBootstrap, ...meta } = device;
+        const { avatar, isBootstrap, keyExchangeStatus, ...meta } = device;
         metadata[peerId] = meta;
 
         // 如果有头像，保存到 IndexedDB
@@ -217,6 +219,19 @@ export const useDeviceStore = defineStore('device', () => {
         if ('realPeerId' in device) {
           existing.realPeerId = device.realPeerId;
         }
+      }
+      // 同步公钥相关字段
+      if ('publicKey' in device) {
+        existing.publicKey = device.publicKey;
+      }
+      if ('publicKeyVerified' in device) {
+        existing.publicKeyVerified = device.publicKeyVerified;
+      }
+      if ('keyExchangeStatus' in device) {
+        existing.keyExchangeStatus = device.keyExchangeStatus;
+      }
+      if ('lastSignature' in device) {
+        existing.lastSignature = device.lastSignature;
       }
     } else {
       // 添加新设备

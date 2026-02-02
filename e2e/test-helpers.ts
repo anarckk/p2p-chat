@@ -116,6 +116,19 @@ export const SELECTORS = {
   disconnectedBadge: '.ant-badge-status-error',
   peerIdDisplay: '.ant-descriptions-item-label:has-text("我的 Peer ID") + .ant-descriptions-item-content .ant-typography',
   connectionStatus: '.ant-descriptions-item-label:has-text("连接状态") + .ant-descriptions-item-content',
+
+  // 公钥交换相关
+  keyExchangeStatusPending: '.key-exchange-status-pending, .ant-tag:has-text("交换公钥中")',
+  keyExchangeStatusExchanged: '.key-exchange-status-exchanged, .ant-tag:has-text("已交换")',
+  keyExchangeStatusVerified: '.key-exchange-status-verified, .ant-tag:has-text("已验证")',
+  keyExchangeStatusCompromised: '.key-exchange-status-compromised, .ant-tag:has-text("被攻击")',
+  publicKeyViewButton: 'button[aria-label="view-public-key"]',
+  deviceKeySection: '.device-key-section',
+  keyChangeDialog: '.ant-modal:has-text("安全警告")',
+  notTrustKeyChangeButton: 'button[aria-label="not-trust-key-change"]',
+  trustKeyChangeButton: 'button[aria-label="trust-key-change"]',
+  oldPublicKeyLabel: '.ant-descriptions-item-label:has-text("旧公钥")',
+  newPublicKeyLabel: '.ant-descriptions-item-label:has-text("新公钥")',
 } as const;
 
 // 等待时间常量（毫秒）- 本地 Peer Server 环境下连接很快

@@ -14,11 +14,12 @@
  */
 
 import { commLog } from './logger';
+import { signMessage, verifyMessageSignature, isSignatureSupported } from './cryptoUtils';
 
 // ==================== 类型定义 ====================
 
 /**
- * 基础请求协议
+ * 基础请求协议（支持数字签名）
  */
 export interface BaseRequestProtocol {
   type: string;           // 协议类型
@@ -26,10 +27,11 @@ export interface BaseRequestProtocol {
   from: string;           // 发送者 PeerId
   to: string;             // 接收者 PeerId
   timestamp: number;      // 时间戳
+  signature?: string;     // 数字签名（可选）
 }
 
 /**
- * 基础响应协议
+ * 基础响应协议（支持数字签名）
  */
 export interface BaseResponseProtocol {
   type: string;           // 协议类型
@@ -39,6 +41,7 @@ export interface BaseResponseProtocol {
   timestamp: number;      // 时间戳
   success: boolean;       // 是否成功
   error?: string;         // 错误信息
+  signature?: string;     // 数字签名（可选）
 }
 
 /**
@@ -213,7 +216,7 @@ export class RequestResponseManager {
           reject(new Error(`Connection error: ${String(err)}`));
         });
 
-        conn.on('open', () => {
+        conn.on('open', async () => {
           clearTimeout(connectionTimeout);
           console.log('[RequestResponseManager] Connection opened to:', peerId.substring(0, 8) + '...');
 
@@ -226,6 +229,17 @@ export class RequestResponseManager {
             timestamp: Date.now(),
             ...payload
           };
+
+          // 如果协议支持签名，添加签名
+          if (isSignatureSupported(type)) {
+            try {
+              request.signature = await signMessage(request);
+              console.log('[RequestResponseManager] Request signed:', type);
+            } catch (error) {
+              console.error('[RequestResponseManager] Failed to sign request:', error);
+              // 签名失败不阻止发送，继续发送未签名的请求（向后兼容）
+            }
+          }
 
           // 发送请求
           try {
@@ -282,6 +296,21 @@ export class RequestResponseManager {
 
     commLog.info(`Request received: ${type}`, { from: from.substring(0, 8) + '...', requestId: requestId?.substring(0, 8) });
 
+    // 验证签名
+    if (isSignatureSupported(type)) {
+      const signatureValid = await verifyMessageSignature(request, from);
+      if (signatureValid === false) {
+        console.error('[RequestResponseManager] Signature verification failed, rejecting request:', {
+          type,
+          from: from.substring(0, 8) + '...',
+        });
+        // 发送错误响应
+        this.sendResponse(conn, request, from, false, 'Signature verification failed');
+        return;
+      }
+      // 如果 signatureValid === null，表示跳过验证（向后兼容）
+    }
+
     const handler = this.handlers.get(type);
 
     if (!handler) {
@@ -310,8 +339,8 @@ export class RequestResponseManager {
    * 处理接收到的响应
    * @param response - 响应协议
    */
-  handleResponse(response: any): void {
-    const { requestId, success, error } = response;
+  async handleResponse(response: any): Promise<void> {
+    const { requestId, success, error, type } = response;
 
     console.log('[RequestResponseManager] Received response:', {
       requestId: requestId?.substring(0, 8),
@@ -326,6 +355,23 @@ export class RequestResponseManager {
     if (!pending) {
       console.warn('[RequestResponseManager] No pending request for response:', requestId?.substring(0, 8));
       return;
+    }
+
+    // 验证签名
+    if (isSignatureSupported(type)) {
+      const signatureValid = await verifyMessageSignature(response, pending.peerId);
+      if (signatureValid === false) {
+        console.error('[RequestResponseManager] Signature verification failed for response:', {
+          type,
+          from: pending.peerId.substring(0, 8) + '...',
+        });
+        // 签名验证失败，拒绝响应
+        this.cleanupRequest(requestId);
+        this.cleanupActiveConnection(pending.peerId);
+        pending.reject(new Error('Signature verification failed for response'));
+        return;
+      }
+      // 如果 signatureValid === null，表示跳过验证（向后兼容）
     }
 
     // 清理请求
@@ -351,14 +397,14 @@ export class RequestResponseManager {
    * @param error - 错误信息
    * @param data - 响应数据
    */
-  private sendResponse(
+  private async sendResponse(
     conn: any,
     originalRequest: any,
     to: string,
     success: boolean,
     error?: string,
     data?: any
-  ): void {
+  ): Promise<void> {
     const myPeerId = this.getMyPeerId();
     const responseType = originalRequest.type + '_response';
 
@@ -372,6 +418,17 @@ export class RequestResponseManager {
       error,
       ...data
     };
+
+    // 如果协议支持签名，添加签名
+    if (isSignatureSupported(responseType)) {
+      try {
+        response.signature = await signMessage(response);
+        console.log('[RequestResponseManager] Response signed:', responseType);
+      } catch (signError) {
+        console.error('[RequestResponseManager] Failed to sign response:', signError);
+        // 签名失败不阻止发送，继续发送未签名的响应（向后兼容）
+      }
+    }
 
     try {
       conn.send(response);

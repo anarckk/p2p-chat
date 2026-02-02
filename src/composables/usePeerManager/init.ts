@@ -2,6 +2,8 @@ import { PeerHttpUtil } from '../../util/PeerHttpUtil';
 import { networkLogDB } from '../../util/networkLogDB';
 import { useUserStore } from '../../stores/userStore';
 import { useDeviceStore } from '../../stores/deviceStore';
+import { cryptoManager } from '../../util/cryptoManager';
+import { handleKeyExchangeRequest } from './discovery';
 import {
   setPeerInstance,
   peerInstance,
@@ -160,6 +162,24 @@ export function createPeer(userStore: ReturnType<typeof useUserStore>): Promise<
       getVersion: () => userStore.userInfo.version || 0,
     });
     perfLog('after-set-userinfo-provider', '用户信息提供器设置完成');
+
+    // 设置公钥提供器（用于公钥交换协议）
+    perfLog('before-set-publickey-provider', '准备设置公钥提供器');
+    instance.setPublicKeyProvider({
+      getPublicKey: () => {
+        try {
+          return cryptoManager.getPublicKey();
+        } catch (error) {
+          console.error('[Peer] Failed to get public key:', error);
+          return '';
+        }
+      },
+      onPublicKeyReceived: (peerId: string, publicKey: string) => {
+        console.log('[Peer] Received public key from:', peerId);
+        handleKeyExchangeRequest(peerId, publicKey);
+      },
+    });
+    perfLog('after-set-publickey-provider', '公钥提供器设置完成');
 
     // 设置在线检查器（用于 Request-Response 协议）
     instance.setOnlineChecker((peerId: string) => {

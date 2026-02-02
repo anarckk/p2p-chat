@@ -411,7 +411,8 @@ export type RRRequestProtocolType =
   | 'device_list_request'
   | 'user_info_request'
   | 'file_transfer_request'
-  | 'call_request';
+  | 'call_request'
+  | 'key_exchange_request';
 
 export type RRResponseProtocolType =
   | 'chat_message_response'
@@ -420,9 +421,10 @@ export type RRResponseProtocolType =
   | 'device_list_response'
   | 'user_info_response'
   | 'file_transfer_response'
-  | 'call_response';
+  | 'call_response'
+  | 'key_exchange_response';
 
-// 基础请求协议
+// 基础请求协议（扩展支持数字签名）
 export interface RRRequest {
   type: RRRequestProtocolType;
   requestId: string;
@@ -430,9 +432,10 @@ export interface RRRequest {
   to: string;
   timestamp: number;
   payload?: unknown;
+  signature?: string; // 数字签名（发送方使用私钥签名）
 }
 
-// 基础响应协议
+// 基础响应协议（扩展支持数字签名）
 export interface RRResponse {
   type: RRResponseProtocolType;
   requestId: string;
@@ -442,6 +445,7 @@ export interface RRResponse {
   success: boolean;
   error?: string;
   data?: unknown;
+  signature?: string; // 数字签名（响应方使用私钥签名）
 }
 
 // ==================== 聊天消息协议 ====================
@@ -554,6 +558,20 @@ export interface CallSignalling {
   timestamp: number;
 }
 
+// ==================== 公钥交换协议 ====================
+
+export interface KeyExchangeRequest extends RRRequest {
+  type: 'key_exchange_request';
+  publicKey: string;
+  timestamp: number;
+}
+
+export interface KeyExchangeResponse extends RRResponse {
+  type: 'key_exchange_response';
+  publicKey: string;
+  timestamp: number;
+}
+
 // ==================== RR 协议联合类型 ====================
 
 export type AnyRRRequest =
@@ -563,7 +581,8 @@ export type AnyRRRequest =
   | DeviceListRequest
   | UserInfoRequest
   | FileTransferRequest
-  | CallRequest;
+  | CallRequest
+  | KeyExchangeRequest;
 
 export type AnyRRResponse =
   | ChatMessageResponse
@@ -572,6 +591,7 @@ export type AnyRRResponse =
   | DeviceListResponse
   | UserInfoResponse
   | FileTransferResponse
-  | CallResponse;
+  | CallResponse
+  | KeyExchangeResponse;
 
 export type AnyRRProtocol = AnyRRRequest | AnyRRResponse;

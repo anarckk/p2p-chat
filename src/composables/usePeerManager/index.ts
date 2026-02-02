@@ -54,6 +54,8 @@ import {
   requestDeviceList,
   requestAllDeviceLists,
   broadcastUserInfoUpdate,
+  exchangePublicKey,
+  handleKeyExchangeRequest,
 } from './discovery';
 
 // 导入宇宙启动者模块
@@ -162,6 +164,10 @@ export function usePeerManager() {
 
     // 用户信息广播
     broadcastUserInfoUpdate,
+
+    // 公钥交换
+    exchangePublicKey,
+    handleKeyExchangeRequest,
 
     // Store 引用
     deviceStore,

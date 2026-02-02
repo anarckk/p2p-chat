@@ -3,7 +3,7 @@ import { ref, onMounted, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import { usePeerManager } from '../composables/usePeerManager';
-import { SaveOutlined, UserOutlined, ThunderboltOutlined, FileTextOutlined, ClockCircleOutlined } from '@ant-design/icons-vue';
+import { SaveOutlined, UserOutlined, ThunderboltOutlined, FileTextOutlined, ClockCircleOutlined, SafetyCertificateOutlined, CopyOutlined, ReloadOutlined, LinkOutlined } from '@ant-design/icons-vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -38,7 +38,6 @@ const deviceCheckTimeout = ref(5);
 const originalDeviceCheckTimeout = ref(5);
 
 // 加载中状态
-const isLoading = ref(false);
 const isSaving = ref(false);
 
 // 内联提示状态
@@ -48,9 +47,24 @@ const inlineMessageType = ref<'success' | 'error' | 'warning' | 'info'>('info');
 // 加载用户信息的标志
 const userInfoLoaded = ref(false);
 
+// 数字签名相关
+const isRegeneratingKeys = ref(false);
+const privateKeyVisible = ref(false);
+
 onMounted(async () => {
   // 确保从 localStorage 加载用户信息（异步）
   await userStore.loadUserInfo();
+
+  // 确保密钥已初始化（如果用户信息已设置但密钥未初始化）
+  if (userStore.userInfo.username && !userStore.isCryptoInitialized) {
+    try {
+      await userStore.initCryptoKeys();
+      console.log('[SettingsView] Crypto keys initialized');
+    } catch (error) {
+      console.error('[SettingsView] Failed to initialize crypto keys:', error);
+    }
+  }
+
   // 初始化表单
   console.log('[SettingsView] userInfo.avatar:', userStore.userInfo.avatar);
   // 加载用户信息
@@ -99,7 +113,7 @@ const hasChanges = computed(() => {
 });
 
 // 处理文件选择
-function handleFileChange(info: any) {
+function handleFileChange(info: { file: File | { originFileObj?: File } }) {
   clearInlineMessage();
 
   const file = info.file;
@@ -107,7 +121,7 @@ function handleFileChange(info: any) {
   // 兼容两种情况：
   // 1. ant-design-vue 标准方式：file.originFileObj 存在
   // 2. 直接方式：file 本身就是 File 对象（在某些情况下会发生）
-  const actualFile = file?.originFileObj || file;
+  const actualFile = 'originFileObj' in file ? file.originFileObj : file;
 
   if (actualFile && actualFile instanceof File) {
     // 验证文件类型
@@ -249,6 +263,48 @@ function showInlineMessage(msg: string, type: 'success' | 'error' | 'warning' | 
  */
 function clearInlineMessage() {
   inlineMessage.value = '';
+}
+
+/**
+ * 截断密钥显示
+ */
+function truncateKey(key: string): string {
+  if (key.length < 40) return key;
+  return `${key.substring(0, 20)}...${key.substring(key.length - 20)}`;
+}
+
+/**
+ * 复制到剪贴板
+ */
+async function copyToClipboard(text: string, keyType: string): Promise<void> {
+  clearInlineMessage();
+
+  try {
+    await navigator.clipboard.writeText(text);
+    showInlineMessage(`${keyType}已复制到剪贴板`, 'success');
+  } catch (error) {
+    console.error('[Settings] Failed to copy to clipboard:', error);
+    showInlineMessage('复制失败', 'error');
+  }
+}
+
+/**
+ * 重新生成密钥
+ */
+async function handleRegenerateKeys(): Promise<void> {
+  clearInlineMessage();
+
+  isRegeneratingKeys.value = true;
+
+  try {
+    await userStore.regenerateCryptoKeys();
+    showInlineMessage('密钥已重新生成', 'success');
+  } catch (error) {
+    console.error('[Settings] Failed to regenerate keys:', error);
+    showInlineMessage('密钥生成失败', 'error');
+  } finally {
+    isRegeneratingKeys.value = false;
+  }
 }
 
 </script>
@@ -474,6 +530,109 @@ function clearInlineMessage() {
         </a-card>
       </a-col>
 
+      <!-- 数字签名 -->
+      <a-col :xs="24" :md="12">
+        <a-card title="数字签名" :bordered="false">
+          <template #extra>
+            <SafetyCertificateOutlined />
+          </template>
+
+          <div class="crypto-section">
+            <p class="description">
+              数字签名用于验证您的身份。公钥可以与他人共享，用于验证您的消息签名。私钥请妥善保管，切勿泄露。
+            </p>
+
+            <div v-if="!userStore.isCryptoInitialized" class="crypto-not-initialized">
+              <a-alert
+                type="warning"
+                show-icon
+                message="密钥未初始化"
+                description="数字签名密钥对尚未初始化，请保存用户信息后刷新页面。"
+              />
+            </div>
+
+            <div v-else class="crypto-keys-container">
+              <!-- 公钥 -->
+              <div class="key-section">
+                <div class="key-label">我的公钥</div>
+                <div class="key-display">
+                  <code class="key-text">{{ truncateKey(userStore.myPublicKey || '') }}</code>
+                  <a-button
+                    size="small"
+                    type="text"
+                    @click="copyToClipboard(userStore.myPublicKey || '', '公钥')"
+                    aria-label="copy-public-key-button"
+                  >
+                    <template #icon>
+                      <CopyOutlined />
+                    </template>
+                    复制
+                  </a-button>
+                </div>
+              </div>
+
+              <!-- 私钥折叠面板 -->
+              <a-collapse
+                v-model:activeKey="privateKeyVisible"
+                class="private-key-collapse"
+              >
+                <a-collapse-panel key="privateKey" header="查看私钥（请勿泄露）">
+                  <div class="key-section">
+                    <div class="key-display">
+                      <code class="key-text">{{ truncateKey(userStore.myPrivateKey || '') }}</code>
+                      <a-button
+                        size="small"
+                        type="text"
+                        @click="copyToClipboard(userStore.myPrivateKey || '', '私钥')"
+                        aria-label="copy-private-key-button"
+                      >
+                        <template #icon>
+                          <CopyOutlined />
+                        </template>
+                        复制
+                      </a-button>
+                    </div>
+                  </div>
+                </a-collapse-panel>
+              </a-collapse>
+
+              <!-- 重新生成按钮 -->
+              <div class="regenerate-section">
+                <a-popconfirm
+                  title="重新生成密钥后，旧的密钥将失效。其他设备需要重新获取您的公钥。确定要继续吗？"
+                  ok-text="确定"
+                  cancel-text="取消"
+                  @confirm="handleRegenerateKeys"
+                >
+                  <a-button
+                    type="primary"
+                    danger
+                    :loading="isRegeneratingKeys"
+                    aria-label="regenerate-keys-button"
+                  >
+                    <template #icon>
+                      <ReloadOutlined />
+                    </template>
+                    重新生成密钥
+                  </a-button>
+                </a-popconfirm>
+                <a-button
+                  type="link"
+                  size="small"
+                  @click="router.push('/center')"
+                  aria-label="go-to-center-for-device-keys"
+                >
+                  <template #icon>
+                    <LinkOutlined />
+                  </template>
+                  在发现中心查看设备公钥
+                </a-button>
+              </div>
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+
       <!-- 操作按钮 -->
       <a-col :span="24">
         <!-- 内联提示 -->
@@ -633,5 +792,82 @@ function clearInlineMessage() {
   background-color: #e6f7ff;
   border: 1px solid #91d5ff;
   color: #1890ff;
+}
+
+/* 数字签名样式 */
+.crypto-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.crypto-section .description {
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.crypto-not-initialized {
+  margin-top: 8px;
+}
+
+.crypto-keys-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.key-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.key-label {
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.key-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #f5f5f5;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+.key-text {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #333;
+  word-break: break-all;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.private-key-collapse {
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+}
+
+.regenerate-section {
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .key-display {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .key-text {
+    white-space: normal;
+  }
 }
 </style>
