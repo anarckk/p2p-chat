@@ -9,6 +9,11 @@ import { requestDeviceList } from './discovery';
 
 /**
  * 协议处理器注册模块
+ *
+ * 说明：
+ * - 五段式协议（version_notify, version_request, version_response, delivery_ack）已废弃
+ * - 现在使用 Request-Response 协议，由 PeerHttpUtil 内部处理
+ * - 此模块保留传统协议处理器用于向后兼容
  */
 
 /**
@@ -19,21 +24,9 @@ export function registerProtocolHandlers(instance: any): any {
   const deviceStore = useDeviceStore();
   const userStore = useUserStore();
 
-  // 处理送达确认
-  handlers.deliveryAck = (protocol: any, _from: string) => {
-    if (protocol.type === 'delivery_ack') {
-      const { messageId } = protocol;
-      commLog.message.delivered({ from: _from, messageId });
-      // 查找消息并更新状态
-      const msg = chatStore.getMessageById(messageId);
-      if (msg) {
-        chatStore.updateMessageStatus(msg.to, messageId, 'delivered');
-        chatStore.removePendingMessage(messageId);
-      }
-    }
-  };
-
-  instance.onProtocol('delivery_ack', handlers.deliveryAck);
+  // 注意：delivery_ack 处理器已废弃
+  // 新的 Request-Response 协议中，聊天消息送达确认在 chat_message_response 中处理
+  // 保留此注释以说明变更
 
   // 处理发现中心响应
   handlers.discoveryResponse = (protocol: any, from: string) => {
@@ -75,80 +68,94 @@ export function registerProtocolHandlers(instance: any): any {
 
   instance.onProtocol('discovery_response', handlers.discoveryResponse);
 
-  // 处理发现通知
-  handlers.discoveryNotification = (protocol: any, from: string) => {
-    console.log('[Peer] discoveryNotificationHandler called:', { type: protocol.type, from });
-    if (protocol.type === 'discovery_notification') {
-      const { fromUsername, fromAvatar, profileVersion } = protocol;
-      commLog.discovery.notified({ from, username: fromUsername });
-      console.log('[Peer] Received discovery notification from:', from, 'username:', fromUsername, 'profileVersion:', profileVersion);
+  // 处理发现通知（同时支持新旧协议）
+  const handleDiscoveryNotification = (protocol: any, from: string, isNewProtocol: boolean) => {
+    const protocolType = isNewProtocol ? 'discovery_notification_request' : 'discovery_notification';
+    console.log('[Peer] discoveryNotificationHandler called:', { type: protocol.type, from, protocolType });
 
-      // 对端发现了我，添加到发现中心的设备列表（保留原有的 firstDiscovered）
-      const existingDevice = deviceStore.getDevice(from);
+    const { fromUsername, fromAvatar, profileVersion } = protocol;
+    commLog.discovery.notified({ from, username: fromUsername });
+    console.log('[Peer] Received discovery notification from:', from, 'username:', fromUsername, 'profileVersion:', profileVersion, 'protocol:', protocolType);
 
-      // 检查是否需要更新个人信息
-      const needsUpdate =
-        !existingDevice || existingDevice.userInfoVersion === undefined || existingDevice.userInfoVersion < profileVersion;
+    // 对端发现了我，添加到发现中心的设备列表（保留原有的 firstDiscovered）
+    const existingDevice = deviceStore.getDevice(from);
 
-      const device: OnlineDevice = {
+    // 检查是否需要更新个人信息
+    const needsUpdate =
+      !existingDevice || existingDevice.userInfoVersion === undefined || existingDevice.userInfoVersion < profileVersion;
+
+    const device: OnlineDevice = {
+      peerId: from,
+      username: fromUsername,
+      avatar: fromAvatar,
+      lastHeartbeat: Date.now(),
+      firstDiscovered: existingDevice?.firstDiscovered || Date.now(),
+      isOnline: true,
+      userInfoVersion: profileVersion,
+    };
+
+    console.log('[Peer] Adding device to store:', device);
+
+    // 同时添加到 instance 和 deviceStore
+    instance?.addDiscoveredDevice(device);
+    deviceStore.addOrUpdateDevice(device);
+
+    // 触发自定义事件，通知 UI 自动刷新
+    window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+
+    // 如果不在聊天列表中，自动添加到聊天列表
+    if (!chatStore.getContact(from)) {
+      chatStore.createChat(from, fromUsername);
+      // 更新用户信息
+      chatStore.addOrUpdateContact({
         peerId: from,
         username: fromUsername,
         avatar: fromAvatar,
-        lastHeartbeat: Date.now(),
-        firstDiscovered: existingDevice?.firstDiscovered || Date.now(),
-        isOnline: true,
-        userInfoVersion: profileVersion,
-      };
-
-      console.log('[Peer] Adding device to store:', device);
-
-      // 同时添加到 instance 和 deviceStore
-      instance?.addDiscoveredDevice(device);
-      deviceStore.addOrUpdateDevice(device);
-
-      // 触发自定义事件，通知 UI 自动刷新
-      window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
-
-      // 如果不在聊天列表中，自动添加到聊天列表
-      if (!chatStore.getContact(from)) {
-        chatStore.createChat(from, fromUsername);
-        // 更新用户信息
-        chatStore.addOrUpdateContact({
-          peerId: from,
-          username: fromUsername,
-          avatar: fromAvatar,
-          online: true,
-          lastSeen: Date.now(),
-          unreadCount: 0,
-          chatVersion: 0,
-        });
-      }
-
-      // 发送响应，包含我的用户名和头像
-      // 这样对端就能知道我的用户信息，而不需要额外查询
-      const currentUsername = userStore.userInfo.username || '';
-      const currentAvatar = userStore.userInfo.avatar;
-      console.log('[Peer] Sending discovery response to:', from, 'username:', currentUsername, 'avatar:', currentAvatar);
-      instance?.sendDiscoveryResponse(from, currentUsername, currentAvatar);
-
-      // 如果需要更新个人信息，主动请求
-      if (needsUpdate && existingDevice !== undefined) {
-        console.log('[Peer] Profile version mismatch, requesting latest user info from:', from);
-        requestUserInfo(from);
-      }
-
-      // 设备互相发现：向新发现的设备询问其设备列表
-      requestDeviceList(from).then((devices) => {
-        if (devices.length > 0) {
-          console.log('[Peer] Discovered ' + devices.length + ' devices from ' + from);
-        }
-      }).catch((error) => {
-        console.error('[Peer] Request device list error after discovery notification:', error);
+        online: true,
+        lastSeen: Date.now(),
+        unreadCount: 0,
+        chatVersion: 0,
       });
     }
+
+    // 发送响应，包含我的用户名和头像
+    // 这样对端就能知道我的用户信息，而不需要额外查询
+    const currentUsername = userStore.userInfo.username || '';
+    const currentAvatar = userStore.userInfo.avatar;
+    console.log('[Peer] Sending discovery response to:', from, 'username:', currentUsername, 'avatar:', currentAvatar);
+    instance?.sendDiscoveryResponse(from, currentUsername, currentAvatar);
+
+    // 如果需要更新个人信息，主动请求
+    if (needsUpdate && existingDevice !== undefined) {
+      console.log('[Peer] Profile version mismatch, requesting latest user info from:', from);
+      requestUserInfo(from);
+    }
+
+    // 设备互相发现：向新发现的设备询问其设备列表
+    requestDeviceList(from).then((devices) => {
+      if (devices.length > 0) {
+        console.log('[Peer] Discovered ' + devices.length + ' devices from ' + from);
+      }
+    }).catch((error) => {
+      console.error('[Peer] Request device list error after discovery notification:', error);
+    });
   };
 
+  // 监听旧协议：discovery_notification
+  handlers.discoveryNotification = (protocol: any, from: string) => {
+    if (protocol.type === 'discovery_notification') {
+      handleDiscoveryNotification(protocol, from, false);
+    }
+  };
   instance.onProtocol('discovery_notification', handlers.discoveryNotification);
+
+  // 监听新协议：discovery_notification_request
+  handlers.discoveryNotificationRequest = (protocol: any, from: string) => {
+    if (protocol.type === 'discovery_notification_request') {
+      handleDiscoveryNotification(protocol, from, true);
+    }
+  };
+  instance.onProtocol('discovery_notification_request', handlers.discoveryNotificationRequest);
 
   // 处理用户名查询
   handlers.usernameQuery = (_protocol: any, from: string) => {
@@ -193,30 +200,51 @@ export function registerProtocolHandlers(instance: any): any {
 
   instance.onProtocol('username_response', handlers.usernameResponse);
 
-  // 处理在线检查查询
-  handlers.onlineCheckQuery = (_protocol: any, from: string) => {
-    if (_protocol.type === 'online_check_query') {
-      // 检查对方的版本号，如果不一致则请求用户信息
-      const { userInfoVersion: theirVersion } = _protocol;
-      const device = deviceStore.getDevice(from);
-      const storedVersion = device?.userInfoVersion || 0;
+  // 处理在线检查请求（同时支持新旧协议）
+  const handleOnlineCheckRequest = (protocol: any, from: string, isNewProtocol: boolean) => {
+    const protocolType = isNewProtocol ? 'online_check_request' : 'online_check_query';
+    console.log('[Peer] onlineCheckRequestHandler called:', { type: protocol.type, from, protocolType });
 
-      commLog.heartbeat.response({ to: from, version: userStore.userInfo.version });
+    // 旧协议包含 userInfoVersion，新协议通过 payload 传递
+    let theirVersion;
+    if (isNewProtocol) {
+      theirVersion = protocol.payload?.userInfoVersion;
+    } else {
+      theirVersion = protocol.userInfoVersion;
+    }
 
-      // 响应我的在线状态（带上我的版本号）
-      instance?.respondOnlineCheck(from, userStore.userInfo.username || '', userStore.userInfo.avatar, userStore.userInfo.version);
+    const device = deviceStore.getDevice(from);
+    const storedVersion = device?.userInfoVersion || 0;
 
-      // 检查对方版本号，如果不一致则请求用户信息
-      if (theirVersion !== undefined && theirVersion !== storedVersion) {
-        commLog.sync.versionMismatch({ peerId: from, stored: storedVersion, theirs: theirVersion });
-        commLog.sync.requestInfo({ to: from });
-        // 异步请求用户信息
-        requestUserInfo(from);
-      }
+    commLog.heartbeat.response({ to: from, version: userStore.userInfo.version });
+
+    // 响应我的在线状态（带上我的版本号）
+    instance?.respondOnlineCheck(from, userStore.userInfo.username || '', userStore.userInfo.avatar, userStore.userInfo.version);
+
+    // 检查对方版本号，如果不一致则请求用户信息
+    if (theirVersion !== undefined && theirVersion !== storedVersion) {
+      commLog.sync.versionMismatch({ peerId: from, stored: storedVersion, theirs: theirVersion });
+      commLog.sync.requestInfo({ to: from });
+      // 异步请求用户信息
+      requestUserInfo(from);
     }
   };
 
+  // 监听旧协议：online_check_query
+  handlers.onlineCheckQuery = (_protocol: any, from: string) => {
+    if (_protocol.type === 'online_check_query') {
+      handleOnlineCheckRequest(_protocol, from, false);
+    }
+  };
   instance.onProtocol('online_check_query', handlers.onlineCheckQuery);
+
+  // 监听新协议：online_check_request
+  handlers.onlineCheckRequest = (_protocol: any, from: string) => {
+    if (_protocol.type === 'online_check_request') {
+      handleOnlineCheckRequest(_protocol, from, true);
+    }
+  };
+  instance.onProtocol('online_check_request', handlers.onlineCheckRequest);
 
   // 处理在线检查响应
   handlers.onlineCheckResponse = (protocol: any, _from: string) => {

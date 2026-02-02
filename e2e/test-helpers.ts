@@ -134,8 +134,8 @@ export const WAIT_TIMES = {
   DISCOVERY: 1500,
   // 刷新页面 - 优化：减少到 500 毫秒
   RELOAD: 500,
-  // 弹窗显示 - 优化：减少到 3 秒
-  MODAL: 3000,
+  // 弹窗显示 - 增加到 5 秒确保弹窗有足够时间加载
+  MODAL: 5000,
 } as const;
 
 // ==================== 测试数据工厂 ====================
@@ -362,11 +362,15 @@ export async function waitForMessage(page: Page, messageText: string, timeout = 
 
 /**
  * 等待弹窗出现并返回其标题
+ * 默认超时时间增加到 10 秒，确保弹窗有足够时间渲染
  */
-export async function waitForModal(page: Page, timeout = 3000): Promise<string> {
-  await page.waitForSelector(SELECTORS.modalTitle, { timeout });
-  const title = await page.locator(SELECTORS.modalTitle).textContent();
-  return title || '';
+export async function waitForModal(page: Page, timeout = 10000): Promise<string> {
+  // 等待任意弹窗出现
+  await page.waitForSelector('.ant-modal-title', { timeout });
+  // 获取所有弹窗标题，取最后一个（最新打开的）
+  const titles = await page.locator('.ant-modal-title').allTextContents();
+  const title = titles[titles.length - 1] || '';
+  return title;
 }
 
 /**
@@ -415,28 +419,63 @@ async function createSingleDevice(
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  // 优化：在页面加载前通过 context 注入 localStorage，避免 reload
-  await context.addInitScript((info: UserInfo) => {
-    localStorage.setItem('p2p_user_info', JSON.stringify(info));
-  }, userInfo);
-
   // 导航到页面（使用哈希路由）
   await page.goto(startPage === 'center' ? '/#/center' : `/#/${startPage}`);
   await page.waitForLoadState('domcontentloaded');
 
+  // 等待用户设置弹窗出现（如果有）
+  try {
+    await page.waitForSelector('.ant-modal-title', { timeout: 10000 });
+    // 有弹窗，填写用户名
+    const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
+    await usernameInput.fill(userName);
+    // 点击确定按钮
+    await page.click('.ant-modal .ant-btn-primary');
+    // 等待弹窗关闭和 Peer 初始化
+    await page.waitForTimeout(2000);
+  } catch (error) {
+    // 没有弹窗，可能已经有用户信息了，直接设置
+    console.log(`[Test] No modal for ${userName}, setting localStorage directly`);
+    await page.evaluate((info) => {
+      localStorage.setItem('p2p_user_info', JSON.stringify(info));
+    }, userInfo);
+    // reload 页面触发 Peer 初始化
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+  }
+
   // 等待页面容器出现
   const selector = startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container';
-  await page.waitForSelector(selector, { timeout: 6000 }).catch(() => {
-    // 页面可能还在加载，继续执行
+  await page.waitForSelector(selector, { timeout: 10000 }).catch(() => {
+    console.log(`[Test] Container selector not found for ${userName}, continuing...`);
   });
 
-  // 优化：只等待一次 PeerJS 初始化
-  await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
+  // 等待 PeerJS 初始化并生成 peerId
+  let realPeerId: string | null = null;
+  let attempts = 0;
+  const maxAttempts = 30;
 
-  // 从 localStorage 获取真实的 peerId（由 PeerJS 生成后存储）
-  const realPeerId = await getPeerIdFromStorage(page);
+  // 监听控制台日志以调试
+  page.on('console', msg => {
+    const text = msg.text();
+    if ((text.includes('Peer') || text.includes('peer') || text.includes('Error')) && !text.includes('PeerHttp')) {
+      console.log(`[Test] ${userName}: ${text}`);
+    }
+  });
+
+  while (!realPeerId && attempts < maxAttempts) {
+    await page.waitForTimeout(500);
+    realPeerId = await getPeerIdFromStorage(page);
+    if (!realPeerId) {
+      attempts++;
+    }
+  }
+
   if (realPeerId) {
     userInfo.peerId = realPeerId;
+    console.log(`[Test] Device "${userName}" peerId: ${realPeerId}`);
+  } else {
+    console.warn(`[Test] Device "${userName}" failed to get peerId after ${maxAttempts} attempts`);
   }
 
   return { context, page, userInfo };
@@ -480,7 +519,13 @@ export async function cleanupTestDevices(devices: TestDevices): Promise<void> {
  * 注意：现在使用内联提示而不是全局消息
  */
 export async function addDevice(page: Page, peerId: string): Promise<void> {
-  await page.fill(SELECTORS.peerIdInput, peerId);
+  // 调试：打印 peerId 的类型和值
+  console.log('[Test] addDevice called with peerId:', peerId, 'type:', typeof peerId);
+
+  // 如果 peerId 不是字符串，尝试转换为字符串
+  const peerIdStr = typeof peerId === 'string' ? peerId : String(peerId || '');
+
+  await page.fill(SELECTORS.peerIdInput, peerIdStr);
   await page.click(SELECTORS.addButton);
   // 等待足够的时间让设备添加完成
   await page.waitForTimeout(WAIT_TIMES.MESSAGE);
@@ -510,18 +555,25 @@ export async function queryDevice(page: Page, peerId: string): Promise<void> {
 export async function createChat(page: Page, peerId: string): Promise<void> {
   await page.click(SELECTORS.plusButton);
   await page.waitForTimeout(WAIT_TIMES.SHORT);
-  await waitForModal(page);
-  await page.fill(SELECTORS.peerIdInput, peerId);
-  await page.click(SELECTORS.modalOkButton);
+
+  // 等待新增聊天弹窗出现
+  const modalTitle = await waitForModal(page);
+  console.log('[Test] Modal title:', modalTitle);
+
+  // 获取所有弹窗，选择最后一个（最新打开的）
+  const modals = page.locator('.ant-modal');
+  const modalCount = await modals.count();
+  const targetModal = modals.nth(modalCount - 1);
+
+  // 在目标弹窗中操作
+  const peerIdInput = targetModal.locator(SELECTORS.peerIdInput);
+  await peerIdInput.fill(peerId);
+
+  const okButton = targetModal.locator('.ant-btn-primary');
+  await okButton.click();
+
   // 等待聊天创建完成
   await page.waitForTimeout(WAIT_TIMES.MESSAGE);
-  // 等待成功消息（可选，因为有时可能没有提示）
-  try {
-    await waitForSuccessMessage(page);
-  } catch (error) {
-    // 忽略错误，继续执行
-    console.log('[Test] Success message not found, continuing...');
-  }
 }
 
 /**

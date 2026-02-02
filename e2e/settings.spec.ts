@@ -55,8 +55,8 @@ test.describe('设置页面', () => {
 
     // 验证用户名输入框显示当前用户名（使用更精确的选择器）
     const usernameInput = page.locator('.settings-container input[maxlength="20"]');
-    const value = await usernameInput.inputValue();
-    expect(value).toBe('信息查看用户');
+    const value = usernameInput;
+    await expect(value).toHaveValue('信息查看用户');
   });
 
   test('应该能修改用户名', async ({ page }) => {
@@ -133,16 +133,16 @@ test.describe('设置页面', () => {
     const switchElement = page.locator(switchSelector);
 
     // 检查初始状态（应该是关闭的）
-    const isInitiallyChecked = await switchElement.isChecked();
-    expect(isInitiallyChecked).toBe(false);
+    const isInitiallyChecked = switchElement;
+    await expect(isInitiallyChecked).not.toBeChecked();
 
     // 点击开启网络加速
     await switchElement.click();
 
     // 等待开关状态更新
     await page.waitForTimeout(WAIT_TIMES.SHORT);
-    const isNowChecked = await switchElement.isChecked();
-    expect(isNowChecked).toBe(true);
+    const isNowChecked = switchElement;
+    await expect(isNowChecked).toBeChecked();
 
     // 保存设置
     const saveButton = page.locator('button[aria-label="save-settings-button"]');
@@ -184,16 +184,16 @@ test.describe('设置页面', () => {
     const switchElement = page.locator(switchSelector);
 
     // 检查初始状态（应该是开启的）
-    const isInitiallyChecked = await switchElement.isChecked();
-    expect(isInitiallyChecked).toBe(true);
+    const isInitiallyChecked = switchElement;
+    await expect(isInitiallyChecked).toBeChecked();
 
     // 点击关闭网络加速
     await switchElement.click();
 
     // 等待开关状态更新
     await page.waitForTimeout(WAIT_TIMES.SHORT);
-    const isNowChecked = await switchElement.isChecked();
-    expect(isNowChecked).toBe(false);
+    const isNowChecked = switchElement;
+    await expect(isNowChecked).not.toBeChecked();
 
     // 保存设置
     const saveButton = page.locator('button[aria-label="save-settings-button"]');
@@ -245,8 +245,8 @@ test.describe('设置页面', () => {
     await page.waitForTimeout(1000);
 
     // 验证开关状态仍然开启
-    const isStillChecked = await switchElement.isChecked();
-    expect(isStillChecked).toBe(true);
+    const isStillChecked = switchElement;
+    await expect(isStillChecked).toBeChecked();
   });
 
   test('应该能显示网络加速开启时的提示信息', async ({ page }) => {

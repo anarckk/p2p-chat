@@ -1070,8 +1070,8 @@ test.describe('真实文件传输', () => {
 
         if (fileButtonVisible) {
           // 检查发送前的状态
-          const messageInputVisible = await devices.deviceA.page.locator(SELECTORS.messageInput).isVisible();
-          expect(messageInputVisible, 'Message input should be visible before sending').toBe(true);
+          const messageInputVisible = devices.deviceA.page.locator(SELECTORS.messageInput);
+          await expect(messageInputVisible, 'Message input should be visible before sending').toBeVisible();
 
           await fileUploadButton.click();
           await devices.deviceA.page.waitForTimeout(WAIT_TIMES.SHORT);

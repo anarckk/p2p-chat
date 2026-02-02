@@ -93,13 +93,22 @@ export function usePeerManager() {
       instance.destroy();
       // 清理状态
       setPeerInstance(null);
-      // 清理处理器引用
+      // 清理处理器引用（deliveryAck 已移除）
       (handlers as any).message = null;
-      (handlers as any).deliveryAck = null;
       (handlers as any).discoveryResponse = null;
       (handlers as any).discoveryNotification = null;
+      (handlers as any).usernameQuery = null;
+      (handlers as any).usernameResponse = null;
       (handlers as any).onlineCheckQuery = null;
       (handlers as any).onlineCheckResponse = null;
+      (handlers as any).userInfoQuery = null;
+      (handlers as any).userInfoResponse = null;
+      (handlers as any).userInfoUpdate = null;
+      (handlers as any).relayMessage = null;
+      (handlers as any).relayResponse = null;
+      (handlers as any).networkAccelerationStatus = null;
+      (handlers as any).deviceListRequest = null;
+      (handlers as any).deviceListResponse = null;
       isConnected.value = false;
     }
 

@@ -140,9 +140,9 @@ test.describe('用户信息设置', () => {
     await page.waitForSelector('.ant-modal', { timeout: WAIT_TIMES.MODAL });
 
     const usernameInput = page.locator('input[placeholder*="请输入用户名"]');
-    const maxLength = await usernameInput.getAttribute('maxlength');
+    const maxLength = usernameInput;
 
-    expect(maxLength).toBe('20');
+    await expect(maxLength).toHaveAttribute('maxlength', '20');
   });
 
   test('空用户名应该不能提交', async ({ page }) => {

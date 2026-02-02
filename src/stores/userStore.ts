@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, readonly } from 'vue';
 import type { UserInfo } from '../types';
 import indexedDBStorage from '../util/indexedDBStorage';
 
@@ -34,6 +34,13 @@ export const useUserStore = defineStore('user', () => {
 
   // 设备状态检测超时（秒）
   const deviceCheckTimeout = ref(5);
+
+  // ==================== 公钥管理 ====================
+
+  // 公钥管理
+  const myPublicKey = ref<string | null>(null);
+  const myPrivateKey = ref<string | null>(null);
+  const isCryptoInitialized = ref<boolean>(false);
 
   // 独立的 myPeerId，用于发现中心展示
   const myPeerId = computed(() => userInfo.value.peerId);
@@ -100,7 +107,14 @@ export const useUserStore = defineStore('user', () => {
         console.error('[UserStore] Failed to load user info:', e);
       }
     }
-    return isSetup.value;
+
+    // 用户信息加载完成后，初始化密钥
+    const hasUserInfo = isSetup.value;
+    if (hasUserInfo) {
+      await initCryptoKeys();
+    }
+
+    return hasUserInfo;
   }
 
   /**
@@ -199,6 +213,7 @@ export const useUserStore = defineStore('user', () => {
     }
 
     // 保存元数据到 localStorage（不含头像）
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { avatar: _, ...metaToSave } = userInfo.value;
     localStorage.setItem(USER_INFO_META_KEY, JSON.stringify(metaToSave));
 
@@ -214,6 +229,7 @@ export const useUserStore = defineStore('user', () => {
   async function setPeerId(peerId: string) {
     userInfo.value.peerId = peerId;
     // 保存元数据到 localStorage（不含头像）
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { avatar: _, ...metaToSave } = userInfo.value;
     localStorage.setItem(USER_INFO_META_KEY, JSON.stringify(metaToSave));
     // 为了向后兼容，同时保存到旧的 key
@@ -325,6 +341,113 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem(DEVICE_CHECK_TIMEOUT_KEY, String(clamped));
   }
 
+  // ==================== 公钥管理 ====================
+
+  /**
+   * 初始化密钥对
+   */
+  async function initCryptoKeys(): Promise<void> {
+    try {
+      const { cryptoManager } = await import('../util/cryptoManager');
+      await cryptoManager.init();
+
+      myPublicKey.value = cryptoManager.getPublicKey();
+      myPrivateKey.value = cryptoManager.getPrivateKey();
+      isCryptoInitialized.value = true;
+
+      console.log('[UserStore] Crypto keys initialized');
+    } catch (error) {
+      console.error('[UserStore] Failed to initialize crypto keys:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 重新生成密钥对
+   */
+  async function regenerateCryptoKeys(): Promise<void> {
+    try {
+      const { cryptoManager } = await import('../util/cryptoManager');
+      await cryptoManager.regenerate();
+
+      myPublicKey.value = cryptoManager.getPublicKey();
+      myPrivateKey.value = cryptoManager.getPrivateKey();
+
+      console.log('[UserStore] Crypto keys regenerated');
+    } catch (error) {
+      console.error('[UserStore] Failed to regenerate crypto keys:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 签名数据
+   */
+  async function signData(data: string): Promise<string> {
+    try {
+      const { cryptoManager } = await import('../util/cryptoManager');
+      return await cryptoManager.sign(data);
+    } catch (error) {
+      console.error('[UserStore] Sign failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 验证签名
+   */
+  async function verifySignature(
+    data: string,
+    signature: string,
+    publicKey: string
+  ): Promise<boolean> {
+    try {
+      const { cryptoManager } = await import('../util/cryptoManager');
+      return await cryptoManager.verify(data, signature, publicKey);
+    } catch (error) {
+      console.error('[UserStore] Verify failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取我的公钥
+   */
+  function getMyPublicKey(): string {
+    if (!myPublicKey.value) {
+      throw new Error('Public key not initialized. Call initCryptoKeys() first.');
+    }
+    return myPublicKey.value;
+  }
+
+  /**
+   * 获取我的私钥（仅用于展示）
+   */
+  function getMyPrivateKey(): string {
+    if (!myPrivateKey.value) {
+      throw new Error('Private key not initialized. Call initCryptoKeys() first.');
+    }
+    return myPrivateKey.value;
+  }
+
+  /**
+   * 清除密钥
+   */
+  async function clearCryptoKeys(): Promise<void> {
+    try {
+      const { cryptoManager } = await import('../util/cryptoManager');
+      await cryptoManager.close(); // 关闭 IndexedDB 连接
+
+      myPublicKey.value = null;
+      myPrivateKey.value = null;
+      isCryptoInitialized.value = false;
+
+      console.log('[UserStore] Crypto keys cleared');
+    } catch (error) {
+      console.error('[UserStore] Failed to clear crypto keys:', error);
+    }
+  }
+
   return {
     userInfo,
     isSetup,
@@ -348,5 +471,16 @@ export const useUserStore = defineStore('user', () => {
     deviceCheckTimeout,
     loadDeviceCheckTimeout,
     setDeviceCheckTimeout,
+    // 公钥管理
+    myPublicKey: readonly(myPublicKey),
+    myPrivateKey: readonly(myPrivateKey),
+    isCryptoInitialized: readonly(isCryptoInitialized),
+    initCryptoKeys,
+    regenerateCryptoKeys,
+    signData,
+    verifySignature,
+    getMyPublicKey,
+    getMyPrivateKey,
+    clearCryptoKeys,
   };
 });

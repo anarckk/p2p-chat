@@ -40,8 +40,19 @@ function sendMessage() {
     return;
   }
 
+  const myId = peerHttp!.getId() || 'me';
+  const chatMessage = {
+    id: `msg_${Date.now()}`,
+    from: myId,
+    to: tid,
+    content: msg,
+    timestamp: Date.now(),
+    status: 'sending' as const,
+    type: 'text' as const,
+  };
+
   peerHttp!
-    .send(tid, `msg_${Date.now()}`, msg, 'text')
+    .sendMessage(tid, chatMessage)
     .then(() => {
       addMessage('我', msg);
       messageContent.value = '';

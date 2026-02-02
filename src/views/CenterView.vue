@@ -51,6 +51,94 @@ function getDeviceRefreshStatus(peerId: string): DeviceRefreshStatus {
 // 使用 deviceStore 中的设备列表
 const storedDevices = computed(() => deviceStore.allDevices);
 
+// ==================== 身份安全相关 ====================
+
+// 计算属性：我的密钥
+const myPublicKey = computed(() => userStore.myPublicKey);
+const myPrivateKey = computed(() => userStore.myPrivateKey);
+const isCryptoInitialized = computed(() => userStore.isCryptoInitialized);
+
+// 有公钥的设备
+const devicesWithKeys = computed(() => {
+  return sortedDevices.value.filter((d) => d.peerId !== userStore.myPeerId && d.peerId !== 'connecting...' && d.publicKey);
+});
+
+// 截断公钥显示
+function truncateKey(key: string): string {
+  if (key.length < 40) return key;
+  return `${key.substring(0, 20)}...${key.substring(key.length - 20)}`;
+}
+
+const myPublicKeyTruncated = computed(() => {
+  if (!myPublicKey.value) return '加载中...';
+  return truncateKey(myPublicKey.value);
+});
+
+// 获取密钥状态颜色
+function getKeyStatusColor(status?: string): string {
+  switch (status) {
+    case 'verified': return 'success';
+    case 'exchanged': return 'processing';
+    case 'compromised': return 'error';
+    case 'pending': return 'warning';
+    default: return 'default';
+  }
+}
+
+// 获取密钥状态文本
+function getKeyStatusText(status?: string): string {
+  switch (status) {
+    case 'verified': return '已验证';
+    case 'exchanged': return '已交换';
+    case 'compromised': return '被攻击';
+    case 'pending': return '交换中';
+    default: return '未交换';
+  }
+}
+
+// 复制公钥
+async function copyMyPublicKey() {
+  if (myPublicKey.value) {
+    await navigator.clipboard.writeText(myPublicKey.value);
+    console.log('[CenterView] Public key copied');
+  }
+}
+
+// 复制设备公钥
+async function copyDevicePublicKey(peerId: string) {
+  const device = deviceStore.getDevice(peerId);
+  if (device?.publicKey) {
+    await navigator.clipboard.writeText(device.publicKey);
+    console.log('[CenterView] Device public key copied:', peerId);
+  }
+}
+
+// 信任设备
+async function trustDevice(peerId: string) {
+  const device = deviceStore.getDevice(peerId);
+  if (device) {
+    device.keyExchangeStatus = 'verified';
+    await deviceStore.addOrUpdateDevice(device);
+    console.log('[CenterView] Device trusted:', peerId);
+  }
+}
+
+// 标记为被攻击
+async function markCompromised(peerId: string) {
+  await deviceStore.removeDevice(peerId);
+  console.log('[CenterView] Device removed as compromised:', peerId);
+}
+
+// 重新生成密钥
+async function handleRegenerateKeys() {
+  try {
+    await userStore.regenerateCryptoKeys();
+    console.log('[CenterView] Keys regenerated');
+  } catch (error) {
+    console.error('[CenterView] Failed to regenerate keys:', error);
+  }
+}
+
 // 我的设备信息
 const myDeviceInfo = computed((): (OnlineDevice | null) => {
   if (!userStore.userInfo.username) { return null; }
@@ -610,6 +698,104 @@ async function refreshDiscovery() {
           </a-list>
         </a-card>
       </a-col>
+
+      <!-- 身份安全区域 -->
+      <a-col :xs="24" :md="16" :offset="isCryptoInitialized ? 8 : 0">
+        <a-divider>身份安全</a-divider>
+
+        <!-- 我的密钥 -->
+        <a-card title="我的公钥" size="small">
+          <template #extra>
+            <a-button
+              type="link"
+              @click="copyMyPublicKey"
+              aria-label="copy-public-key"
+            >
+              复制
+            </a-button>
+          </template>
+          <div class="public-key-display">
+            <a-typography-text code copyable>
+              {{ myPublicKeyTruncated }}
+            </a-typography-text>
+          </div>
+          <div class="private-key-section">
+            <a-collapse>
+              <a-collapse-panel header="查看私钥（请勿泄露）">
+                <a-typography-text code>
+                  {{ myPrivateKey || '未初始化' }}
+                </a-typography-text>
+              </a-collapse-panel>
+            </a-collapse>
+          </div>
+          <div class="key-actions">
+            <a-button
+              type="primary"
+              danger
+              size="small"
+              @click="handleRegenerateKeys"
+              aria-label="regenerate-keys"
+            >
+              重新生成密钥
+            </a-button>
+          </div>
+        </a-card>
+
+        <!-- 设备公钥 -->
+        <div v-for="device in devicesWithKeys" :key="device.peerId" class="device-key-section">
+          <a-card
+            :title="`${device.username} 的公钥`"
+            size="small"
+          >
+            <template #extra>
+              <a-space>
+                <a-tag :color="getKeyStatusColor(device.keyExchangeStatus)">
+                  {{ getKeyStatusText(device.keyExchangeStatus) }}
+                </a-tag>
+                <a-button
+                  type="link"
+                  size="small"
+                  @click="copyDevicePublicKey(device.peerId)"
+                  :aria-label="`copy-device-public-key-${device.peerId}`"
+                >
+                  复制
+                </a-button>
+              </a-space>
+            </template>
+            <a-typography-text code>
+              {{ truncateKey(device.publicKey || '') }}
+            </a-typography-text>
+
+            <!-- 中间人攻击警告 -->
+            <div v-if="device.keyExchangeStatus === 'compromised'" class="warning-section">
+              <a-alert
+                type="warning"
+                message="安全警告"
+                description="此设备的公钥已发生变化，可能存在中间人攻击。请确认对方身份后再决定是否信任。"
+                show-icon
+              />
+              <div class="action-buttons">
+                <a-button
+                  type="primary"
+                  size="small"
+                  @click="trustDevice(device.peerId)"
+                  :aria-label="`trust-device-${device.peerId}`"
+                >
+                  信任此设备
+                </a-button>
+                <a-button
+                  danger
+                  size="small"
+                  @click="markCompromised(device.peerId)"
+                  :aria-label="`remove-device-${device.peerId}`"
+                >
+                  移除
+                </a-button>
+              </div>
+            </div>
+          </a-card>
+        </div>
+      </a-col>
     </a-row>
   </div>
 </template>
@@ -696,6 +882,40 @@ async function refreshDiscovery() {
   .center-container {
     padding: 16px;
   }
+}
+
+/* ==================== 身份安全样式 ==================== */
+
+.crypto-section {
+  margin-top: 24px;
+}
+
+.public-key-display {
+  word-break: break-all;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.private-key-section {
+  margin-bottom: 12px;
+}
+
+.key-actions {
+  margin-top: 8px;
+}
+
+.device-key-section {
+  margin-top: 12px;
+}
+
+.warning-section {
+  margin-top: 12px;
+}
+
+.action-buttons {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
 }
 
 </style>

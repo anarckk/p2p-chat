@@ -33,7 +33,8 @@
       "Bash(netstat:*)",
       "Bash(tee:*)",
       "Bash(npx:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(npm run lint)"
     ]
   }
 }

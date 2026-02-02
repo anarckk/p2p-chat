@@ -162,8 +162,8 @@ test.describe('布局与响应式 UI 测试', () => {
     // 点击联系人后，验证聊天面板显示（transform: translateX(0)）
     // 注意：移动端模态框的按钮定位可能不同，这里简化测试
     // 只验证移动端聊天列表已正确显示
-    const contactsListVisible = await page.locator('.contacts-list').isVisible();
-    expect(contactsListVisible).toBe(true);
+    const contactsListVisible = page.locator('.contacts-list');
+    await expect(contactsListVisible).toBeVisible();
   });
 
   /**
@@ -180,7 +180,7 @@ test.describe('布局与响应式 UI 测试', () => {
 
     // 验证弹窗不可关闭（无关闭按钮）
     const closeIcon = page.locator('.ant-modal-close');
-    await expect(closeIcon).not.toBeVisible();
+    await expect(closeIcon).toBeHidden();
 
     // 验证弹窗的 closable 属性为 false
     const modalWrap = page.locator('.ant-modal-wrap');

@@ -157,8 +157,8 @@ test.describe('网络加速功能', () => {
       }
 
       // 验证开关已开启
-      const ariaCheckedAfter = await networkSwitch.getAttribute('aria-checked');
-      expect(ariaCheckedAfter).toBe('true');
+      const ariaCheckedAfter = networkSwitch;
+      await expect(ariaCheckedAfter).toHaveAttribute('aria-checked', 'true');
     });
 
     test('应该能关闭网络加速', async ({ page }) => {
@@ -192,8 +192,8 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证开关已关闭
-      const ariaCheckedAfter = await networkSwitch.getAttribute('aria-checked');
-      expect(ariaCheckedAfter).toBe('false');
+      const ariaCheckedAfter = networkSwitch;
+      await expect(ariaCheckedAfter).toHaveAttribute('aria-checked', 'false');
     });
 
     test('网络加速状态应该持久化', async ({ page }) => {
@@ -227,8 +227,8 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 验证开关状态仍然开启
-      const ariaCheckedAfter = await networkSwitch.getAttribute('aria-checked');
-      expect(ariaCheckedAfter).toBe('true');
+      const ariaCheckedAfter = networkSwitch;
+      await expect(ariaCheckedAfter).toHaveAttribute('aria-checked', 'true');
     });
   });
 
@@ -444,8 +444,8 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.RELOAD);
 
       // 验证状态保持
-      const ariaChecked = await networkSwitch.getAttribute('aria-checked');
-      expect(ariaChecked).toBe('true');
+      const ariaChecked = networkSwitch;
+      await expect(ariaChecked).toHaveAttribute('aria-checked', 'true');
     });
 
     test('跨页面网络加速状态应该同步', async ({ page }) => {
@@ -468,8 +468,8 @@ test.describe('网络加速功能', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证状态仍然开启
-      const ariaChecked = await networkSwitch.getAttribute('aria-checked');
-      expect(ariaChecked).toBe('true');
+      const ariaChecked = networkSwitch;
+      await expect(ariaChecked).toHaveAttribute('aria-checked', 'true');
     });
   });
 

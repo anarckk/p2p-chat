@@ -38,8 +38,8 @@ test.describe('发现中心刷新按钮 Loading 功能', () => {
     console.log('[Test] ✓ 刷新按钮已可见');
 
     // 验证按钮有正确的 aria-label
-    const ariaLabel = await refreshButton.getAttribute('aria-label');
-    expect(ariaLabel).toBe('refresh-discovery');
+    const ariaLabel = refreshButton;
+    await expect(ariaLabel).toHaveAttribute('aria-label', 'refresh-discovery');
     console.log('[Test] ✓ 刷新按钮有正确的 aria-label');
 
     // 验证按钮包含刷新图标
@@ -122,11 +122,11 @@ test.describe('发现中心刷新按钮 Loading 功能', () => {
     await page.waitForTimeout(3000);
 
     // 验证按钮仍然可用
-    const isDisabledAfter = await refreshButton.isDisabled();
+    const isDisabledAfter = refreshButton;
     console.log('[Test] 刷新后按钮禁用状态:', isDisabledAfter);
 
     // 刷新完成后按钮应该是可用的
-    expect(isDisabledAfter).toBe(false);
+    await expect(isDisabledAfter).toBeEnabled();
     console.log('[Test] ✓ 刷新完成后按钮可用');
   });
 });

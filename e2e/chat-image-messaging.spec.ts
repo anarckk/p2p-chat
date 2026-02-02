@@ -169,8 +169,8 @@ test.describe('聊天图片发送功能', () => {
       await expect(fileNameB).toContainText('test-image.png');
 
       // 验证图片的 src 属性不为空
-      const imageSrc = await imageElementB.getAttribute('src');
-      expect(imageSrc).toBeTruthy();
+      const imageSrc = imageElementB;
+      await expect(imageSrc).toHaveAttribute('src', );
       expect(imageSrc?.startsWith('data:image/png')).toBeTruthy();
 
       console.log('[Test] 测试通过：图片消息成功发送和接收');

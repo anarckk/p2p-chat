@@ -149,8 +149,8 @@ test.describe('发现中心页面 UI 测试', () => {
     expect(tagCount).toBeGreaterThan(0);
 
     // 验证标签文本
-    const offlineTagText = await offlineTag.first().textContent();
-    expect(offlineTagText).toBe('离线');
+    const offlineTagText = offlineTag.first();
+    await expect(offlineTagText).toHaveText('离线');
 
     // 清理测试元素
     await page.evaluate(() => {
@@ -339,8 +339,8 @@ test.describe('发现中心页面 UI 测试', () => {
       await expect(emptyElement.first()).toBeVisible();
 
       // 验证空状态描述文字
-      const emptyDescription = await page.locator('.ant-empty-description').textContent();
-      expect(emptyDescription).toBe('暂无在线设备');
+      const emptyDescription = page.locator('.ant-empty-description');
+      await expect(emptyDescription).toHaveText('暂无在线设备');
 
       // 验证空状态图标存在
       const emptyIcon = page.locator('.anticon-team-outlined');
@@ -584,8 +584,8 @@ test.describe('发现中心页面 UI 测试', () => {
 
     expect(onlineCount).toBeGreaterThan(0);
 
-    const onlineTagText = await onlineTag.first().textContent();
-    expect(onlineTagText).toBe('在线');
+    const onlineTagText = onlineTag.first();
+    await expect(onlineTagText).toHaveText('在线');
 
     // 验证在线标签有正确的颜色属性
     // ant-design-vue 的 success 标签使用 color="success"，显示为绿色文字

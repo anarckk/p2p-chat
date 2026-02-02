@@ -38,7 +38,7 @@ describe('PeerHttpUtil', () => {
         const util = new PeerHttpUtil();
 
         // 检查方法存在
-        expect(typeof util.send).toBe('function');
+        expect(typeof util.sendMessage).toBe('function');
         expect(typeof util.on).toBe('function');
         expect(typeof util.getId).toBe('function');
         expect(typeof util.destroy).toBe('function');
@@ -50,13 +50,22 @@ describe('PeerHttpUtil', () => {
     });
   });
 
-  describe('send 方法', () => {
+  describe('sendMessage 方法', () => {
     it('应该返回 Promise', async () => {
       const { PeerHttpUtil } = await import('../PeerHttpUtil');
 
       try {
         const util = new PeerHttpUtil();
-        const result = util.send('test-peer', 'test-message-id', 'test message', 'text');
+        const chatMessage = {
+          id: 'test-message-id',
+          from: 'me',
+          to: 'test-peer',
+          content: 'test message',
+          timestamp: Date.now(),
+          status: 'sending' as const,
+          type: 'text' as const,
+        };
+        const result = util.sendMessage('test-peer', chatMessage);
 
         expect(result).toBeInstanceOf(Promise);
 

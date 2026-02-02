@@ -654,10 +654,10 @@ test.describe('边界条件测试', () => {
 
         // 验证发送按钮被禁用
         const sendButton = devices.deviceA.page.locator(SELECTORS.sendButton);
-        const isDisabled = await sendButton.isDisabled();
+        const isDisabled = sendButton;
         console.log(`[Test] Send button disabled: ${isDisabled}`);
 
-        expect(isDisabled).toBe(true);
+        await expect(isDisabled).toBeDisabled();
 
         console.log('[Test] Space message was correctly prevented (button disabled)');
 

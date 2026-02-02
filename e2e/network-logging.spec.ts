@@ -81,16 +81,16 @@ test.describe('网络数据日志功能', () => {
     const switchElement = page.locator(switchSelector);
 
     // 检查初始状态（应该是关闭的）
-    const isInitiallyChecked = await switchElement.isChecked();
-    expect(isInitiallyChecked).toBe(false);
+    const isInitiallyChecked = switchElement;
+    await expect(isInitiallyChecked).not.toBeChecked();
 
     // 点击开启网络数据日志记录
     await switchElement.click();
 
     // 等待开关状态更新
     await page.waitForTimeout(WAIT_TIMES.SHORT);
-    const isNowChecked = await switchElement.isChecked();
-    expect(isNowChecked).toBe(true);
+    const isNowChecked = switchElement;
+    await expect(isNowChecked).toBeChecked();
 
     // 保存设置
     const saveButton = page.locator('button[aria-label="save-settings-button"]');
@@ -124,16 +124,16 @@ test.describe('网络数据日志功能', () => {
     const switchElement = page.locator(switchSelector);
 
     // 检查初始状态（应该是关闭的）
-    const isInitiallyChecked = await switchElement.isChecked();
-    expect(isInitiallyChecked).toBe(false);
+    const isInitiallyChecked = switchElement;
+    await expect(isInitiallyChecked).not.toBeChecked();
 
     // 点击开启网络数据日志记录
     await switchElement.click();
 
     // 等待开关状态更新
     await page.waitForTimeout(WAIT_TIMES.SHORT);
-    const isNowChecked = await switchElement.isChecked();
-    expect(isNowChecked).toBe(true);
+    const isNowChecked = switchElement;
+    await expect(isNowChecked).toBeChecked();
 
     // 保存设置
     const saveButton = page.locator('button[aria-label="save-settings-button"]');
@@ -151,16 +151,16 @@ test.describe('网络数据日志功能', () => {
     await switchElementAfterReload.waitFor({ state: 'visible', timeout: 5000 });
 
     // 验证开关状态仍然是开启的
-    const isStillChecked = await switchElementAfterReload.isChecked();
-    expect(isStillChecked).toBe(true);
+    const isStillChecked = switchElementAfterReload;
+    await expect(isStillChecked).toBeChecked();
 
     // 点击关闭网络数据日志记录
     await switchElementAfterReload.click();
 
     // 等待开关状态更新
     await page.waitForTimeout(WAIT_TIMES.SHORT);
-    const isNowChecked2 = await switchElementAfterReload.isChecked();
-    expect(isNowChecked2).toBe(false);
+    const isNowChecked2 = switchElementAfterReload;
+    await expect(isNowChecked2).not.toBeChecked();
 
     // 保存设置
     const saveButton2 = page.locator('button[aria-label="save-settings-button"]');
@@ -212,9 +212,9 @@ test.describe('网络数据日志功能', () => {
     await switchElementAfterReload.waitFor({ state: 'visible', timeout: 5000 });
 
     // 验证开关状态仍然开启
-    const isStillChecked = await switchElementAfterReload.isChecked();
+    const isStillChecked = switchElementAfterReload;
     console.log('[Test] Switch checked after reload:', isStillChecked);
-    expect(isStillChecked).toBe(true);
+    await expect(isStillChecked).toBeChecked();
   });
 
   test('应该能显示网络数据日志开启时的提示信息', async ({ page }) => {

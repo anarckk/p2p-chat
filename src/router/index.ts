@@ -4,7 +4,7 @@ import type { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    component: () => import('../layouts/MainLayout.vue'),
+    component: () => import('../layouts/ResponsiveLayout.vue'),
     redirect: '/wechat',
     children: [
       {
@@ -44,6 +44,16 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHashHistory(),
   routes,
+});
+
+router.beforeEach((to, from, next) => {
+  const title = to.meta.title as string;
+  if (title) {
+    document.title = `${title} - P2P Chat`;
+  } else {
+    document.title = 'P2P Chat';
+  }
+  next();
 });
 
 export default router;

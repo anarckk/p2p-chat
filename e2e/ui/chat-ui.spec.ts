@@ -303,7 +303,7 @@ test.describe('聊天页面 UI 测试', () => {
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 验证图片消息有 img 元素
-    const imgElement = await page.locator('.message-image img').first();
+    const imgElement = page.locator('.message-image img').first();
     await expect(imgElement).toBeVisible();
 
     // 验证图片 max-height: 300px
@@ -325,8 +325,8 @@ test.describe('聊天页面 UI 测试', () => {
     expect(imgBorderRadius).toBe('8px');
 
     // 验证显示文件名
-    const fileName = await page.locator('.message-image .file-name').first().textContent();
-    expect(fileName).toBe('test-image.png');
+    const fileName = page.locator('.message-image .file-name').first();
+    await expect(fileName).toHaveText('test-image.png');
 
     // 验证显示文件大小
     const fileSize = await page.locator('.message-image .file-size').first().textContent();
@@ -368,7 +368,7 @@ test.describe('聊天页面 UI 测试', () => {
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 验证视频消息有 video 元素
-    const videoElement = await page.locator('.message-video video').first();
+    const videoElement = page.locator('.message-video video').first();
     await expect(videoElement).toBeVisible();
 
     // 验证视频有 controls 属性
@@ -380,8 +380,8 @@ test.describe('聊天页面 UI 测试', () => {
     expect(hasControls).toBe(true);
 
     // 验证显示文件名
-    const fileName = await page.locator('.message-video .file-name').first().textContent();
-    expect(fileName).toBe('test-video.mp4');
+    const fileName = page.locator('.message-video .file-name').first();
+    await expect(fileName).toHaveText('test-video.mp4');
 
     // 验证显示文件大小
     const fileSize = await page.locator('.message-video .file-size').first().textContent();
@@ -424,22 +424,22 @@ test.describe('聊天页面 UI 测试', () => {
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 验证文件消息有文件图标
-    const fileIcon = await page.locator('.message-file .anticon').first();
+    const fileIcon = page.locator('.message-file .anticon').first();
     await expect(fileIcon).toBeVisible();
 
     // 验证显示文件名
-    const fileName = await page.locator('.message-file .file-name').first().textContent();
-    expect(fileName).toBe('test-document.pdf');
+    const fileName = page.locator('.message-file .file-name').first();
+    await expect(fileName).toHaveText('test-document.pdf');
 
     // 验证显示文件大小
     const fileSize = await page.locator('.message-file .file-size').first().textContent();
     expect(fileSize).toContain('KB');
 
     // 验证有下载链接
-    const downloadLink = await page.locator('.message-file .download-link').first();
+    const downloadLink = page.locator('.message-file .download-link').first();
     await expect(downloadLink).toBeVisible();
-    const linkText = await downloadLink.textContent();
-    expect(linkText).toBe('下载');
+    const linkText = downloadLink;
+    await expect(linkText).toHaveText('下载');
   });
 
   test('联系人列表样式测试', async ({ page }) => {
@@ -479,7 +479,7 @@ test.describe('聊天页面 UI 测试', () => {
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 验证未读消息数字徽章显示
-    const badge = await page.locator('.contact-item').filter({ hasText: '未读消息联系人' }).locator('.ant-badge').first();
+    const badge = page.locator('.contact-item').filter({ hasText: '未读消息联系人' }).locator('.ant-badge').first();
     await expect(badge).toBeVisible();
 
     // 验证徽章数字
@@ -509,22 +509,22 @@ test.describe('聊天页面 UI 测试', () => {
     const sendButton = page.locator('button[aria-label="send"]').first();
 
     // 验证空消息时发送按钮禁用
-    const isDisabledInitially = await sendButton.isDisabled();
-    expect(isDisabledInitially).toBe(true);
+    const isDisabledInitially = sendButton;
+    await expect(isDisabledInitially).toBeDisabled();
 
     // 输入消息内容
     await page.fill('input[placeholder*="输入消息"]', '测试消息');
 
     // 验证有内容时发送按钮启用
-    const isEnabledAfterInput = await sendButton.isEnabled();
-    expect(isEnabledAfterInput).toBe(true);
+    const isEnabledAfterInput = sendButton;
+    await expect(isEnabledAfterInput).toBeEnabled();
 
     // 清空输入框
     await page.fill('input[placeholder*="输入消息"]', '');
 
     // 验证清空后发送按钮再次禁用
-    const isDisabledAfterClear = await sendButton.isDisabled();
-    expect(isDisabledAfterClear).toBe(true);
+    const isDisabledAfterClear = sendButton;
+    await expect(isDisabledAfterClear).toBeDisabled();
   });
 
   test('消息时间显示测试', async ({ page }) => {
@@ -573,11 +573,11 @@ test.describe('聊天页面 UI 测试', () => {
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 验证聊天头部显示联系人名称
-    const chatName = await page.locator('.chat-name').first().textContent();
-    expect(chatName).toBe('测试联系人');
+    const chatName = page.locator('.chat-name').first();
+    await expect(chatName).toHaveText('测试联系人');
 
     // 验证在线状态徽章存在
-    const statusBadge = await page.locator('.chat-status .ant-badge').first();
+    const statusBadge = page.locator('.chat-status .ant-badge').first();
     await expect(statusBadge).toBeVisible();
 
     // 验证在线状态文本

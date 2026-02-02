@@ -85,8 +85,8 @@ test.describe('错误处理', () => {
       }
 
       // 验证不会崩溃
-      const centerVisible = await page.locator(SELECTORS.centerContainer).isVisible();
-      expect(centerVisible).toBe(true);
+      const centerVisible = page.locator(SELECTORS.centerContainer);
+      await expect(centerVisible).toBeVisible();
 
       console.log('[Test] Invalid PeerId test completed without crash');
     });
@@ -110,8 +110,8 @@ test.describe('错误处理', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证不会崩溃
-      const centerVisible = await page.locator(SELECTORS.centerContainer).isVisible();
-      expect(centerVisible).toBe(true);
+      const centerVisible = page.locator(SELECTORS.centerContainer);
+      await expect(centerVisible).toBeVisible();
 
       console.log('[Test] Empty PeerId test completed');
     });
@@ -152,8 +152,8 @@ test.describe('错误处理', () => {
       }
 
       // 验证不会崩溃
-      const centerVisible = await page.locator(SELECTORS.centerContainer).isVisible();
-      expect(centerVisible).toBe(true);
+      const centerVisible = page.locator(SELECTORS.centerContainer);
+      await expect(centerVisible).toBeVisible();
 
       console.log('[Test] Invalid format PeerId tests completed');
     });
@@ -205,8 +205,8 @@ test.describe('错误处理', () => {
         }
 
         // 验证不会崩溃
-        const wechatVisible = await deviceA.deviceA.page.locator('.wechat-container').isVisible();
-        expect(wechatVisible).toBe(true);
+        const wechatVisible = deviceA.deviceA.page.locator('.wechat-container');
+        await expect(wechatVisible).toBeVisible();
 
         console.log('[Test] Message to non-existent device test completed');
       } finally {
@@ -257,8 +257,8 @@ test.describe('错误处理', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE * 2);
 
         // 验证不会崩溃
-        const wechatVisible = await devices.deviceA.page.locator('.wechat-container').isVisible();
-        expect(wechatVisible).toBe(true);
+        const wechatVisible = devices.deviceA.page.locator('.wechat-container');
+        await expect(wechatVisible).toBeVisible();
 
         // 检查消息状态
         const messageCount = await devices.deviceA.page.locator('.message-item').count();
@@ -333,8 +333,8 @@ test.describe('错误处理', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
 
         // 验证不会崩溃
-        const wechatVisible = await devices.deviceA.page.locator('.wechat-container').isVisible();
-        expect(wechatVisible).toBe(true);
+        const wechatVisible = devices.deviceA.page.locator('.wechat-container');
+        await expect(wechatVisible).toBeVisible();
 
         console.log('[Test] Network disconnect test completed');
       } finally {
@@ -386,8 +386,8 @@ test.describe('错误处理', () => {
         await devices.deviceA.page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
         // 验证不会崩溃
-        const wechatVisible = await devices.deviceA.page.locator('.wechat-container').isVisible();
-        expect(wechatVisible).toBe(true);
+        const wechatVisible = devices.deviceA.page.locator('.wechat-container');
+        await expect(wechatVisible).toBeVisible();
 
         console.log('[Test] Network switch test completed without errors');
       } finally {
@@ -423,8 +423,8 @@ test.describe('错误处理', () => {
       await page.waitForTimeout(WAIT_TIMES.MESSAGE);
 
       // 验证不会崩溃或卡死
-      const centerVisible = await page.locator(SELECTORS.centerContainer).isVisible();
-      expect(centerVisible).toBe(true);
+      const centerVisible = page.locator(SELECTORS.centerContainer);
+      await expect(centerVisible).toBeVisible();
 
       // 验证页面仍然响应
       await page.click(SELECTORS.refreshButton);
@@ -469,8 +469,8 @@ test.describe('错误处理', () => {
       console.log('[Test] Concurrent operations test completed');
 
       // 验证不会崩溃
-      const centerVisible = await page.locator(SELECTORS.centerContainer).isVisible();
-      expect(centerVisible).toBe(true);
+      const centerVisible = page.locator(SELECTORS.centerContainer);
+      await expect(centerVisible).toBeVisible();
     });
   });
 
@@ -499,8 +499,8 @@ test.describe('错误处理', () => {
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
       // 验证不会崩溃
-      const centerVisible = await page.locator(SELECTORS.centerContainer).isVisible();
-      expect(centerVisible).toBe(true);
+      const centerVisible = page.locator(SELECTORS.centerContainer);
+      await expect(centerVisible).toBeVisible();
 
       console.log('[Test] Long PeerId test completed');
     });
@@ -533,8 +533,8 @@ test.describe('错误处理', () => {
       }
 
       // 验证不会崩溃或被攻击
-      const centerVisible = await page.locator(SELECTORS.centerContainer).isVisible();
-      expect(centerVisible).toBe(true);
+      const centerVisible = page.locator(SELECTORS.centerContainer);
+      await expect(centerVisible).toBeVisible();
 
       console.log('[Test] Special character PeerId test completed');
     });

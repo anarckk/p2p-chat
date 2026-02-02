@@ -7,6 +7,7 @@ import {
 
 test.describe('WeChat 页面', () => {
   test.setTimeout(15000);
+
   test.beforeEach(async ({ page, context }) => {
     await context.clearCookies();
     await context.clearPermissions();

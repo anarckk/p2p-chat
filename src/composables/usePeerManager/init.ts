@@ -1,6 +1,7 @@
 import { PeerHttpUtil } from '../../util/PeerHttpUtil';
 import { networkLogDB } from '../../util/networkLogDB';
 import { useUserStore } from '../../stores/userStore';
+import { useDeviceStore } from '../../stores/deviceStore';
 import {
   setPeerInstance,
   peerInstance,
@@ -63,6 +64,7 @@ export function startReconnect(initFn: () => Promise<PeerHttpUtil>) {
  */
 export function createPeer(userStore: ReturnType<typeof useUserStore>): Promise<PeerHttpUtil> {
   return new Promise((resolve, reject) => {
+    const deviceStore = useDeviceStore();
     // 性能监控：记录 Peer 初始化开始时间
     const initStartTime = performance.now();
     console.log('[Peer-Performance] ===== Peer 初始化开始 =====');
@@ -149,6 +151,22 @@ export function createPeer(userStore: ReturnType<typeof useUserStore>): Promise<
     perfLog('before-register-message', '准备注册消息处理器');
     instance.on('message', createMessageHandler());
     perfLog('after-register-message', '消息处理器注册完成');
+
+    // 设置用户信息提供器（用于 Request-Response 协议）
+    perfLog('before-set-userinfo-provider', '准备设置用户信息提供器');
+    instance.setUserInfoProvider({
+      getUsername: () => userStore.userInfo.username || '',
+      getAvatar: () => userStore.userInfo.avatar,
+      getVersion: () => userStore.userInfo.version || 0,
+    });
+    perfLog('after-set-userinfo-provider', '用户信息提供器设置完成');
+
+    // 设置在线检查器（用于 Request-Response 协议）
+    instance.setOnlineChecker((peerId: string) => {
+      const device = deviceStore.getDevice(peerId);
+      return device?.isOnline ?? false;
+    });
+    perfLog('after-set-online-checker', '在线检查器设置完成');
 
     instance.on('open', (id: string) => {
       if (!settled) {

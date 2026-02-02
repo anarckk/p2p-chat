@@ -66,3 +66,39 @@ app.use(pinia);
 app.use(router);
 app.use(Antd);
 app.mount('#app');
+
+// 注册 Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('[SW] Registered:', registration);
+
+        // 检查更新
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // 有新版本可用
+                console.log('[SW] New version available');
+                // 可以在这里显示更新提示
+              }
+            });
+          }
+        });
+      })
+      .catch((error) => {
+        console.error('[SW] Registration failed:', error);
+      });
+
+    // 监听控制器变化（新版本激活）
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+  });
+}

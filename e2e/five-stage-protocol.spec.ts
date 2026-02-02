@@ -384,8 +384,8 @@ test.describe('五段式消息传递协议', () => {
       expect(count).toBe(1);
 
       // 验证内容
-      const messageText = await messageItems.locator(SELECTORS.messageText).textContent();
-      expect(messageText).toBe('第一次发送');
+      const messageText = messageItems.locator(SELECTORS.messageText);
+      await expect(messageText).toHaveText('第一次发送');
     });
   });
 

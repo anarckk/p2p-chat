@@ -103,7 +103,7 @@ async function retryPendingMessages(peerId: string) {
 }
 
 /**
- * 发送聊天消息（使用五段式协议）
+ * 发送聊天消息（使用 Request-Response 协议）
  */
 async function sendChatMessage(
   peerId: string,
@@ -120,16 +120,27 @@ async function sendChatMessage(
   console.log('[Peer] Sending chat message: peerId=' + peerId + ', msgId=' + messageId + ', type=' + type);
 
   try {
-    const result = await instance.send(peerId, messageId, content, type);
-    console.log('[Peer] Send result: msgId=' + result.messageId + ', sent=' + result.sent + ', stage=' + result.stage);
+    const userStore = useUserStore();
+    const chatMessage: ChatMessage = {
+      id: messageId,
+      from: userStore.myPeerId || '',
+      to: peerId,
+      content,
+      timestamp: Date.now(),
+      status: 'sending',
+      type,
+    };
+
+    const result = await instance.sendMessage(peerId, chatMessage);
+    console.log('[Peer] Send result: msgId=' + messageId + ', sent=' + result);
 
     // 更新消息状态为发送中
-    if (result.sent) {
+    if (result) {
       const chatStore = useChatStore();
       chatStore.updateMessageStatus(peerId, messageId, 'sending');
     }
 
-    return result.sent;
+    return result;
   } catch (error) {
     console.error('[Peer] Send error: ' + String(error));
     return false;

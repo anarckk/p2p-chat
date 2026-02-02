@@ -37,8 +37,8 @@ test.describe('头像上传和显示', () => {
 
     // 验证预览显示
     const avatarImg = page.locator('.avatar-section .ant-avatar img');
-    const avatarSrc = await avatarImg.getAttribute('src');
-    expect(avatarSrc, 'Avatar should be previewed').toBeTruthy();
+    const avatarSrc = avatarImg;
+    await expect(avatarSrc, 'Avatar should be previewed').toHaveAttribute('src', );
     expect(avatarSrc?.startsWith('data:image')).toBe(true);
 
     // 保存设置
@@ -52,8 +52,8 @@ test.describe('头像上传和显示', () => {
     await page.waitForTimeout(500);
 
     const avatarImgAfterReload = page.locator('.avatar-section .ant-avatar img');
-    const avatarSrcAfterReload = await avatarImgAfterReload.getAttribute('src');
-    expect(avatarSrcAfterReload, 'Avatar should persist').toBeTruthy();
+    const avatarSrcAfterReload = avatarImgAfterReload;
+    await expect(avatarSrcAfterReload, 'Avatar should persist').toHaveAttribute('src', );
     expect(avatarSrcAfterReload).toBe(avatarSrc);
   });
 
@@ -79,16 +79,16 @@ test.describe('头像上传和显示', () => {
     await page.waitForTimeout(300);
 
     // 获取第一张头像的 src
-    const firstAvatarSrc = await page.locator('.avatar-section .ant-avatar img').getAttribute('src');
-    expect(firstAvatarSrc).toBeTruthy();
+    const firstAvatarSrc = page.locator('.avatar-section .ant-avatar img');
+    await expect(firstAvatarSrc).toHaveAttribute('src', );
 
     // 上传第二张头像
     await fileInput.setInputFiles(testAvatar2Path);
     await page.waitForTimeout(1000);
 
     // 验证预览已更新
-    const secondAvatarSrc = await page.locator('.avatar-section .ant-avatar img').getAttribute('src');
-    expect(secondAvatarSrc, 'Second avatar should be different').not.toBe(firstAvatarSrc);
+    const secondAvatarSrc = page.locator('.avatar-section .ant-avatar img');
+    await expect(secondAvatarSrc, 'Second avatar should be different').not.toHaveAttribute('src', firstAvatarSrc);
 
     // 保存第二张头像
     await page.click('[aria-label="save-settings-button"]');
@@ -100,8 +100,8 @@ test.describe('头像上传和显示', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(500);
 
-    const finalAvatarSrc = await page.locator('.avatar-section .ant-avatar img').getAttribute('src');
-    expect(finalAvatarSrc, 'Final avatar should be the second one').toBe(secondAvatarSrc);
+    const finalAvatarSrc = page.locator('.avatar-section .ant-avatar img');
+    await expect(finalAvatarSrc, 'Final avatar should be the second one').toHaveAttribute('src', secondAvatarSrc);
     expect(finalAvatarSrc).not.toBe(firstAvatarSrc);
   });
 
@@ -171,8 +171,8 @@ test.describe('头像上传和显示', () => {
 
     // 验证预览立即显示（不刷新页面）
     const avatarImg = page.locator('.avatar-section .ant-avatar img');
-    const avatarSrc = await avatarImg.getAttribute('src');
-    expect(avatarSrc, 'Avatar should be immediately previewed').toBeTruthy();
+    const avatarSrc = avatarImg;
+    await expect(avatarSrc, 'Avatar should be immediately previewed').toHaveAttribute('src', );
     expect(avatarSrc?.startsWith('data:image')).toBe(true);
   });
 });

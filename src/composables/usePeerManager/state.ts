@@ -20,14 +20,19 @@ export function setBootstrapPeerInstance(instance: Peer | null): void {
 }
 
 // 协议处理器引用
+// 注意：deliveryAck 已废弃，五段式协议已迁移到 Request-Response 协议
 export const handlers = {
   message: null as ((data: { from: string; data: any }) => void) | null,
-  deliveryAck: null as ((protocol: any, from: string) => void) | null,
+  // deliveryAck 已废弃 - 聊天消息送达确认现在在 chat_message_response 中处理
   discoveryResponse: null as ((protocol: any, from: string) => void) | null,
   discoveryNotification: null as ((protocol: any, from: string) => void) | null,
+  // 新协议处理器：同时支持新旧协议类型
+  discoveryNotificationRequest: null as ((protocol: any, from: string) => void) | null,
   usernameQuery: null as ((protocol: any, from: string) => void) | null,
   usernameResponse: null as ((protocol: any, from: string) => void) | null,
   onlineCheckQuery: null as ((protocol: any, from: string) => void) | null,
+  // 新协议处理器：同时支持新旧协议类型
+  onlineCheckRequest: null as ((protocol: any, from: string) => void) | null,
   onlineCheckResponse: null as ((protocol: any, from: string) => void) | null,
   userInfoQuery: null as ((protocol: any, from: string) => void) | null,
   userInfoResponse: null as ((protocol: any, from: string) => void) | null,

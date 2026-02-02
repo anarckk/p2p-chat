@@ -36,8 +36,8 @@ test.describe('设置页面 UI 测试', () => {
     await expect(usernameInput).toBeVisible();
 
     // 验证 maxlength 属性
-    const maxlength = await usernameInput.getAttribute('maxlength');
-    expect(maxlength).toBe('20');
+    const maxlength = usernameInput;
+    await expect(maxlength).toHaveAttribute('maxlength', '20');
 
     // 验证 show-count（字符计数显示）- 使用 evaluate 检查
     const hasShowCount = await page.evaluate(() => {
@@ -93,11 +93,11 @@ test.describe('设置页面 UI 测试', () => {
     });
 
     const avatar = page.locator('.avatar-section .ant-avatar').first();
-    const avatarText = await avatar.textContent();
+    const avatarText = avatar;
 
     // 验证显示的是用户名首字母
     const expectedFirstLetter = username.charAt(0).toUpperCase();
-    expect(avatarText).toBe(expectedFirstLetter);
+    await expect(avatarText).toHaveText(expectedFirstLetter);
   });
 
   test('4. 移除头像按钮 - 仅在有头像预览时显示', async ({ page }) => {
@@ -177,8 +177,8 @@ test.describe('设置页面 UI 测试', () => {
     await expect(saveButton).toBeVisible();
 
     // 无修改时，按钮应该是禁用的
-    const isDisabled = await saveButton.isDisabled();
-    expect(isDisabled).toBe(true);
+    const isDisabled = saveButton;
+    await expect(isDisabled).toBeDisabled();
   });
 
   test('8. 保存按钮状态 - 有修改时按钮启用', async ({ page }) => {
@@ -193,8 +193,8 @@ test.describe('设置页面 UI 测试', () => {
     await page.waitForTimeout(WAIT_TIMES.SHORT);
 
     // 有修改时，按钮应该是启用的
-    const isDisabled = await saveButton.isDisabled();
-    expect(isDisabled).toBe(false);
+    const isDisabled = saveButton;
+    await expect(isDisabled).toBeEnabled();
   });
 
   test('9. 网络日志开关提示 - 验证 Alert 中的跳转链接', async ({ page }) => {
@@ -238,7 +238,7 @@ test.describe('设置页面 UI 测试', () => {
     const saveButton = page.locator('button[aria-label="save-settings-button"]');
 
     // 无修改时，保存按钮应该禁用
-    expect(await saveButton.isDisabled()).toBe(true);
+    await expect(saveButton).toBeDisabled();
 
     // 检查取消按钮数量（应该为 0）
     const cancelButtonCountBefore = await page.locator('.settings-container .action-buttons button:has-text("取 消")').count();
@@ -254,7 +254,7 @@ test.describe('设置页面 UI 测试', () => {
     await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
     // 有修改时，保存按钮应该启用
-    expect(await saveButton.isDisabled()).toBe(false);
+    await expect(saveButton).toBeEnabled();
 
     // 检查取消按钮数量（应该为 1）
     const cancelButtonCountAfter = await page.locator('.settings-container .action-buttons button:has-text("取 消")').count();

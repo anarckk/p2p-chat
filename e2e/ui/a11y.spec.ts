@@ -215,9 +215,9 @@ test.describe('A11y - 可访问性测试', () => {
 
       // 验证按钮被点击（检查 loading 状态）
       const refreshButton = page.locator('button[aria-label="refresh-discovery"]');
-      const isLoading = await refreshButton.getAttribute('class');
+      const isLoading = refreshButton;
       // 按钮应该有 loading 类或属性
-      expect(isLoading).toBeTruthy();
+      await expect(isLoading).toHaveAttribute('class', );
     });
 
     test('焦点顺序应该从上到下、从左到右', async ({ page }) => {
@@ -942,8 +942,8 @@ test.describe('A11y - 可访问性测试', () => {
 
       // 如果有错误提示，验证其可见性
       if (hasError) {
-        const errorVisible = await page.locator('.ant-message-error, .inline-message.error').isVisible();
-        expect(errorVisible).toBeTruthy();
+        const errorVisible = page.locator('.ant-message-error, .inline-message.error');
+        await expect(errorVisible).toBeVisible();
       }
     });
 
