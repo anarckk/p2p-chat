@@ -256,9 +256,11 @@ export const useUserStore = defineStore('user', () => {
    */
   function loadNetworkAcceleration() {
     const saved = localStorage.getItem(NETWORK_ACCELERATION_KEY);
+    console.log('[UserStore] loadNetworkAcceleration: localStorage value =', saved);
     if (saved !== null) {
       networkAccelerationEnabled.value = saved === 'true';
     }
+    console.log('[UserStore] loadNetworkAcceleration: returning', networkAccelerationEnabled.value);
     return networkAccelerationEnabled.value;
   }
 

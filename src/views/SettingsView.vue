@@ -76,8 +76,11 @@ onMounted(async () => {
   console.log('[SettingsView] final avatarPreview:', avatarPreview.value, 'type:', typeof avatarPreview.value);
 
   // 加载网络加速开关状态
-  networkAcceleration.value = userStore.loadNetworkAcceleration();
+  const loadedNetworkAcceleration = userStore.loadNetworkAcceleration();
+  console.log('[SettingsView] Loaded network acceleration from store:', loadedNetworkAcceleration);
+  networkAcceleration.value = loadedNetworkAcceleration;
   originalNetworkAcceleration.value = networkAcceleration.value;
+  console.log('[SettingsView] networkAcceleration.value set to:', networkAcceleration.value);
 
   // 同步 peerManager 的网络加速状态
   setNetworkAccelerationEnabled(networkAcceleration.value);
@@ -110,6 +113,16 @@ const hasChanges = computed(() => {
     networkLogging.value !== originalNetworkLogging.value ||
     deviceCheckInterval.value !== originalDeviceCheckInterval.value ||
     deviceCheckTimeout.value !== originalDeviceCheckTimeout.value;
+});
+
+// 监听网络加速开关变化（调试用）
+watch(networkAcceleration, (newValue, oldValue) => {
+  console.log('[SettingsView] networkAcceleration changed:', { oldValue, newValue, original: originalNetworkAcceleration.value });
+});
+
+// 监听 hasChanges 变化（调试用）
+watch(hasChanges, (newValue) => {
+  console.log('[SettingsView] hasChanges changed:', { newValue });
 });
 
 // 处理文件选择
@@ -158,8 +171,71 @@ function removeAvatar() {
 async function handleSave() {
   clearInlineMessage();
 
-  if (!username.value.trim()) {
+  // 检查是否有任何实质性变更（除了用户名）
+  const hasNetworkAccelerationChange = networkAcceleration.value !== originalNetworkAcceleration.value;
+  const hasNetworkLoggingChange = networkLogging.value !== originalNetworkLogging.value;
+  const hasDeviceConfigChange = deviceCheckInterval.value !== originalDeviceCheckInterval.value ||
+    deviceCheckTimeout.value !== originalDeviceCheckTimeout.value;
+  const hasAvatarChange = avatarFile.value !== null || avatarRemoved.value;
+
+  // 如果用户名为空，且没有其他实质性变更，则不允许保存
+  if (!username.value.trim() && !hasNetworkAccelerationChange && !hasNetworkLoggingChange && !hasDeviceConfigChange && !hasAvatarChange) {
     showInlineMessage('用户名不能为空', 'warning');
+    return;
+  }
+
+  // 如果用户名为空，且有其他变更，只保存其他变更，不保存用户名
+  const shouldSaveUsername = username.value.trim() !== '';
+
+  if (!shouldSaveUsername && (hasNetworkAccelerationChange || hasNetworkLoggingChange || hasDeviceConfigChange || hasAvatarChange)) {
+    // 只保存网络相关设置，不保存用户名
+    isSaving.value = true;
+
+    try {
+      // 保存网络加速开关
+      if (hasNetworkAccelerationChange) {
+        console.log('[Settings] Saving network acceleration:', networkAcceleration.value);
+        userStore.setNetworkAcceleration(networkAcceleration.value);
+        setNetworkAccelerationEnabled(networkAcceleration.value);
+        console.log('[Settings] Network acceleration saved:', networkAcceleration.value);
+
+        // 广播网络加速状态给所有在线设备
+        await broadcastNetworkAccelerationStatus();
+
+        showInlineMessage(networkAcceleration.value ? '已开启网络加速' : '已关闭网络加速', 'success');
+      }
+
+      // 保存网络数据日志记录开关
+      if (hasNetworkLoggingChange) {
+        userStore.setNetworkLogging(networkLogging.value);
+        showInlineMessage(networkLogging.value ? '已开启网络数据日志记录' : '已关闭网络数据日志记录', 'success');
+      }
+
+      // 保存设备状态检测配置
+      if (hasDeviceConfigChange) {
+        if (deviceCheckInterval.value !== originalDeviceCheckInterval.value) {
+          userStore.setDeviceCheckInterval(deviceCheckInterval.value);
+          showInlineMessage('设备状态检测间隔已更新为 ' + deviceCheckInterval.value + ' 秒', 'success');
+        }
+        if (deviceCheckTimeout.value !== originalDeviceCheckTimeout.value) {
+          userStore.setDeviceCheckTimeout(deviceCheckTimeout.value);
+          showInlineMessage('设备状态检测超时已更新为 ' + deviceCheckTimeout.value + ' 秒', 'success');
+        }
+      }
+
+      // 更新原始值
+      originalNetworkAcceleration.value = networkAcceleration.value;
+      originalNetworkLogging.value = networkLogging.value;
+      originalDeviceCheckInterval.value = deviceCheckInterval.value;
+      originalDeviceCheckTimeout.value = deviceCheckTimeout.value;
+
+      showInlineMessage('设置已保存', 'success');
+    } catch (error) {
+      console.error('[Settings] Save error:', error);
+      showInlineMessage('保存失败', 'error');
+    } finally {
+      isSaving.value = false;
+    }
     return;
   }
 
@@ -192,9 +268,15 @@ async function handleSave() {
     }
 
     // 保存网络加速开关
+    console.log('[Settings] Network acceleration save check:', {
+      current: networkAcceleration.value,
+      original: originalNetworkAcceleration.value,
+      shouldSave: networkAcceleration.value !== originalNetworkAcceleration.value
+    });
     if (networkAcceleration.value !== originalNetworkAcceleration.value) {
       userStore.setNetworkAcceleration(networkAcceleration.value);
       setNetworkAccelerationEnabled(networkAcceleration.value);
+      console.log('[Settings] Network acceleration saved:', networkAcceleration.value);
 
       // 广播网络加速状态给所有在线设备
       await broadcastNetworkAccelerationStatus();

@@ -130,6 +130,12 @@ const menuItems = [
     route: '/center',
   },
   {
+    key: 'Call',
+    label: '通话',
+    icon: PhoneOutlined,
+    route: '/call',
+  },
+  {
     key: 'Settings',
     label: '设置',
     icon: SettingOutlined,

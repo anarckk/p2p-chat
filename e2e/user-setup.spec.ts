@@ -103,15 +103,26 @@ test.describe('用户信息设置', () => {
     const okButton = page.locator('.ant-modal .ant-btn-primary');
     await okButton.click();
 
-    await page.waitForTimeout(WAIT_TIMES.MEDIUM);
+    // 等待用户信息保存完成（增加等待时间）
+    await page.waitForTimeout(3000);
 
-    const peerIdBeforeReload = await page.evaluate(() => {
+    // 验证用户信息已保存
+    const userInfoBeforeReload = await page.evaluate(() => {
       const stored = localStorage.getItem('p2p_user_info');
-      return stored ? JSON.parse(stored).peerId : null;
+      return stored ? JSON.parse(stored) : null;
     });
 
+    console.log('[Test] User info before reload:', userInfoBeforeReload);
+    expect(userInfoBeforeReload).not.toBeNull();
+    expect(userInfoBeforeReload.username).toBe('刷新测试用户');
+
+    const peerIdBeforeReload = userInfoBeforeReload.peerId;
+
     await page.reload();
-    await page.waitForTimeout(WAIT_TIMES.SHORT);
+    await page.waitForLoadState('domcontentloaded');
+
+    // 等待页面加载完成（增加等待时间）
+    await page.waitForTimeout(2000);
 
     const peerIdAfterReload = await page.evaluate(() => {
       const stored = localStorage.getItem('p2p_user_info');

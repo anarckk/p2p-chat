@@ -1009,7 +1009,7 @@ export class PeerHttpUtil {
           fromUsername: username,
           fromAvatar: avatar,
           profileVersion,
-          publicKey: '', // TODO: 添加数字签名支持
+          publicKey: this.getCurrentPublicKey(),
         },
         10000
       );
