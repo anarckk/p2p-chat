@@ -140,12 +140,12 @@ export class RequestResponseManager {
   }
 
   /**
-   * 等待连接可用
+   * 等待连接可用（包括正在连接的状态）
    * @param peerId - 目标 PeerId
    * @param timeout - 超时时间（毫秒）
    * @returns Promise<void>
    */
-  async waitForConnectionAvailable(peerId: string, timeout: number = 1000): Promise<void> {
+  async waitForConnectionAvailable(peerId: string, timeout: number = 2000): Promise<void> {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
 
@@ -157,9 +157,10 @@ export class RequestResponseManager {
           return;
         }
 
-        // 检查连接是否仍然活跃
-        if (!this.activeConnections.has(peerId)) {
+        // 检查连接是否仍然活跃或正在连接
+        if (!this.activeConnections.has(peerId) && !this.connectingState.has(peerId)) {
           clearInterval(checkInterval);
+          console.log('[RequestResponseManager] Connection available for:', peerId.substring(0, 8) + '...');
           resolve();
         }
       }, 50);
@@ -217,6 +218,9 @@ export class RequestResponseManager {
     // 使用随机延迟来打破竞态条件
     await new Promise(resolve => setTimeout(resolve, jitterDelay));
 
+    // 在发起连接前，等待一小段时间确保之前的连接完全关闭
+    await new Promise(resolve => setTimeout(resolve, 50));
+
     return this.executeRequest<T>(peerId, type, payload, actualTimeout, requestId, undefined, undefined);
   }
 
@@ -272,8 +276,10 @@ export class RequestResponseManager {
     // 创建连接超时
     const connectionTimeout = setTimeout(() => {
       console.error('[RequestResponseManager] Connection timeout:', peerId.substring(0, 8) + '...');
-      this.cleanupRequest(requestId);
-      this.cleanupActiveConnection(peerId);
+      // 注意：不在这里清理 activeConnections，让连接对象自己处理
+      // 只清理请求记录和拒绝 Promise
+      this.cleanupRequestOnly(requestId);
+      this.connectingState.delete(peerId);
       reject(new Error(`Connection timeout to ${peerId.substring(0, 8)}...`));
     }, this.config.connectionTimeout);
 
@@ -283,8 +289,10 @@ export class RequestResponseManager {
       conn.on('error', (err: any) => {
         console.error('[RequestResponseManager] Connection error:', err);
         clearTimeout(connectionTimeout);
-        this.cleanupRequest(requestId);
-        this.cleanupActiveConnection(peerId);
+        // 注意：不在这里清理 activeConnections，让连接对象自己处理
+        // 只清理请求记录和拒绝 Promise
+        this.cleanupRequestOnly(requestId);
+        this.connectingState.delete(peerId);
         reject(new Error(`Connection error: ${String(err)}`));
       });
 
@@ -449,11 +457,16 @@ export class RequestResponseManager {
       // 如果 signatureValid === null，表示跳过验证（向后兼容）
     }
 
-    // 清理请求
-    this.cleanupRequest(requestId);
+    // 清理请求（但不关闭连接，连接由 sendResponse 延迟关闭）
+    // 只清除待处理请求记录，不操作 conn
+    const pendingRequest = this.pendingRequests.get(requestId);
+    if (pendingRequest && pendingRequest.timeout) {
+      clearTimeout(pendingRequest.timeout);
+    }
+    this.pendingRequests.delete(requestId);
 
-    // 清理活跃连接（响应处理完毕，可以处理下一个队列请求）
-    this.cleanupActiveConnection(pending.peerId);
+    // 注意：不立即清理 activeConnections，而是在 sendResponse 中连接关闭后清理
+    // 这样可以确保旧连接完全关闭后，新请求才创建连接
 
     // 处理响应
     if (success) {
@@ -511,12 +524,19 @@ export class RequestResponseManager {
       commLog.info(`Response sent: ${responseType}`, { to: to.substring(0, 8) + '...', success });
 
       // 延迟关闭连接，确保数据已发送
+      // 在连接关闭后清理 activeConnections，确保新请求在旧连接完全关闭后才创建
       setTimeout(() => {
         try {
           conn.close();
           console.log('[RequestResponseManager] Connection closed after response');
+
+          // 重要：在连接关闭后清理活跃连接状态
+          // 这样可以确保下次创建新连接时，旧连接已经完全关闭
+          this.cleanupActiveConnection(to);
         } catch (e) {
-          // 忽略关闭错误
+          // 即使关闭失败，也要清理状态，避免死锁
+          console.warn('[RequestResponseManager] Error closing connection, cleaning up state:', e);
+          this.cleanupActiveConnection(to);
         }
       }, 50);
     } catch (err) {
@@ -525,7 +545,25 @@ export class RequestResponseManager {
   }
 
   /**
-   * 清理请求
+   * 清理请求（只清理请求记录，不操作连接对象）
+   * @param requestId - 请求ID
+   */
+  private cleanupRequestOnly(requestId: string): void {
+    const pending = this.pendingRequests.get(requestId);
+
+    if (pending) {
+      // 清除超时定时器
+      if (pending.timeout) {
+        clearTimeout(pending.timeout);
+      }
+
+      // 删除待处理请求（不关闭连接，连接由 sendResponse 或其他机制关闭）
+      this.pendingRequests.delete(requestId);
+    }
+  }
+
+  /**
+   * 清理请求（包括关闭连接）
    * @param requestId - 请求ID
    */
   private cleanupRequest(requestId: string): void {
