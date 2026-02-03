@@ -374,6 +374,30 @@ function formatTime(timestamp: number): string {
 }
 
 /**
+ * 获取联系人显示名称：优先显示用户名，若无用户名则显示 PeerID
+ */
+function getContactDisplayName(contact: Contact): string {
+  // 如果用户名存在且不等于 peerId，则显示用户名
+  if (contact.username && contact.username !== contact.peerId) {
+    return contact.username;
+  }
+  // 否则显示 PeerID
+  return contact.peerId;
+}
+
+/**
+ * 获取联系人副标题：如果显示了用户名，则显示 PeerID
+ */
+function getContactSubtitle(contact: Contact): string {
+  // 如果主标题显示的是用户名，则副标题显示 PeerID
+  if (contact.username && contact.username !== contact.peerId) {
+    return `${contact.peerId.slice(0, 8)}...${contact.peerId.slice(-4)}`;
+  }
+  // 如果主标题显示的是 PeerID，则副标题为空
+  return '';
+}
+
+/**
  * 渲染消息内容
  */
 function renderMessageContent(msg: ChatMessage) {
@@ -502,11 +526,11 @@ function renderMessageContent(msg: ChatMessage) {
             </a-badge>
             <div class="contact-info">
               <div class="contact-top">
-                <span class="contact-name">{{ contact.username }}</span>
+                <span class="contact-name">{{ getContactDisplayName(contact) }}</span>
                 <span class="contact-time">{{ formatTime(contact.lastSeen) }}</span>
               </div>
               <div class="contact-bottom">
-                <span class="contact-peer-id">{{ contact.peerId.slice(0, 8) }}...{{ contact.peerId.slice(-4) }}</span>
+                <span v-if="getContactSubtitle(contact)" class="contact-peer-id">{{ getContactSubtitle(contact) }}</span>
                 <a-badge
                   :status="contact.online ? 'processing' : 'default'"
                   :text="contact.online ? '在线' : '离线'"

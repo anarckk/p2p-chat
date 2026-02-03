@@ -3,7 +3,7 @@ import { ref, onMounted, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import { usePeerManager } from '../composables/usePeerManager';
-import { SaveOutlined, UserOutlined, ThunderboltOutlined, FileTextOutlined, ClockCircleOutlined, SafetyCertificateOutlined, CopyOutlined, ReloadOutlined, LinkOutlined } from '@ant-design/icons-vue';
+import { SaveOutlined, UserOutlined, ThunderboltOutlined, FileTextOutlined, ClockCircleOutlined, SafetyCertificateOutlined, CopyOutlined, ReloadOutlined, LinkOutlined, CameraOutlined } from '@ant-design/icons-vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -393,14 +393,23 @@ async function handleRegenerateKeys(): Promise<void> {
 
 <template>
   <div class="settings-container">
-    <a-row :gutter="[16, 16]">
-      <!-- 用户信息设置 -->
-      <a-col :xs="24" :md="12">
-        <a-card title="用户信息" :bordered="false">
-          <template #extra>
-            <UserOutlined />
-          </template>
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h1 class="page-title">
+        <SettingOutlined class="title-icon" />
+        设置
+      </h1>
+      <p class="page-subtitle">管理您的账户和偏好设置</p>
+    </div>
 
+    <a-row :gutter="[20, 20]">
+      <!-- 用户信息设置 -->
+      <a-col :xs="24" :lg="12">
+        <a-card class="settings-card" :bordered="false">
+          <template #title>
+            <UserOutlined />
+            用户信息
+          </template>
           <a-form layout="vertical">
             <!-- 用户名 -->
             <a-form-item label="用户名">
@@ -410,6 +419,7 @@ async function handleRegenerateKeys(): Promise<void> {
                 :maxlength="20"
                 show-count
                 allow-clear
+                size="large"
               />
             </a-form-item>
 
@@ -417,17 +427,11 @@ async function handleRegenerateKeys(): Promise<void> {
             <a-form-item label="头像">
               <div class="avatar-section">
                 <a-avatar
-                  :size="80"
+                  :size="88"
                   :src="avatarPreview"
-                  v-if="avatarPreview"
+                  class="avatar-preview"
                 >
-                  {{ username.charAt(0).toUpperCase() }}
-                </a-avatar>
-                <a-avatar
-                  :size="80"
-                  v-else
-                >
-                  {{ username.charAt(0).toUpperCase() }}
+                  {{ username.charAt(0).toUpperCase() || 'U' }}
                 </a-avatar>
 
                 <div class="avatar-actions">
@@ -437,14 +441,13 @@ async function handleRegenerateKeys(): Promise<void> {
                     :show-upload-list="false"
                     accept="image/*"
                   >
-                    <a-button size="small">
-                      <template #icon>📷</template>
+                    <a-button>
+                      <template #icon><CameraOutlined /></template>
                       选择图片
                     </a-button>
                   </a-upload>
                   <a-button
                     v-if="avatarPreview"
-                    size="small"
                     danger
                     @click="removeAvatar"
                     aria-label="remove-avatar-button"
@@ -453,7 +456,7 @@ async function handleRegenerateKeys(): Promise<void> {
                   </a-button>
                 </div>
               </div>
-              <div class="avatar-hint">
+              <div class="hint-text">
                 支持 JPG、PNG 格式，文件大小不超过 2MB
               </div>
             </a-form-item>
@@ -462,26 +465,29 @@ async function handleRegenerateKeys(): Promise<void> {
       </a-col>
 
       <!-- 网络加速设置 -->
-      <a-col :xs="24" :md="12">
-        <a-card title="网络加速" :bordered="false">
-          <template #extra>
+      <a-col :xs="24" :lg="12">
+        <a-card class="settings-card" :bordered="false">
+          <template #title>
             <ThunderboltOutlined />
+            网络加速
           </template>
-
-          <div class="network-acceleration-section">
+          <div class="setting-section">
             <p class="description">
-              开启网络加速后，您的设备可以帮助其他设备转发消息。
-              同时，当您与某些设备直连失败时，也可以通过其他开启网络加速的设备中转消息。
+              开启网络加速后，您的设备可以帮助其他设备转发消息。同时，当您与某些设备直连失败时，也可以通过其他开启网络加速的设备中转消息。
             </p>
 
-            <a-switch
-              v-model:checked="networkAcceleration"
-              checked-children="开启"
-              un-checked-children="关闭"
-              aria-label="network-acceleration-switch"
-            />
+            <div class="switch-row">
+              <span class="switch-label">网络加速</span>
+              <a-switch
+                v-model:checked="networkAcceleration"
+                checked-children="开启"
+                un-checked-children="关闭"
+                size="default"
+                aria-label="network-acceleration-switch"
+              />
+            </div>
 
-            <div class="status-info">
+            <div class="status-alert">
               <a-alert
                 v-if="networkAcceleration"
                 type="info"
@@ -502,26 +508,29 @@ async function handleRegenerateKeys(): Promise<void> {
       </a-col>
 
       <!-- 网络数据日志记录设置 -->
-      <a-col :xs="24" :md="12">
-        <a-card title="网络数据日志记录" :bordered="false">
-          <template #extra>
+      <a-col :xs="24" :lg="12">
+        <a-card class="settings-card" :bordered="false">
+          <template #title>
             <FileTextOutlined />
+            网络数据日志
           </template>
-
-          <div class="network-logging-section">
+          <div class="setting-section">
             <p class="description">
-              开启网络数据日志记录后，所有的 PeerJS 请求和响应数据都会被记录到本地 IndexedDB 中。
-              这对于调试网络问题和分析通信数据非常有用。
+              开启网络数据日志记录后，所有的 PeerJS 请求和响应数据都会被记录到本地 IndexedDB 中。这对于调试网络问题和分析通信数据非常有用。
             </p>
 
-            <a-switch
-              v-model:checked="networkLogging"
-              checked-children="开启"
-              un-checked-children="关闭"
-              aria-label="network-logging-switch"
-            />
+            <div class="switch-row">
+              <span class="switch-label">日志记录</span>
+              <a-switch
+                v-model:checked="networkLogging"
+                checked-children="开启"
+                un-checked-children="关闭"
+                size="default"
+                aria-label="network-logging-switch"
+              />
+            </div>
 
-            <div class="status-info">
+            <div class="status-alert">
               <a-alert
                 v-if="networkLogging"
                 type="info"
@@ -544,7 +553,7 @@ async function handleRegenerateKeys(): Promise<void> {
                 message="网络数据日志记录已关闭"
               >
                 <template #description>
-                  网络通信数据不会被记录。开启后可在"网络数据日志"页面查看记录的数据。
+                  网络通信数据不会被记录。开启后可在"网络日志"页面查看记录的数据。
                 </template>
               </a-alert>
             </div>
@@ -553,58 +562,60 @@ async function handleRegenerateKeys(): Promise<void> {
       </a-col>
 
       <!-- 设备状态检测配置 -->
-      <a-col :xs="24" :md="12">
-        <a-card title="设备状态检测" :bordered="false">
-          <template #extra>
+      <a-col :xs="24" :lg="12">
+        <a-card class="settings-card" :bordered="false">
+          <template #title>
             <ClockCircleOutlined />
+            设备状态检测
           </template>
-
-          <div class="device-check-section">
+          <div class="setting-section">
             <p class="description">
-              配置设备在线状态检测的时间间隔和超时时间。
-              较短的间隔可以更快发现设备离线，但会增加网络流量。
+              配置设备在线状态检测的时间间隔和超时时间。较短的间隔可以更快发现设备离线，但会增加网络流量。
             </p>
 
             <a-form layout="vertical">
-              <!-- 检测间隔 -->
-              <a-form-item label="检测间隔（秒）">
-                <a-input-number
-                  v-model:value="deviceCheckInterval"
-                  :min="5"
-                  :max="600"
-                  :step="5"
-                  style="width: 100%;"
-                  aria-label="device-check-interval-input"
-                />
-                <div class="hint-text">
-                  范围：5-600 秒，默认 20 秒
-                </div>
-              </a-form-item>
-
-              <!-- 超时时间 -->
-              <a-form-item label="超时时间（秒）">
-                <a-input-number
-                  v-model:value="deviceCheckTimeout"
-                  :min="3"
-                  :max="30"
-                  :step="1"
-                  style="width: 100%;"
-                  aria-label="device-check-timeout-input"
-                />
-                <div class="hint-text">
-                  范围：3-30 秒，默认 5 秒。超时后设备将被标记为离线
-                </div>
-              </a-form-item>
+              <a-row :gutter="16">
+                <a-col :span="12">
+                  <a-form-item label="检测间隔（秒）">
+                    <a-input-number
+                      v-model:value="deviceCheckInterval"
+                      :min="5"
+                      :max="600"
+                      :step="5"
+                      style="width: 100%;"
+                      aria-label="device-check-interval-input"
+                    />
+                    <div class="hint-text">
+                      范围：5-600 秒
+                    </div>
+                  </a-form-item>
+                </a-col>
+                <a-col :span="12">
+                  <a-form-item label="超时时间（秒）">
+                    <a-input-number
+                      v-model:value="deviceCheckTimeout"
+                      :min="3"
+                      :max="30"
+                      :step="1"
+                      style="width: 100%;"
+                      aria-label="device-check-timeout-input"
+                    />
+                    <div class="hint-text">
+                      范围：3-30 秒
+                    </div>
+                  </a-form-item>
+                </a-col>
+              </a-row>
             </a-form>
 
-            <div class="status-info">
+            <div class="status-alert">
               <a-alert
                 type="info"
                 show-icon
                 message="设备状态检测配置"
               >
                 <template #description>
-                  <div>当前配置：每 {{ deviceCheckInterval }} 秒检测一次，超时时间为 {{ deviceCheckTimeout }} 秒</div>
+                  当前配置：每 {{ deviceCheckInterval }} 秒检测一次，超时时间为 {{ deviceCheckTimeout }} 秒
                 </template>
               </a-alert>
             </div>
@@ -613,18 +624,18 @@ async function handleRegenerateKeys(): Promise<void> {
       </a-col>
 
       <!-- 数字签名 -->
-      <a-col :xs="24" :md="12">
-        <a-card title="数字签名" :bordered="false">
-          <template #extra>
+      <a-col :xs="24" :lg="12">
+        <a-card class="settings-card" :bordered="false">
+          <template #title>
             <SafetyCertificateOutlined />
+            数字签名
           </template>
-
-          <div class="crypto-section">
+          <div class="setting-section">
             <p class="description">
               数字签名用于验证您的身份。公钥可以与他人共享，用于验证您的消息签名。私钥请妥善保管，切勿泄露。
             </p>
 
-            <div v-if="!userStore.isCryptoInitialized" class="crypto-not-initialized">
+            <div v-if="!userStore.isCryptoInitialized" class="crypto-warning">
               <a-alert
                 type="warning"
                 show-icon
@@ -633,53 +644,41 @@ async function handleRegenerateKeys(): Promise<void> {
               />
             </div>
 
-            <div v-else class="crypto-keys-container">
-              <!-- 公钥 -->
-              <div class="key-section">
+            <div v-else class="crypto-section">
+              <div class="key-display-item">
                 <div class="key-label">我的公钥</div>
-                <div class="key-display">
-                  <code class="key-text">{{ truncateKey(userStore.myPublicKey || '') }}</code>
+                <div class="key-value">
+                  <code class="key-code">{{ truncateKey(userStore.myPublicKey || '') }}</code>
                   <a-button
-                    size="small"
                     type="text"
+                    size="small"
                     @click="copyToClipboard(userStore.myPublicKey || '', '公钥')"
                     aria-label="copy-public-key-button"
                   >
-                    <template #icon>
-                      <CopyOutlined />
-                    </template>
-                    复制
+                    <CopyOutlined />
                   </a-button>
                 </div>
               </div>
 
-              <!-- 私钥折叠面板 -->
-              <a-collapse
-                v-model:activeKey="privateKeyVisible"
-                class="private-key-collapse"
-              >
+              <a-collapse ghost class="private-key-collapse">
                 <a-collapse-panel key="privateKey" header="查看私钥（请勿泄露）">
-                  <div class="key-section">
-                    <div class="key-display">
-                      <code class="key-text">{{ truncateKey(userStore.myPrivateKey || '') }}</code>
+                  <div class="key-display-item">
+                    <div class="key-value">
+                      <code class="key-code">{{ truncateKey(userStore.myPrivateKey || '') }}</code>
                       <a-button
-                        size="small"
                         type="text"
+                        size="small"
                         @click="copyToClipboard(userStore.myPrivateKey || '', '私钥')"
                         aria-label="copy-private-key-button"
                       >
-                        <template #icon>
-                          <CopyOutlined />
-                        </template>
-                        复制
+                        <CopyOutlined />
                       </a-button>
                     </div>
                   </div>
                 </a-collapse-panel>
               </a-collapse>
 
-              <!-- 重新生成按钮 -->
-              <div class="regenerate-section">
+              <div class="key-actions">
                 <a-popconfirm
                   title="重新生成密钥后，旧的密钥将失效。其他设备需要重新获取您的公钥。确定要继续吗？"
                   ok-text="确定"
@@ -700,7 +699,6 @@ async function handleRegenerateKeys(): Promise<void> {
                 </a-popconfirm>
                 <a-button
                   type="link"
-                  size="small"
                   @click="router.push('/center')"
                   aria-label="go-to-center-for-device-keys"
                 >
@@ -728,6 +726,7 @@ async function handleRegenerateKeys(): Promise<void> {
             :loading="isSaving"
             :disabled="!hasChanges"
             @click="handleSave"
+            size="large"
             aria-label="save-settings-button"
           >
             <template #icon>
@@ -738,10 +737,11 @@ async function handleRegenerateKeys(): Promise<void> {
           <a-button
             v-if="hasChanges"
             @click="handleCancel"
+            size="large"
           >
             取消
           </a-button>
-          <a-button @click="goToCenter">
+          <a-button @click="goToCenter" size="large">
             返回发现中心
           </a-button>
         </div>
@@ -752,15 +752,82 @@ async function handleRegenerateKeys(): Promise<void> {
 
 <style scoped>
 .settings-container {
-  padding: 16px;
-  max-width: 1200px;
+  padding: 24px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
+/* 页面标题 */
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1890ff;
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-icon {
+  font-size: 28px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin: 0;
+}
+
+/* 设置卡片 */
+.settings-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  height: 100%;
+}
+
+.setting-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.description {
+  color: #595959;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* 开关行 */
+.switch-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.switch-label {
+  font-size: 15px;
+  color: #262626;
+}
+
+/* 状态提示 */
+.status-alert {
+  margin-top: 8px;
+}
+
+/* 头像部分 */
 .avatar-section {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
+}
+
+.avatar-preview {
+  flex-shrink: 0;
 }
 
 .avatar-actions {
@@ -769,87 +836,92 @@ async function handleRegenerateKeys(): Promise<void> {
   gap: 8px;
 }
 
-.avatar-hint {
+.hint-text {
   font-size: 12px;
-  color: #999;
+  color: #8c8c8c;
   margin-top: 8px;
 }
 
-.network-acceleration-section {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.network-acceleration-section .description {
-  color: #666;
-  line-height: 1.6;
-  margin: 0;
-}
-
-.network-logging-section {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.network-logging-section .description {
-  color: #666;
-  line-height: 1.6;
-  margin: 0;
-}
-
-.device-check-section {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.device-check-section .description {
-  color: #666;
-  line-height: 1.6;
-  margin: 0;
-}
-
-.device-check-section .hint-text {
-  font-size: 12px;
-  color: #999;
-  margin-top: 4px;
-}
-
-.status-info {
+/* 密钥部分 */
+.crypto-warning {
   margin-top: 8px;
 }
 
+.crypto-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.key-display-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.key-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #262626;
+}
+
+.key-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.key-code {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #262626;
+  word-break: break-all;
+  margin: 0;
+}
+
+.private-key-collapse {
+  border: none;
+}
+
+.private-key-collapse :deep(.ant-collapse-header) {
+  padding: 8px 0;
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+.private-key-collapse :deep(.ant-collapse-content) {
+  border: none;
+}
+
+.key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 操作按钮 */
 .action-buttons {
   display: flex;
   gap: 12px;
   justify-content: center;
-  padding: 16px 0;
+  padding: 24px 0;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-@media (max-width: 768px) {
-  .avatar-section {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-
-  .action-buttons {
-    flex-direction: column;
-  }
-
-  .action-buttons button {
-    width: 100%;
-  }
-}
-
-/* 内联提示样式 */
+/* 内联提示 */
 .inline-message {
   margin-bottom: 16px;
-  padding: 8px 12px;
-  border-radius: 4px;
+  padding: 10px 16px;
+  border-radius: 8px;
   font-size: 14px;
+  text-align: center;
 }
 
 .inline-message-success {
@@ -876,79 +948,35 @@ async function handleRegenerateKeys(): Promise<void> {
   color: #1890ff;
 }
 
-/* 数字签名样式 */
-.crypto-section {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.crypto-section .description {
-  color: #666;
-  line-height: 1.6;
-  margin: 0;
-}
-
-.crypto-not-initialized {
-  margin-top: 8px;
-}
-
-.crypto-keys-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.key-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.key-label {
-  font-weight: 500;
-  color: #333;
-  font-size: 14px;
-}
-
-.key-display {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: #f5f5f5;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  padding: 8px 12px;
-}
-
-.key-text {
-  flex: 1;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: #333;
-  word-break: break-all;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.private-key-collapse {
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-}
-
-.regenerate-section {
-  margin-top: 8px;
-}
-
+/* 响应式 */
 @media (max-width: 768px) {
-  .key-display {
+  .settings-container {
+    padding: 16px;
+  }
+
+  .page-title {
+    font-size: 24px;
+  }
+
+  .avatar-section {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .action-buttons button {
+    width: 100%;
+  }
+
+  .key-value {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .key-text {
+  .key-code {
     white-space: normal;
   }
 }

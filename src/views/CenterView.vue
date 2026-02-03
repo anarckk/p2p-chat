@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { useUserStore } from '../stores/userStore';
 import { useChatStore } from '../stores/chatStore';
 import { useDeviceStore } from '../stores/deviceStore';
 import { usePeerManager } from '../composables/usePeerManager';
 import type { OnlineDevice } from '../types';
-import { ReloadOutlined, TeamOutlined, PlusOutlined, LoadingOutlined, SyncOutlined, LinkOutlined, KeyOutlined, EyeOutlined } from '@ant-design/icons-vue';
+import { RadarChartOutlined, ReloadOutlined, TeamOutlined, PlusOutlined, LoadingOutlined, SyncOutlined, LinkOutlined, KeyOutlined, EyeOutlined, CrownOutlined, SafetyCertificateOutlined, UserOutlined, CopyOutlined } from '@ant-design/icons-vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -210,6 +210,23 @@ async function checkDeviceOnline(device: OnlineDevice): Promise<boolean> {
 onMounted(async () => {
   // 确保用户信息已加载
   await userStore.loadUserInfo();
+
+  // 调试日志：打印用户信息
+  console.log('[Center] User info loaded:', {
+    username: userStore.userInfo.username,
+    avatarLength: userStore.userInfo.avatar?.length || 0,
+    myPeerId: userStore.myPeerId,
+  });
+
+  // 检查是否有未处理的待定事件
+  const pendingUpdate = (window as any).__pendingDiscoveryUpdate;
+  if (pendingUpdate) {
+    console.log('[Center] Found pending discovery update, processing now');
+    setTimeout(() => {
+      handleDiscoveryUpdate();
+      delete (window as any).__pendingDiscoveryUpdate;
+    }, 100);
+  }
   
   // 调试日志：打印用户信息
   console.log('[Center] User info loaded:', {
@@ -285,15 +302,29 @@ onMounted(async () => {
   // 监听发现设备更新事件，自动刷新
   const handleDiscoveryUpdate = () => {
     console.log('[Center] Discovery devices updated, refreshing...');
-    // 触发重新渲染
+
+    // 强制刷新设备列表
     deviceStore.updateOnlineStatus();
+
     // 同步更新 chatStore 中所有联系人的在线状态，确保发现中心和聊天列表的在线状态保持一致
     deviceStore.allDevices.forEach((device) => {
       if (chatStore.getContact(device.peerId)) {
         chatStore.setContactOnline(device.peerId, device.isOnline ?? false);
       }
     });
+
+    // 强制重新渲染
+    nextTick(() => {
+      console.log('[Center] Discovery update processed, UI refreshed');
+    });
   };
+
+  // 检查是否有未处理的事件（在组件挂载前触发的事件）
+  if ((window as any).__pendingDiscoveryUpdate) {
+    console.log('[Center] Processing pending discovery update');
+    handleDiscoveryUpdate();
+    delete (window as any).__pendingDiscoveryUpdate;
+  }
 
   window.addEventListener('discovery-devices-updated', handleDiscoveryUpdate);
   perfLog('event-listeners', '事件监听器注册完成');
@@ -607,38 +638,94 @@ async function refreshDiscovery() {
 
 <template>
   <div class="center-container">
-    <a-row :gutter="[16, 16]">
-      <a-col :xs="24" :md="8">
-        <a-card title="我的信息" :bordered="false">
-          <a-descriptions :column="1">
-            <a-descriptions-item label="用户名">
-              {{ userStore.userInfo.username || '未设置' }}
-            </a-descriptions-item>
-            <a-descriptions-item label="我的 Peer ID">
-              <a-typography-text
-                v-if="userStore.myPeerId"
-                copyable
-                :copy-text="userStore.myPeerId"
-                @copy="copyPeerId(userStore.myPeerId!)"
-              >
-                {{ userStore.myPeerId }}
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h1 class="page-title">
+        <RadarChartOutlined class="title-icon" />
+        发现中心
+      </h1>
+      <p class="page-subtitle">去中心化的设备发现与互联</p>
+    </div>
+
+    <a-row :gutter="[20, 20]">
+      <!-- 左侧：我的信息 -->
+      <a-col :xs="24" :lg="6">
+        <a-card class="my-info-card" :bordered="false">
+          <template #title>
+            <UserOutlined />
+            我的信息
+          </template>
+          <div class="info-section">
+            <div class="avatar-section">
+              <a-avatar :size="80" :src="userStore.userInfo.avatar">
+                {{ userStore.userInfo.username?.charAt(0).toUpperCase() || 'U' }}
+              </a-avatar>
+            </div>
+            <a-descriptions :column="1" size="small">
+              <a-descriptions-item label="用户名">
+                <span class="username-text">{{ userStore.userInfo.username || '未设置' }}</span>
+              </a-descriptions-item>
+              <a-descriptions-item label="Peer ID">
+                <a-typography-text
+                  v-if="userStore.myPeerId"
+                  copyable
+                  :copy-text="userStore.myPeerId"
+                  class="peer-id-text"
+                >
+                  {{ userStore.myPeerId }}
+                </a-typography-text>
+                <a-typography-text v-else type="secondary">连接中...</a-typography-text>
+              </a-descriptions-item>
+              <a-descriptions-item label="连接状态">
+                <a-badge
+                  :status="isConnected ? 'processing' : 'error'"
+                  :text="isConnected ? '已连接' : '未连接'"
+                />
+              </a-descriptions-item>
+            </a-descriptions>
+            <div v-if="isBootstrap" class="bootstrap-badge">
+              <a-tag color="purple" style="margin: 0;">
+                <CrownOutlined style="margin-right: 4px;" />
+                宇宙启动者
+              </a-tag>
+            </div>
+          </div>
+        </a-card>
+
+        <!-- 身份安全区域 -->
+        <a-card v-if="isCryptoInitialized" class="security-card" title="身份安全" :bordered="false">
+          <template #title>
+            <SafetyCertificateOutlined />
+            身份安全
+          </template>
+          <div class="security-section">
+            <div class="key-display">
+              <div class="key-label">我的公钥</div>
+              <a-typography-text code copyable class="key-text">
+                {{ myPublicKeyTruncated }}
               </a-typography-text>
-              <a-typography-text v-else type="secondary">连接中...</a-typography-text>
-            </a-descriptions-item>
-            <a-descriptions-item label="连接状态">
-              <a-badge
-                :status="isConnected ? 'processing' : 'error'"
-                :text="isConnected ? '已连接' : '未连接'"
-              />
-            </a-descriptions-item>
-          </a-descriptions>
+            </div>
+            <a-collapse ghost class="private-key-collapse">
+              <a-collapse-panel header="查看私钥">
+                <a-typography-text code class="key-text">
+                  {{ myPrivateKey || '未初始化' }}
+                </a-typography-text>
+              </a-collapse-panel>
+            </a-collapse>
+          </div>
         </a-card>
       </a-col>
 
-      <a-col :xs="24" :md="16">
-        <a-card title="发现中心" :bordered="false">
+      <!-- 右侧：发现中心 -->
+      <a-col :xs="24" :lg="18">
+        <a-card class="discovery-card" :bordered="false">
+          <template #title>
+            <TeamOutlined />
+            在线设备
+            <a-badge :count="sortedDevices.length" :number-style="{ backgroundColor: '#52c41a' }" style="margin-left: 8px;" />
+          </template>
           <template #extra>
-            <a-button size="small" :loading="isRefreshing" @click="refreshDiscovery" aria-label="refresh-discovery">
+            <a-button :loading="isRefreshing" @click="refreshDiscovery" aria-label="refresh-discovery">
               <template #icon>
                 <ReloadOutlined />
               </template>
@@ -648,226 +735,150 @@ async function refreshDiscovery() {
 
           <!-- 查询/添加设备 -->
           <div class="query-section">
-            <a-input-group compact>
+            <a-space compact style="width: 100%;">
               <a-input
                 v-model:value="queryPeerIdInput"
-                placeholder="输入对方 Peer ID 进行查询或添加"
-                style="width: calc(100% - 130px)"
-                @pressEnter="queryDevices"
+                placeholder="输入 Peer ID 添加设备"
+                @pressEnter="addDeviceManually"
+                style="flex: 1;"
               />
-              <a-button type="primary" @click="queryDevices" :loading="isQuerying" aria-label="query-devices-button">
-                查询
-              </a-button>
-              <a-button @click="addDeviceManually" aria-label="add-device">
+              <a-button type="primary" @click="addDeviceManually" :loading="isQuerying" aria-label="add-device-button">
                 <template #icon>
                   <PlusOutlined />
                 </template>
                 添加
               </a-button>
-            </a-input-group>
+            </a-space>
             <!-- 内联提示 -->
             <div v-if="inlineMessage" class="inline-message" :class="`inline-message-${inlineMessageType}`">
               {{ inlineMessage }}
             </div>
           </div>
 
-          <!-- 在线设备列表 -->
+          <!-- 设备列表 -->
           <div v-if="sortedDevices.length === 0" class="empty-state">
-            <a-empty description="暂无在线设备">
+            <a-empty description="暂无设备">
               <template #image>
-                <TeamOutlined style="font-size: 64px; color: #ccc" />
+                <TeamOutlined style="font-size: 64px; color: #d9d9d9;" />
               </template>
               <a-typography-paragraph type="secondary">
-                <p>去中心化发现中心使用说明：</p>
-              </a-typography-paragraph>
-              <a-typography-paragraph type="secondary" style="font-size: 12px">
-                1. 输入已知设备的 Peer ID 点击"查询"，向该设备询问它已发现的设备<br />
-                2. 输入新的 Peer ID 点击"添加"，直接将该设备添加到发现列表<br />
-                3. 每个节点都是发现中心，可以互相询问已发现的设备<br />
-                4. 设备列表会自动保存，刷新页面后依然保留<br />
-                5. 超过3天未在线的设备会自动删除
+                输入其他设备的 Peer ID 添加设备，开始去中心化通信
               </a-typography-paragraph>
             </a-empty>
           </div>
 
-          <a-list v-else :data-source="sortedDevices" :grid="{ gutter: 16, xs: 1, sm: 2, md: 2 }">
-            <template #renderItem="{ item }">
-              <a-list-item>
-                <a-card
-                  hoverable
-                  size="small"
-                  class="device-card"
-                  :class="{ 'is-me': item.peerId === userStore.myPeerId || item.peerId === 'connecting...', 'is-offline': !item.isOnline }"
-                  @click="item.peerId !== userStore.myPeerId && item.peerId !== 'connecting...' && handleDeviceClick(item)"
-                >
-                  <a-card-meta>
-                    <template #avatar>
-                      <a-avatar :src="item.avatar || undefined" :size="48">
-                        {{ item.username.charAt(0).toUpperCase() }}
-                      </a-avatar>
-                    </template>
-                    <template #title>
-                      {{ item.username }}
-                      <a-tag v-if="item.peerId === userStore.myPeerId" color="blue" size="small">我</a-tag>
-                      <a-tag v-if="item.peerId === userStore.myPeerId && isBootstrap" color="purple" size="small">宇宙启动者</a-tag>
-                      <template v-if="item.peerId !== userStore.myPeerId && item.peerId !== 'connecting...'">
-                        <a-tag v-if="item.isBootstrap" color="purple" size="small">宇宙启动者</a-tag>
-                        <a-tag v-if="isInChat(item.peerId)" color="green" size="small">聊天中</a-tag>
-                        <a-tag v-if="item.isOnline" color="success" size="small">在线</a-tag>
-                        <a-tag v-else color="default" size="small">离线</a-tag>
-                        <!-- 公钥交换状态标签 -->
-                        <a-tag
-                          v-if="item.keyExchangeStatus"
-                          :color="getKeyStatusColor(item.keyExchangeStatus)"
-                          size="small"
-                          :class="`key-exchange-status-${item.keyExchangeStatus}`"
-                        >
-                          {{ getKeyStatusText(item.keyExchangeStatus) }}
-                        </a-tag>
-                        <!-- 刷新状态显示（仅在线设备显示） -->
-                        <template v-if="item.isOnline">
-                          <template v-if="getDeviceRefreshStatus(item.peerId).refreshing">
-                            <SyncOutlined spin style="color: #1890ff; margin-left: 4px;" />
-                          </template>
-                          <template v-else-if="getDeviceRefreshStatus(item.peerId).duration !== null">
-                            <span class="refresh-duration">{{ getDeviceRefreshStatus(item.peerId).duration }}ms</span>
-                          </template>
-                        </template>
-                      </template>
-                    </template>
-                    <template #description>
-                      <a-typography-text type="secondary" style="font-size: 12px">
-                        {{ item.peerId }}
-                      </a-typography-text>
-                    </template>
-                  </a-card-meta>
-                  <template #actions>
-                    <a-badge :status="item.isOnline ? 'processing' : 'default'" :text="item.isOnline ? '在线' : '离线'" />
-                    <a-button
-                      v-if="item.peerId !== userStore.myPeerId && item.peerId !== 'connecting...' && item.publicKey"
-                      type="text"
-                      size="small"
-                      @click.stop="viewDevicePublicKey(item)"
-                      aria-label="view-public-key"
-                    >
-                      <template #icon>
-                        <KeyOutlined />
-                      </template>
-                      查看公钥
-                    </a-button>
-                  </template>
-                </a-card>
-              </a-list-item>
-            </template>
-          </a-list>
-        </a-card>
-      </a-col>
-
-      <!-- 身份安全区域 -->
-      <a-col :xs="24" :md="16" :offset="isCryptoInitialized ? 8 : 0">
-        <a-divider>身份安全</a-divider>
-
-        <!-- 我的密钥 -->
-        <a-card title="我的公钥" size="small">
-          <template #extra>
-            <a-button
-              type="link"
-              @click="copyMyPublicKey"
-              aria-label="copy-public-key"
+          <div v-else class="devices-grid">
+            <div
+              v-for="item in sortedDevices"
+              :key="item.peerId"
+              class="device-item"
+              :class="{
+                'is-me': item.peerId === userStore.myPeerId || item.peerId === 'connecting...',
+                'is-offline': !item.isOnline
+              }"
+              @click="item.peerId !== userStore.myPeerId && item.peerId !== 'connecting...' && handleDeviceClick(item)"
             >
-              复制
-            </a-button>
-          </template>
-          <div class="public-key-display">
-            <a-typography-text code copyable>
-              {{ myPublicKeyTruncated }}
-            </a-typography-text>
-          </div>
-          <div class="private-key-section">
-            <a-collapse>
-              <a-collapse-panel header="查看私钥（请勿泄露）">
-                <a-typography-text code>
-                  {{ myPrivateKey || '未初始化' }}
-                </a-typography-text>
-              </a-collapse-panel>
-            </a-collapse>
-          </div>
-          <div class="key-actions">
-            <a-button
-              type="primary"
-              danger
-              size="small"
-              @click="handleRegenerateKeys"
-              aria-label="regenerate-keys"
-            >
-              重新生成密钥
-            </a-button>
-            <a-button
-              type="link"
-              size="small"
-              @click="router.push('/settings')"
-              aria-label="go-to-settings-for-keys"
-            >
-              <template #icon>
-                <LinkOutlined />
-              </template>
-              在设置页面查看详细信息
-            </a-button>
-          </div>
-        </a-card>
+              <!-- 设备卡片头部 -->
+              <div class="device-header">
+                <a-avatar :src="item.avatar || undefined" :size="48">
+                  {{ item.username.charAt(0).toUpperCase() }}
+                </a-avatar>
+                <div class="device-info">
+                  <div class="device-name">{{ item.username }}</div>
+                  <div class="device-peer-id">{{ item.peerId }}</div>
+                </div>
+                <div class="device-status">
+                  <a-badge
+                    :status="item.isOnline ? 'processing' : 'default'"
+                    :text="item.isOnline ? '在线' : '离线'"
+                  />
+                </div>
+              </div>
 
-        <!-- 设备公钥 -->
-        <div v-for="device in devicesWithKeys" :key="device.peerId" class="device-key-section">
-          <a-card
-            :title="`${device.username} 的公钥`"
-            size="small"
-          >
-            <template #extra>
-              <a-space>
-                <a-tag :color="getKeyStatusColor(device.keyExchangeStatus)">
-                  {{ getKeyStatusText(device.keyExchangeStatus) }}
+              <!-- 设备标签 -->
+              <div class="device-tags">
+                <a-tag v-if="item.peerId === userStore.myPeerId" color="blue" size="small">我</a-tag>
+                <a-tag v-if="item.isBootstrap" color="purple" size="small">
+                  <CrownOutlined style="margin-right: 2px;" />
+                  启动者
                 </a-tag>
-                <a-button
-                  type="link"
+                <a-tag v-if="isInChat(item.peerId)" color="green" size="small">聊天中</a-tag>
+                <a-tag
+                  v-if="item.keyExchangeStatus && item.keyExchangeStatus !== 'exchanged'"
+                  :color="getKeyStatusColor(item.keyExchangeStatus)"
                   size="small"
-                  @click="copyDevicePublicKey(device.peerId)"
-                  :aria-label="`copy-device-public-key-${device.peerId}`"
                 >
-                  复制
-                </a-button>
-              </a-space>
-            </template>
-            <a-typography-text code>
-              {{ truncateKey(device.publicKey || '') }}
-            </a-typography-text>
+                  {{ getKeyStatusText(item.keyExchangeStatus) }}
+                </a-tag>
+                <template v-if="item.isOnline && item.peerId !== userStore.myPeerId">
+                  <SyncOutlined v-if="getDeviceRefreshStatus(item.peerId).refreshing" spin class="refresh-icon" />
+                  <span v-else-if="getDeviceRefreshStatus(item.peerId).duration !== null" class="refresh-duration">
+                    {{ getDeviceRefreshStatus(item.peerId).duration }}ms
+                  </span>
+                </template>
+              </div>
 
-            <!-- 中间人攻击警告 -->
-            <div v-if="device.keyExchangeStatus === 'compromised'" class="warning-section">
-              <a-alert
-                type="warning"
-                message="安全警告"
-                description="此设备的公钥已发生变化，可能存在中间人攻击。请确认对方身份后再决定是否信任。"
-                show-icon
-              />
-              <div class="action-buttons">
+              <!-- 设备操作 -->
+              <div v-if="item.peerId !== userStore.myPeerId && item.peerId !== 'connecting...'" class="device-actions">
                 <a-button
-                  type="primary"
+                  v-if="item.publicKey"
+                  type="text"
                   size="small"
-                  @click="trustDevice(device.peerId)"
-                  :aria-label="`trust-device-${device.peerId}`"
+                  @click.stop="viewDevicePublicKey(item)"
+                  aria-label="view-public-key"
                 >
-                  信任此设备
-                </a-button>
-                <a-button
-                  danger
-                  size="small"
-                  @click="markCompromised(device.peerId)"
-                  :aria-label="`remove-device-${device.peerId}`"
-                >
-                  移除
+                  <KeyOutlined />
+                  公钥
                 </a-button>
               </div>
             </div>
+          </div>
+        </a-card>
+
+        <!-- 设备公钥列表 -->
+        <div v-if="devicesWithKeys.length > 0" class="devices-keys-section">
+          <a-card title="设备公钥" :bordered="false">
+            <template #title>
+              <KeyOutlined />
+              设备公钥
+            </template>
+            <a-space direction="vertical" :size="12" style="width: 100%;">
+              <div
+                v-for="device in devicesWithKeys"
+                :key="device.peerId"
+                class="device-key-item"
+              >
+                <div class="device-key-header">
+                  <a-avatar :src="device.avatar || undefined" :size="32">
+                    {{ device.username.charAt(0).toUpperCase() }}
+                  </a-avatar>
+                  <span class="device-key-name">{{ device.username }}</span>
+                  <a-tag :color="getKeyStatusColor(device.keyExchangeStatus)" size="small">
+                    {{ getKeyStatusText(device.keyExchangeStatus) }}
+                  </a-tag>
+                  <a-button
+                    type="text"
+                    size="small"
+                    @click="copyDevicePublicKey(device.peerId)"
+                    aria-label="copy-device-public-key"
+                  >
+                    <CopyOutlined />
+                  </a-button>
+                </div>
+                <a-typography-text code class="device-key-text">
+                  {{ truncateKey(device.publicKey || '') }}
+                </a-typography-text>
+                <div v-if="device.keyExchangeStatus === 'compromised'" class="warning-section">
+                  <a-alert
+                    type="warning"
+                    message="安全警告"
+                    description="此设备的公钥已发生变化"
+                    show-icon
+                    size="small"
+                  />
+                </div>
+              </div>
+            </a-space>
           </a-card>
         </div>
       </a-col>
@@ -877,63 +888,33 @@ async function refreshDiscovery() {
     <a-modal
       v-model:open="publicKeyModalVisible"
       :title="`${selectedDeviceName} 的公钥`"
-      :footer="null"
-      width="600px"
+      width="500px"
       aria-label="device-public-key-modal"
     >
       <div class="public-key-modal-content">
-        <!-- 公钥交换状态 -->
-        <div class="key-status-section">
-          <a-descriptions :column="1" size="small">
-            <a-descriptions-item label="密钥交换状态">
-              <a-tag :color="getKeyStatusColor(selectedDeviceKeyStatus)">
-                {{ getKeyStatusText(selectedDeviceKeyStatus) }}
-              </a-tag>
-            </a-descriptions-item>
-          </a-descriptions>
-        </div>
-
-        <!-- 公钥显示 -->
-        <div class="public-key-display-section">
-          <a-typography-paragraph>
-            <a-typography-text type="secondary">公钥（SHA-256）：</a-typography-text>
-          </a-typography-paragraph>
-          <div class="public-key-box">
-            <a-typography-text code class="public-key-text">
+        <a-descriptions :column="1" size="small">
+          <a-descriptions-item label="密钥交换状态">
+            <a-tag :color="getKeyStatusColor(selectedDeviceKeyStatus)">
+              {{ getKeyStatusText(selectedDeviceKeyStatus) }}
+            </a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="公钥">
+            <a-typography-text code copyable class="modal-key-text">
               {{ truncateKey(selectedDevicePublicKey) }}
             </a-typography-text>
-          </div>
-          <div class="public-key-actions">
-            <a-button
-              type="primary"
-              size="small"
-              @click="copyPublicKeyFromModal"
-              aria-label="copy-public-key-from-modal"
-            >
-              <template #icon>
-                <LinkOutlined />
-              </template>
-              复制公钥
-            </a-button>
-          </div>
-        </div>
-
-        <!-- 被攻击警告 -->
+          </a-descriptions-item>
+        </a-descriptions>
         <div v-if="selectedDeviceKeyStatus === 'compromised'" class="warning-section">
           <a-alert
             type="warning"
             message="安全警告"
-            description="此设备的公钥已发生变化，可能存在中间人攻击。请确认对方身份后再决定是否信任。"
+            description="此设备的公钥已发生变化，可能存在中间人攻击"
             show-icon
           />
         </div>
       </div>
-
-      <!-- 弹窗底部操作按钮 -->
       <template #footer>
-        <a-button @click="closePublicKeyModal" aria-label="close-public-key-modal">
-          关闭
-        </a-button>
+        <a-button @click="closePublicKeyModal">关闭</a-button>
       </template>
     </a-modal>
   </div>
@@ -942,18 +923,124 @@ async function refreshDiscovery() {
 <style scoped>
 .center-container {
   padding: 24px;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
 }
 
-.query-section {
+/* 页面标题 */
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1890ff;
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-icon {
+  font-size: 28px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin: 0;
+}
+
+/* 我的信息卡片 */
+.my-info-card {
+  height: 100%;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.info-section {
+  text-align: center;
+}
+
+.avatar-section {
   margin-bottom: 16px;
 }
 
+.username-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: #262626;
+}
+
+.peer-id-text {
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+}
+
+.bootstrap-badge {
+  margin-top: 16px;
+}
+
+/* 身份安全卡片 */
+.security-card {
+  margin-top: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.security-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.key-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.key-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #595959;
+}
+
+.key-text {
+  font-size: 11px;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+.private-key-collapse {
+  border: none;
+}
+
+.private-key-collapse :deep(.ant-collapse-header) {
+  padding: 8px 0;
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+.private-key-collapse :deep(.ant-collapse-content) {
+  border: none;
+}
+
+/* 发现中心卡片 */
+.discovery-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.query-section {
+  margin-bottom: 20px;
+}
+
 .inline-message {
-  margin-top: 8px;
-  padding: 8px 12px;
-  border-radius: 4px;
+  margin-top: 12px;
+  padding: 10px 16px;
+  border-radius: 8px;
   font-size: 14px;
 }
 
@@ -981,113 +1068,176 @@ async function refreshDiscovery() {
   color: #1890ff;
 }
 
+/* 空状态 */
 .empty-state {
-  padding: 40px 0;
+  padding: 60px 20px;
+  text-align: center;
 }
 
-.device-card {
+/* 设备网格 */
+.devices-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.device-item {
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  padding: 16px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
 }
 
-.device-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.device-card.is-me {
-  cursor: default;
-  background-color: #f0f5ff;
+.device-item:hover {
   border-color: #1890ff;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.15);
+  transform: translateY(-2px);
 }
 
-.device-card.is-me:hover {
+.device-item.is-me {
+  background: linear-gradient(135deg, #e6f7ff 0%, #f0f5ff 100%);
+  border-color: #adc6ff;
+  cursor: default;
+}
+
+.device-item.is-me:hover {
   transform: none;
   box-shadow: none;
 }
 
-.device-card.is-offline {
-  opacity: 0.7;
+.device-item.is-offline {
+  opacity: 0.6;
+}
+
+/* 设备卡片头部 */
+.device-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.device-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.device-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: #262626;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.device-peer-id {
+  font-size: 11px;
+  color: #8c8c8c;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.device-status {
+  font-size: 12px;
+}
+
+/* 设备标签 */
+.device-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-height: 24px;
+}
+
+.refresh-icon {
+  color: #1890ff;
+  font-size: 12px;
+  margin-left: 4px;
 }
 
 .refresh-duration {
+  font-size: 11px;
   color: #52c41a;
-  font-size: 12px;
   font-weight: 500;
   margin-left: 4px;
 }
 
-@media (max-width: 768px) {
-  .center-container {
-    padding: 16px;
-  }
+/* 设备操作 */
+.device-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
 }
 
-/* ==================== 身份安全样式 ==================== */
-
-.crypto-section {
-  margin-top: 24px;
+/* 设备公钥区域 */
+.devices-keys-section {
+  margin-top: 20px;
 }
 
-.public-key-display {
+.device-key-item {
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.device-key-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.device-key-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.device-key-text {
+  font-size: 11px;
   word-break: break-all;
-  font-size: 12px;
-  margin-bottom: 12px;
-}
-
-.private-key-section {
-  margin-bottom: 12px;
-}
-
-.key-actions {
-  margin-top: 8px;
-}
-
-.device-key-section {
-  margin-top: 12px;
+  display: block;
+  margin-bottom: 8px;
 }
 
 .warning-section {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
-.action-buttons {
-  margin-top: 12px;
-  display: flex;
-  gap: 8px;
-}
-
-/* ==================== 公钥弹窗样式 ==================== */
-
+/* 弹窗样式 */
 .public-key-modal-content {
   padding: 8px 0;
 }
 
-.key-status-section {
-  margin-bottom: 16px;
-}
-
-.public-key-display-section {
-  margin-bottom: 16px;
-}
-
-.public-key-box {
-  background-color: #f5f5f5;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  padding: 12px;
-  margin-bottom: 12px;
+.modal-key-text {
+  font-size: 11px;
   word-break: break-all;
+  display: block;
 }
 
-.public-key-text {
-  font-size: 12px;
-  line-height: 1.6;
-}
+/* 响应式 */
+@media (max-width: 768px) {
+  .center-container {
+    padding: 16px;
+  }
 
-.public-key-actions {
-  display: flex;
-  justify-content: flex-start;
-}
+  .page-title {
+    font-size: 24px;
+  }
 
+  .devices-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .device-item {
+    padding: 12px;
+  }
+}
 </style>

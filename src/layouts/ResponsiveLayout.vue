@@ -130,12 +130,6 @@ const menuItems = [
     route: '/center',
   },
   {
-    key: 'Call',
-    label: '通话',
-    icon: PhoneOutlined,
-    route: '/call',
-  },
-  {
     key: 'Settings',
     label: '设置',
     icon: SettingOutlined,
@@ -146,11 +140,25 @@ const menuItems = [
     label: '网络日志',
     icon: FileTextOutlined,
     route: '/network-log',
+    requiresLogging: true, // 需要开启网络日志记录
   },
 ];
 
-// 移动端底部菜单（前4个）
-const footerMenuItems = menuItems.slice(0, 4);
+// 根据设置过滤菜单项
+const visibleMenuItems = computed(() => {
+  return menuItems.filter((item) => {
+    // 如果菜单项需要网络日志记录，检查设置是否开启
+    if (item.requiresLogging) {
+      return userStore.loadNetworkLogging();
+    }
+    return true;
+  });
+});
+
+// 移动端底部菜单（前4个，不包括需要网络日志记录的）
+const footerMenuItems = computed(() => {
+  return visibleMenuItems.value.filter((item) => !item.requiresLogging).slice(0, 4);
+});
 
 function navigateTo(routePath: string) {
   router.push(routePath);
@@ -162,7 +170,7 @@ const currentRoute = computed(() => route.name as string);
 
 // 当前标题
 const currentTitle = computed(() => {
-  const item = menuItems.find(i => i.key === currentRoute.value);
+  const item = visibleMenuItems.value.find(i => i.key === currentRoute.value);
   return item?.label || 'P2P Chat';
 });
 
@@ -199,10 +207,15 @@ function clearInlineMessage() {
 }
 
 async function handleUserSetup() {
+  console.error('=== [ResponsiveLayout] handleUserSetup START ===');
+  console.error('[ResponsiveLayout] handleUserSetup: Function called, isSubmitting =', isSubmitting.value);
+  console.error('[ResponsiveLayout] handleUserSetup: usernameInput.value =', usernameInput.value);
   const trimmedUsername = usernameInput.value.trim();
+  console.error('[ResponsiveLayout] handleUserSetup: Username =', trimmedUsername);
   clearInlineMessage();
 
   if (!trimmedUsername) {
+    console.error('[ResponsiveLayout] handleUserSetup: Username is empty, showing warning');
     showInlineMessage('用户名不能为空，请输入用户名', 'warning');
     return;
   }
@@ -224,10 +237,13 @@ async function handleUserSetup() {
     await init();
 
     // 保存用户信息（包含头像，但不覆盖 PeerId）
-    userStore.saveUserInfo({
+    await userStore.saveUserInfo({
       username: trimmedUsername,
       avatar: avatarUrl.value || null,
     });
+
+    // 初始化密钥对
+    await userStore.initCryptoKeys();
 
     // 关闭弹窗
     isUserSetupModalVisible.value = false;
@@ -236,15 +252,23 @@ async function handleUserSetup() {
     fileList.value = [];
 
     showInlineMessage('设置完成', 'success');
+    console.log('[ResponsiveLayout] handleUserSetup: Setup completed successfully');
   } catch (error) {
-    console.error('User setup failed:', error);
+    console.error('[ResponsiveLayout] handleUserSetup: Error:', error);
 
     // 即使 Peer 连接失败，也允许继续使用（用户信息已保存）
     // 保存用户信息（包含头像）
-    userStore.saveUserInfo({
+    await userStore.saveUserInfo({
       username: usernameInput.value.trim(),
       avatar: avatarUrl.value || null,
     });
+
+    // 尝试初始化密钥
+    try {
+      await userStore.initCryptoKeys();
+    } catch (cryptoError) {
+      console.error('Crypto init failed:', cryptoError);
+    }
 
     // 关闭弹窗
     isUserSetupModalVisible.value = false;
@@ -518,7 +542,7 @@ async function handleTrustKeyChange() {
         class="side-menu"
       >
         <a-menu-item
-          v-for="item in menuItems"
+          v-for="item in visibleMenuItems"
           :key="item.key"
           @click="navigateTo(item.route)"
         >
@@ -574,7 +598,7 @@ async function handleTrustKeyChange() {
           theme="dark"
         >
           <a-menu-item
-            v-for="item in menuItems"
+            v-for="item in visibleMenuItems"
             :key="item.key"
             @click="navigateTo(item.route)"
           >

@@ -346,22 +346,53 @@ export const useUserStore = defineStore('user', () => {
   // ==================== 公钥管理 ====================
 
   /**
-   * 初始化密钥对
+   * 初始化密钥对（带重试机制）
    */
   async function initCryptoKeys(): Promise<void> {
-    try {
-      const { cryptoManager } = await import('../util/cryptoManager');
-      await cryptoManager.init();
+    console.log('[UserStore] initCryptoKeys: Starting initialization...');
+    const maxAttempts = 3;
+    let lastError: Error | null = null;
 
-      myPublicKey.value = cryptoManager.getPublicKey();
-      myPrivateKey.value = cryptoManager.getPrivateKey();
-      isCryptoInitialized.value = true;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`[UserStore] initCryptoKeys: Attempt ${attempt}/${maxAttempts}`);
+        const { cryptoManager } = await import('../util/cryptoManager');
+        await cryptoManager.init();
 
-      console.log('[UserStore] Crypto keys initialized');
-    } catch (error) {
-      console.error('[UserStore] Failed to initialize crypto keys:', error);
-      throw error;
+        // 验证密钥是否真正可用
+        myPublicKey.value = cryptoManager.getPublicKey();
+        myPrivateKey.value = cryptoManager.getPrivateKey();
+        console.log('[UserStore] initCryptoKeys: Keys retrieved from cryptoManager');
+
+        // 额外验证：尝试签名测试
+        await cryptoManager.sign('validation-test');
+        console.log('[UserStore] initCryptoKeys: Signature test passed');
+
+        isCryptoInitialized.value = true;
+
+        // 设置全局标记供 E2E 测试检测
+        (window as any).__cryptoInitialized = true;
+        console.log('[UserStore] initCryptoKeys: __cryptoInitialized flag set to true');
+
+        console.log(`[UserStore] Crypto keys initialized (attempt ${attempt}/${maxAttempts})`);
+        return;
+      } catch (error) {
+        lastError = error as Error;
+        console.error(`[UserStore] Crypto init attempt ${attempt}/${maxAttempts} failed:`, error);
+
+        if (attempt < maxAttempts) {
+          // 等待一段时间后重试
+          const delay = attempt * 1000; // 递增延迟：1秒、2秒
+          console.log(`[UserStore] Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
+
+    // 所有尝试都失败
+    console.error('[UserStore] Failed to initialize crypto keys after', maxAttempts, 'attempts');
+    console.error('[UserStore] Last error:', lastError);
+    throw lastError || new Error('Failed to initialize crypto keys');
   }
 
   /**

@@ -412,12 +412,12 @@ test.describe('错误处理', () => {
       await page.waitForSelector(SELECTORS.centerContainer, { timeout: 8000 });
       await page.waitForTimeout(WAIT_TIMES.PEER_INIT);
 
-      // 尝试查询一个很可能不存在的设备
+      // 尝试添加一个很可能不存在的设备
       const unlikelyPeerId = 'very-unlikely-peer-id-' + Date.now() + Math.random();
       await page.fill(SELECTORS.peerIdInput, unlikelyPeerId);
-      await page.click(SELECTORS.queryButton);
+      await page.click(SELECTORS.addButton);
 
-      console.log('[Test] Queried unlikely PeerId');
+      console.log('[Test] Attempted to add unlikely PeerId');
 
       // 等待一段时间（可能超时）
       await page.waitForTimeout(WAIT_TIMES.MESSAGE);

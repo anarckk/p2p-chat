@@ -379,22 +379,7 @@ export const useChatStore = defineStore('chat', () => {
       });
     }
     await loadMessages(peerId);
-
-    // 如果该联系人还没有任何消息，添加一个空的系统消息
-    // 这样主动创建的聊天会立即出现在聊天列表中
-    const existingMessages = messages.value.get(peerId);
-    if (!existingMessages || existingMessages.length === 0) {
-      const systemMessage: ChatMessage = {
-        id: `system-${peerId}-${Date.now()}`,
-        from: peerId,
-        to: 'system',
-        content: '',
-        timestamp: Date.now(),
-        status: 'delivered',
-        type: 'system',
-      };
-      await addMessage(peerId, systemMessage);
-    }
+    // 注意：不再添加空的系统消息，让聊天以干净的状态开始
   }
 
   // 删除聊天（支持 IndexedDB）

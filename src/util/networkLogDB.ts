@@ -1,14 +1,14 @@
 /**
- * 网络通信日志数据结构
+ * 网络通信日志数据结构（request-response 协议）
  */
 export interface NetworkLog {
   id?: number;
   timestamp: number;
   direction: 'outgoing' | 'incoming';
   peerId: string;
-  protocol: string;
-  stage?: string;
-  data: unknown;
+  businessType: string; // 业务类型
+  request?: unknown; // 请求数据
+  response?: unknown; // 响应数据
   dataSize: number;
   status: 'success' | 'error' | 'pending';
   error?: string;
@@ -66,7 +66,7 @@ class NetworkLogDB {
           store.createIndex('timestamp', 'timestamp', { unique: false });
           store.createIndex('direction', 'direction', { unique: false });
           store.createIndex('peerId', 'peerId', { unique: false });
-          store.createIndex('protocol', 'protocol', { unique: false });
+          store.createIndex('businessType', 'businessType', { unique: false });
         }
       };
     });

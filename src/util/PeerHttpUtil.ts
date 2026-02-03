@@ -99,15 +99,15 @@ export class PeerHttpUtil {
   // 网络加速：存储其他设备的网络加速状态
   private networkAccelerationStatus: Map<string, boolean> = new Map();
 
-  // 网络数据日志记录
+  // 网络数据日志记录（request-response 协议格式）
   private networkLogEnabled: boolean = false;
   private networkLogger?: (log: {
     timestamp: number;
     direction: 'outgoing' | 'incoming';
     peerId: string;
-    protocol: string;
-    stage?: string;
-    data: unknown;
+    businessType: string;
+    request?: unknown;
+    response?: unknown;
     dataSize: number;
     status: 'success' | 'error' | 'pending';
     error?: string;
@@ -412,7 +412,7 @@ export class PeerHttpUtil {
   }
 
   /**
-   * 设置网络数据日志记录器
+   * 设置网络数据日志记录器（request-response 协议格式）
    */
   setNetworkLogger(
     enabled: boolean,
@@ -420,9 +420,9 @@ export class PeerHttpUtil {
       timestamp: number;
       direction: 'outgoing' | 'incoming';
       peerId: string;
-      protocol: string;
-      stage?: string;
-      data: unknown;
+      businessType: string;
+      request?: unknown;
+      response?: unknown;
       dataSize: number;
       status: 'success' | 'error' | 'pending';
       error?: string;
@@ -433,27 +433,36 @@ export class PeerHttpUtil {
   }
 
   /**
-   * 记录网络日志
+   * 记录网络日志（request-response 协议格式）
    */
   private logNetwork(log: {
     direction: 'outgoing' | 'incoming';
     peerId: string;
-    protocol: string;
-    stage?: string;
-    data: unknown;
+    businessType: string;
+    request?: unknown;
+    response?: unknown;
     status: 'success' | 'error' | 'pending';
     error?: string;
   }): void {
     if (this.networkLogEnabled && this.networkLogger) {
-      const dataStr = JSON.stringify(log.data);
+      // 计算数据大小
+      let dataSize = 0;
+      if (log.request) {
+        const dataStr = JSON.stringify(log.request);
+        dataSize += new Blob([dataStr]).size;
+      }
+      if (log.response) {
+        const dataStr = JSON.stringify(log.response);
+        dataSize += new Blob([dataStr]).size;
+      }
       this.networkLogger({
         timestamp: Date.now(),
         direction: log.direction,
         peerId: log.peerId,
-        protocol: log.protocol,
-        stage: log.stage,
-        data: log.data,
-        dataSize: new Blob([dataStr]).size,
+        businessType: log.businessType,
+        request: log.request,
+        response: log.response,
+        dataSize,
         status: log.status,
         error: log.error,
       });
@@ -467,15 +476,21 @@ export class PeerHttpUtil {
     const { type } = protocol;
 
     // 记录接收日志
+    // 根据协议类型判断是 request 还是 response
+    const protocolType = type as string;
+    const isResponse = protocolType.endsWith('_response');
+    const businessType = isResponse
+      ? protocolType.replace('_response', '')
+      : protocolType.replace('_request', '').replace('_query', '');
+
     this.logNetwork({
       direction: 'incoming',
       peerId: from,
-      protocol: type,
-      data: protocol,
+      businessType,
+      response: isResponse ? protocol : undefined,
+      request: !isResponse ? protocol : undefined,
       status: 'success',
     });
-
-    const protocolType = type as string;
 
     // 检查是否是 Request-Response 响应
     if (protocolType.endsWith('_response')) {
@@ -823,12 +838,20 @@ export class PeerHttpUtil {
   private sendProtocol(peerId: string, protocol: AnyProtocol): Promise<void> {
     console.log('[PeerHttp] Sending protocol:', { peerId, protocolType: protocol.type });
 
+    // 提取业务类型
+    const protocolType = protocol.type as string;
+    const isResponse = protocolType.endsWith('_response');
+    const businessType = isResponse
+      ? protocolType.replace('_response', '')
+      : protocolType.replace('_request', '').replace('_query', '');
+
     // 记录发送日志
     this.logNetwork({
       direction: 'outgoing',
       peerId: peerId,
-      protocol: protocol.type,
-      data: protocol,
+      businessType,
+      request: !isResponse ? protocol : undefined,
+      response: isResponse ? protocol : undefined,
       status: 'pending',
     });
 
@@ -842,8 +865,9 @@ export class PeerHttpUtil {
           this.logNetwork({
             direction: 'outgoing',
             peerId: peerId,
-            protocol: protocol.type,
-            data: protocol,
+            businessType,
+            request: !isResponse ? protocol : undefined,
+            response: isResponse ? protocol : undefined,
             status: 'error',
             error: 'Connection timeout',
           });
@@ -862,8 +886,9 @@ export class PeerHttpUtil {
             this.logNetwork({
               direction: 'outgoing',
               peerId: peerId,
-              protocol: protocol.type,
-              data: protocol,
+              businessType,
+              request: !isResponse ? protocol : undefined,
+              response: isResponse ? protocol : undefined,
               status: 'success',
             });
 
@@ -882,8 +907,9 @@ export class PeerHttpUtil {
             this.logNetwork({
               direction: 'outgoing',
               peerId: peerId,
-              protocol: protocol.type,
-              data: protocol,
+              businessType,
+              request: !isResponse ? protocol : undefined,
+              response: isResponse ? protocol : undefined,
               status: 'error',
               error: String(err),
             });
@@ -899,8 +925,9 @@ export class PeerHttpUtil {
           this.logNetwork({
             direction: 'outgoing',
             peerId: peerId,
-            protocol: protocol.type,
-            data: protocol,
+            businessType,
+            request: !isResponse ? protocol : undefined,
+            response: isResponse ? protocol : undefined,
             status: 'error',
             error: String(err),
           });

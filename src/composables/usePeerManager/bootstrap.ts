@@ -34,6 +34,14 @@ export async function tryBecomeBootstrap(): Promise<boolean> {
 
   perfLog('start', '开始尝试成为宇宙启动者');
 
+  // 添加随机延迟（0-1000ms），避免多设备同时竞争启动者
+  const randomDelay = Math.floor(Math.random() * 1000);
+  if (randomDelay > 0) {
+    console.log('[Peer] Adding random delay before bootstrap attempt:', randomDelay, 'ms');
+    perfLog('random-delay', `添加随机延迟 ${randomDelay}ms 避免竞争`);
+    await new Promise(resolve => setTimeout(resolve, randomDelay));
+  }
+
   return new Promise((resolve) => {
     // 如果已经是启动者，直接返回
     let bootstrapPeerInstance = (globalThis as any).__bootstrapPeerInstance;

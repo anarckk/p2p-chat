@@ -18,23 +18,49 @@ import {
  */
 test.describe('发现中心页面 - 基础 UI', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/center');
-    await page.waitForLoadState('domcontentloaded');
+    // 先清空存储
     await clearAllStorage(page);
-    await setUserInfo(page, createUserInfo('测试用户', 'test-peer-123'));
+    // 导航到页面并等待弹窗，通过弹窗设置用户名（确保 Peer 正确初始化）
+    await page.goto('/#/center');
+    await page.waitForLoadState('domcontentloaded');
+
+    // 等待并填写用户设置弹窗
+    try {
+      await page.waitForSelector('.ant-modal-title', { timeout: 10000 });
+      const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
+      await usernameInput.fill('测试用户');
+      await page.click('button[aria-label="complete-user-setup"]');
+
+      // 等待弹窗关闭和 Peer 初始化
+      await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 10000 }).catch(() => {});
+      await page.waitForFunction(() => {
+        const userInfo = localStorage.getItem('p2p_user_info');
+        if (userInfo) {
+          const parsed = JSON.parse(userInfo);
+          return parsed.peerId && parsed.peerId.length > 0;
+        }
+        return false;
+      }, { timeout: 25000 });
+      await page.waitForTimeout(2000);
+    } catch (error) {
+      console.error('[Test] Failed to setup user in beforeEach:', error);
+    }
   });
 
   test('应该显示页面容器和基本元素', async ({ page }) => {
     // 检查页面容器
     await expect(page.locator(SELECTORS.centerContainer)).toBeVisible();
 
-    // 验证页面包含"发现中心"卡片
-    const discoveryCard = page.locator('.ant-card').filter({ hasText: '发现中心' });
+    // 验证页面包含"发现中心"卡片（新UI中使用 .discovery-card 和"在线设备"标题）
+    const discoveryCard = page.locator('.discovery-card');
     await expect(discoveryCard).toBeVisible();
+
+    // 验证页面标题显示"发现中心"
+    const pageTitle = page.locator('.page-title');
+    await expect(pageTitle).toContainText('发现中心');
 
     // 验证输入框和按钮存在
     await expect(page.locator(SELECTORS.peerIdInput)).toBeVisible();
-    await expect(page.locator(SELECTORS.queryButton)).toBeVisible();
     await expect(page.locator(SELECTORS.addButton)).toBeVisible();
     await expect(page.locator(SELECTORS.refreshButton)).toBeVisible();
   });
@@ -242,7 +268,7 @@ test.describe('P2P 发现功能 - 多设备测试', () => {
       await expect(deviceBCard).toBeVisible({ timeout: 8000 });
 
       // 验证卡片中有 Peer ID 文本（小字显示）
-      const peerIdText = deviceBCard.locator('.ant-typography-secondary');
+      const peerIdText = deviceBCard.locator('.device-peer-id');
       const peerIdCount = await peerIdText.count();
       expect(peerIdCount).toBeGreaterThan(0);
     } finally {

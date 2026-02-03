@@ -72,8 +72,8 @@ export type OnlineChecker = (peerId: string) => boolean;
  * 默认配置
  */
 const DEFAULT_CONFIG = {
-  timeout: 5000,          // 默认超时时间 5 秒
-  connectionTimeout: 10000, // 连接建立超时时间 10 秒
+  timeout: 7000,          // 默认超时时间 7 秒（从 5 秒增加，给系统更多恢复时间）
+  connectionTimeout: 12000, // 连接建立超时时间 12 秒（从 10 秒增加）
 };
 
 // ==================== RequestResponseManager ====================
@@ -92,6 +92,7 @@ export class RequestResponseManager {
   private config: typeof DEFAULT_CONFIG;
   private activeConnections: Map<string, Date> = new Map();
   private connectionQueues: Map<string, Array<() => void>> = new Map();
+  private connectingState: Map<string, boolean> = new Map(); // 跟踪正在连接的设备
 
   /**
    * 构造函数
@@ -139,6 +140,33 @@ export class RequestResponseManager {
   }
 
   /**
+   * 等待连接可用
+   * @param peerId - 目标 PeerId
+   * @param timeout - 超时时间（毫秒）
+   * @returns Promise<void>
+   */
+  async waitForConnectionAvailable(peerId: string, timeout: number = 1000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+
+      const checkInterval = setInterval(() => {
+        // 检查是否超时
+        if (Date.now() - startTime > timeout) {
+          clearInterval(checkInterval);
+          reject(new Error(`Connection to ${peerId.substring(0, 8)}... not available after ${timeout}ms`));
+          return;
+        }
+
+        // 检查连接是否仍然活跃
+        if (!this.activeConnections.has(peerId)) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 50);
+    });
+  }
+
+  /**
    * 发送请求并等待响应
    * @param peerId - 目标 PeerId
    * @param type - 请求类型
@@ -152,131 +180,178 @@ export class RequestResponseManager {
     payload: any,
     timeout?: number
   ): Promise<T> {
-    // 检查是否已有活跃连接，如果有则等待
-    if (this.activeConnections.has(peerId)) {
-      console.warn('[RequestResponseManager] Connection to ' + peerId.substring(0, 8) + '... already active, queuing request');
-
-      // 添加到队列
-      if (!this.connectionQueues.has(peerId)) {
-        this.connectionQueues.set(peerId, []);
-      }
-      const queue = this.connectionQueues.get(peerId)!;
-
-      // 返回一个 Promise，当队列处理时解析
-      return new Promise<T>((resolve, reject) => {
-        queue.push(() => {
-          // 递归调用 sendRequest
-          void this.sendRequest<T>(peerId, type, payload, timeout).then(resolve).catch(reject);
-        });
-      });
-    }
-
     const actualTimeout = timeout ?? this.config.timeout;
     const requestId = crypto.randomUUID();
     const myPeerId = this.getMyPeerId();
 
-    console.log('[RequestResponseManager] Sending request:', {
-      requestId: requestId.substring(0, 8),
-      type,
-      to: peerId.substring(0, 8) + '...',
-      timeout: actualTimeout
-    });
+    // 检查是否已有活跃连接或正在连接，如果有则将请求加入队列
+    if (this.activeConnections.has(peerId) || this.connectingState.has(peerId)) {
+      const reason = this.activeConnections.has(peerId) ? 'active' : 'connecting';
+      console.warn('[RequestResponseManager] Connection to ' + peerId.substring(0, 8) + '... already ' + reason + ', queuing request...');
 
-    // 通信前检查对方状态
-    if (this.onlineChecker) {
-      const isOnline = this.onlineChecker(peerId);
-      if (!isOnline) {
-        const error = `Target peer ${peerId.substring(0, 8)}... is offline`;
-        console.warn('[RequestResponseManager] ' + error);
-        throw new Error(error);
-      }
+      return new Promise<T>((resolve, reject) => {
+        // 获取或创建队列
+        let queue = this.connectionQueues.get(peerId);
+        if (!queue) {
+          queue = [];
+          this.connectionQueues.set(peerId, queue);
+        }
+
+        // 将请求加入队列
+        queue.push(() => {
+          this.executeRequest<T>(peerId, type, payload, actualTimeout, requestId, resolve, reject);
+        });
+
+        console.log('[RequestResponseManager] Request queued for:', peerId.substring(0, 8) + '...', 'queue size:', queue.length);
+      });
     }
 
-    // 标记连接为活跃
-    this.activeConnections.set(peerId, new Date());
+    // 添加随机延迟（0-500ms），防止两个设备同时发起连接（增加范围以提高稳定性）
+    const jitterDelay = Math.floor(Math.random() * 500);
 
-    return new Promise((resolve, reject) => {
-      let conn: any;
+    // 标记为正在连接
+    this.connectingState.set(peerId, true);
 
-      // 创建连接超时
-      const connectionTimeout = setTimeout(() => {
-        console.error('[RequestResponseManager] Connection timeout:', peerId.substring(0, 8) + '...');
-        this.cleanupRequest(requestId);
-        reject(new Error(`Connection timeout to ${peerId.substring(0, 8)}...`));
-      }, this.config.connectionTimeout);
+    // 没有活跃连接，直接执行请求
+    // 注意：connectingState 将在连接成功/失败时由事件处理程序清除
+    // 使用随机延迟来打破竞态条件
+    await new Promise(resolve => setTimeout(resolve, jitterDelay));
 
-      try {
-        conn = this.peer.connect(peerId);
+    return this.executeRequest<T>(peerId, type, payload, actualTimeout, requestId, undefined, undefined);
+  }
 
-        conn.on('error', (err: any) => {
-          console.error('[RequestResponseManager] Connection error:', err);
-          clearTimeout(connectionTimeout);
-          this.cleanupRequest(requestId);
-          this.cleanupActiveConnection(peerId);
-          reject(new Error(`Connection error: ${String(err)}`));
-        });
+  /**
+   * 执行请求（内部方法）
+   * @param peerId - 目标 PeerId
+   * @param type - 请求类型
+   * @param payload - 请求载荷
+   * @param timeout - 超时时间（毫秒）
+   * @param requestId - 请求ID
+   * @param resolve - Promise resolve（可选，用于队列）
+   * @param reject - Promise reject（可选，用于队列）
+   * @returns Promise<T> 响应数据
+   */
+  private executeRequest<T = any>(
+    peerId: string,
+    type: string,
+    payload: any,
+    timeout: number,
+    requestId: string,
+    resolve?: (value: T) => void,
+    reject?: (error: Error) => void
+  ): Promise<T> {
+    const myPeerId = this.getMyPeerId();
 
-        conn.on('open', async () => {
-          clearTimeout(connectionTimeout);
-          console.log('[RequestResponseManager] Connection opened to:', peerId.substring(0, 8) + '...');
+    // 如果没有提供 resolve/reject（非队列调用），创建新的 Promise
+    if (!resolve || !reject) {
+      return new Promise<T>((res, rej) => {
+        this._executeRequestInternal<T>(peerId, type, payload, timeout, requestId, myPeerId, res, rej);
+      });
+    }
 
-          // 创建请求协议
-          const request: BaseRequestProtocol = {
-            type,
-            requestId,
-            from: myPeerId,
-            to: peerId,
-            timestamp: Date.now(),
-            ...payload
-          };
+    // 队列调用，直接执行内部方法
+    this._executeRequestInternal<T>(peerId, type, payload, timeout, requestId, myPeerId, resolve, reject);
+    return Promise.resolve(undefined as any); // 队列调用已经在内部处理，返回一个已完成的 Promise
+  }
 
-          // 如果协议支持签名，添加签名
-          if (isSignatureSupported(type)) {
-            try {
-              request.signature = await signMessage(request);
-              console.log('[RequestResponseManager] Request signed:', type);
-            } catch (error) {
-              console.error('[RequestResponseManager] Failed to sign request:', error);
-              // 签名失败不阻止发送，继续发送未签名的请求（向后兼容）
-            }
-          }
+  /**
+   * 执行请求的内部实现
+   */
+  private _executeRequestInternal<T = any>(
+    peerId: string,
+    type: string,
+    payload: any,
+    timeout: number,
+    requestId: string,
+    myPeerId: string,
+    resolve: (value: T) => void,
+    reject: (error: Error) => void
+  ): void {
+    let conn: any;
 
-          // 发送请求
-          try {
-            conn.send(request);
-            console.log('[RequestResponseManager] Request sent:', requestId.substring(0, 8));
-            commLog.info(`Request sent: ${type}`, { to: peerId.substring(0, 8) + '...', requestId: requestId.substring(0, 8) });
-          } catch (err) {
-            console.error('[RequestResponseManager] Failed to send request:', err);
-            this.cleanupRequest(requestId);
-            reject(err);
-            return;
-          }
+    // 创建连接超时
+    const connectionTimeout = setTimeout(() => {
+      console.error('[RequestResponseManager] Connection timeout:', peerId.substring(0, 8) + '...');
+      this.cleanupRequest(requestId);
+      this.cleanupActiveConnection(peerId);
+      reject(new Error(`Connection timeout to ${peerId.substring(0, 8)}...`));
+    }, this.config.connectionTimeout);
 
-          // 设置响应超时
-          const responseTimeout = setTimeout(() => {
-            console.warn('[RequestResponseManager] Request timeout:', requestId.substring(0, 8));
-            this.cleanupRequest(requestId);
-            reject(new Error(`Request timeout after ${actualTimeout}ms`));
-          }, actualTimeout);
+    try {
+      conn = this.peer.connect(peerId);
 
-          // 存储待处理请求
-          this.pendingRequests.set(requestId, {
-            resolve,
-            reject,
-            timeout: responseTimeout,
-            conn,
-            peerId,
-            requestType: type
-          });
-        });
-      } catch (err) {
+      conn.on('error', (err: any) => {
+        console.error('[RequestResponseManager] Connection error:', err);
         clearTimeout(connectionTimeout);
-        console.error('[RequestResponseManager] Failed to create connection:', err);
+        this.cleanupRequest(requestId);
         this.cleanupActiveConnection(peerId);
-        reject(err);
-      }
-    });
+        reject(new Error(`Connection error: ${String(err)}`));
+      });
+
+      conn.on('open', async () => {
+        clearTimeout(connectionTimeout);
+        console.log('[RequestResponseManager] Connection opened to:', peerId.substring(0, 8) + '...');
+
+        // 连接已建立，标记为活跃并清除正在连接状态
+        this.activeConnections.set(peerId, new Date());
+        this.connectingState.delete(peerId);
+
+        // 创建请求协议
+        const request: BaseRequestProtocol = {
+          type,
+          requestId,
+          from: myPeerId,
+          to: peerId,
+          timestamp: Date.now(),
+          ...payload
+        };
+
+        // 如果协议支持签名，添加签名
+        if (isSignatureSupported(type)) {
+          try {
+            request.signature = await signMessage(request);
+            console.log('[RequestResponseManager] Request signed:', type);
+          } catch (error) {
+            console.error('[RequestResponseManager] Failed to sign request:', error);
+            // 签名失败不阻止发送，继续发送未签名的请求（向后兼容）
+          }
+        }
+
+        // 发送请求
+        try {
+          conn.send(request);
+          console.log('[RequestResponseManager] Request sent:', requestId.substring(0, 8));
+          commLog.info(`Request sent: ${type}`, { to: peerId.substring(0, 8) + '...', requestId: requestId.substring(0, 8) });
+        } catch (err) {
+          console.error('[RequestResponseManager] Failed to send request:', err);
+          this.cleanupRequest(requestId);
+          reject(err instanceof Error ? err : new Error(String(err)));
+          return;
+        }
+
+        // 设置响应超时
+        const responseTimeout = setTimeout(() => {
+          console.warn('[RequestResponseManager] Request timeout:', requestId.substring(0, 8));
+          this.cleanupRequest(requestId);
+          reject(new Error(`Request timeout after ${timeout}ms`));
+        }, timeout);
+
+        // 存储待处理请求
+        this.pendingRequests.set(requestId, {
+          resolve,
+          reject,
+          timeout: responseTimeout,
+          conn,
+          peerId,
+          requestType: type
+        });
+      });
+    } catch (err) {
+      clearTimeout(connectionTimeout);
+      console.error('[RequestResponseManager] Failed to create connection:', err);
+      this.cleanupActiveConnection(peerId);
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
   }
 
   /**
@@ -482,8 +557,9 @@ export class RequestResponseManager {
    * @param peerId - PeerId
    */
   private cleanupActiveConnection(peerId: string): void {
-    // 移除活跃连接标记
+    // 移除活跃连接标记和正在连接状态
     this.activeConnections.delete(peerId);
+    this.connectingState.delete(peerId);
 
     // 处理队列中的下一个请求
     const queue = this.connectionQueues.get(peerId);
@@ -491,14 +567,14 @@ export class RequestResponseManager {
       const nextRequest = queue.shift();
       if (nextRequest) {
         console.log('[RequestResponseManager] Processing next queued request for:', peerId.substring(0, 8) + '...');
-        // 延迟执行下一个请求，确保连接完全关闭
+        // 延迟执行下一个请求，确保连接完全关闭（增加延迟以提高稳定性）
         setTimeout(() => {
           try {
             nextRequest();
           } catch (e) {
             console.error('[RequestResponseManager] Error processing queued request:', e);
           }
-        }, 100);
+        }, 200); // 从 100ms 增加到 200ms
       }
 
       // 如果队列为空，删除队列

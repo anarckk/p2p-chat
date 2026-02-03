@@ -23,60 +23,146 @@ class CryptoManager {
   // Store 名称常量
   private readonly SECURITY_KEYS_STORE = 'security_keys';
 
+  // 共享的数据库实例（通过 indexedDBStorage）
+  private static sharedDB: IDBDatabase | null = null;
+  private static sharedDBInit: Promise<IDBDatabase> | null = null;
+
   /**
    * 初始化：生成或加载密钥对
    */
   async init(): Promise<void> {
-    if (this.initialized) {
-      return;
+    console.log('[Crypto] init: Starting...');
+    // 更严格的检查：确保所有状态都正确
+    if (this.initialized && this.keyPair && this.publicKeyExport && this.privateKeyExport) {
+      console.log('[Crypto] init: Already initialized, validating...');
+      // 验证密钥是否仍然有效（通过签名测试）
+      try {
+        await this.sign('validation-test');
+        console.log('[Crypto] init: Existing keys are valid');
+        return;
+      } catch (error) {
+        console.log('[Crypto] Existing keys are invalid, reinitializing...', error);
+        this.initialized = false;
+      }
     }
 
+    // 如果 initialized 为 true 但任何状态为 null，重置并重新初始化
+    if (this.initialized && (!this.keyPair || !this.publicKeyExport || !this.privateKeyExport)) {
+      console.log('[Crypto] Initialized flag is true but keys are incomplete, reinitializing...');
+      this.initialized = false;
+    }
+
+    console.log('[Crypto] init: Initializing IndexedDB...');
     // 初始化 IndexedDB
     await this.initIndexedDB();
+    console.log('[Crypto] init: IndexedDB initialized');
 
+    console.log('[Crypto] init: Loading from storage...');
     // 尝试从 IndexedDB 加载
     const loaded = await this.loadFromStorage();
+    console.log('[Crypto] init: Load from storage result =', loaded);
     if (loaded) {
-      this.initialized = true;
-      console.log('[Crypto] Keys loaded from storage');
-      return;
+      // 再次验证加载的密钥是否有效
+      if (this.keyPair && this.publicKeyExport && this.privateKeyExport) {
+        this.initialized = true;
+        console.log('[Crypto] Keys loaded from storage');
+        return;
+      } else {
+        console.log('[Crypto] Load reported success but keys are incomplete, regenerating...');
+      }
     }
 
+    console.log('[Crypto] init: Generating new key pair...');
     // 生成新的密钥对
     await this.generateKeyPair();
-    this.initialized = true;
-    console.log('[Crypto] New key pair generated');
+
+    // 验证新生成的密钥
+    if (this.keyPair && this.publicKeyExport && this.privateKeyExport) {
+      this.initialized = true;
+      console.log('[Crypto] New key pair generated');
+    } else {
+      throw new Error('[Crypto] Failed to generate key pair: state incomplete after generation');
+    }
   }
 
   /**
    * 初始化 IndexedDB（添加 security_keys store）
+   * 使用共享数据库实例模式，避免版本冲突
    */
   private async initIndexedDB(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    // 如果已经有共享的数据库初始化在进行中，等待它完成
+    if (CryptoManager.sharedDBInit) {
+      console.log('[Crypto] initIndexedDB: Waiting for shared DB initialization...');
+      this.db = await CryptoManager.sharedDBInit;
+      console.log('[Crypto] initIndexedDB: Shared DB ready');
+      return;
+    }
+
+    // 如果已经有共享的数据库实例，直接使用
+    if (CryptoManager.sharedDB) {
+      console.log('[Crypto] initIndexedDB: Using existing shared DB');
+      this.db = CryptoManager.sharedDB;
+      return;
+    }
+
+    // 创建新的初始化 Promise
+    console.log('[Crypto] initIndexedDB: Creating new shared DB initialization');
+    CryptoManager.sharedDBInit = new Promise((resolve, reject) => {
       const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
 
+      // 设置超时
+      const timeout = setTimeout(() => {
+        console.error('[Crypto] initIndexedDB: Timeout after 10 seconds');
+        CryptoManager.sharedDBInit = null; // 重置以便重试
+        reject(new Error('IndexedDB initialization timeout'));
+      }, 10000);
+
       request.onerror = () => {
+        clearTimeout(timeout);
         console.error('[Crypto] Failed to open database:', request.error);
+        CryptoManager.sharedDBInit = null; // 重置以便重试
         reject(request.error);
       };
 
       request.onsuccess = () => {
+        clearTimeout(timeout);
+        console.log('[Crypto] initIndexedDB: Database opened successfully');
         this.db = request.result;
-        resolve();
+        CryptoManager.sharedDB = this.db;
+        resolve(this.db);
       };
 
       request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+        console.log('[Crypto] initIndexedDB: onupgradeneeded triggered, oldVersion =', event.oldVersion);
         const db = (event.target as IDBOpenDBRequest).result;
 
-        // 创建 security_keys store (存储密钥对)
-        if (!db.objectStoreNames.contains(this.SECURITY_KEYS_STORE)) {
-          db.createObjectStore(this.SECURITY_KEYS_STORE, {
-            keyPath: 'id',
-          });
-          console.log('[Crypto] Created security_keys store');
+        // 创建所有必要的 stores（确保与 indexedDBStorage 保持一致）
+        const stores = ['avatars', 'messages', 'devices', 'security_keys'];
+        for (const storeName of stores) {
+          if (!db.objectStoreNames.contains(storeName)) {
+            const store = db.createObjectStore(storeName, { keyPath: 'id' });
+            console.log('[Crypto] Created store:', storeName);
+            // 为特定的 store 创建索引
+            if (storeName === 'avatars') {
+              store.createIndex('peerId', 'peerId', { unique: false });
+            } else if (storeName === 'messages') {
+              store.createIndex('toPeerId', 'toPeerId', { unique: false });
+              store.createIndex('timestamp', 'timestamp', { unique: false });
+            } else if (storeName === 'devices') {
+              store.createIndex('username', 'username', { unique: false });
+            }
+          }
         }
+        console.log('[Crypto] initIndexedDB: All stores created/verified');
+      };
+
+      request.onblocked = () => {
+        console.log('[Crypto] initIndexedDB: Database open blocked - waiting for other connections to close');
       };
     });
+
+    await CryptoManager.sharedDBInit;
+    console.log('[Crypto] initIndexedDB: Initialization complete');
   }
 
   /**
@@ -163,9 +249,23 @@ class CryptoManager {
 
             // 导入密钥为 CryptoKey 对象
             await this.importKeys();
-            resolve(true);
+
+            // 只有在成功导入密钥后，才标记为成功
+            if (this.keyPair) {
+              resolve(true);
+            } else {
+              console.error('[Crypto] importKeys succeeded but keyPair is null');
+              // 清空部分状态
+              this.publicKeyExport = null;
+              this.privateKeyExport = null;
+              resolve(false);
+            }
           } catch (error) {
             console.error('[Crypto] Failed to load keys:', error);
+            // 清空部分状态
+            this.publicKeyExport = null;
+            this.privateKeyExport = null;
+            this.keyPair = null;
             resolve(false);
           }
         };

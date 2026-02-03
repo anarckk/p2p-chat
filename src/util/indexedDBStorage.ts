@@ -9,7 +9,7 @@
 class IndexedDBStorage {
   private db: IDBDatabase | null = null;
   private DB_NAME = 'p2p-chat';
-  private DB_VERSION = 1;
+  private DB_VERSION = 2; // 升级到版本 2 以匹配 cryptoManager
 
   /**
    * 初始化 IndexedDB
@@ -34,12 +34,14 @@ class IndexedDBStorage {
       };
 
       request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+        console.log('[IndexedDB] onupgradeneeded: oldVersion =', event.oldVersion, ', newVersion =', event.newVersion);
         const db = (event.target as IDBOpenDBRequest).result;
 
         // 创建 avatars store (存储头像)
         if (!db.objectStoreNames.contains('avatars')) {
           const avatarStore = db.createObjectStore('avatars', { keyPath: 'id' });
           avatarStore.createIndex('peerId', 'peerId', { unique: false });
+          console.log('[IndexedDB] Created avatars store');
         }
 
         // 创建 messages store (存储消息体)
@@ -47,15 +49,23 @@ class IndexedDBStorage {
           const messageStore = db.createObjectStore('messages', { keyPath: 'id' });
           messageStore.createIndex('toPeerId', 'toPeerId', { unique: false });
           messageStore.createIndex('timestamp', 'timestamp', { unique: false });
+          console.log('[IndexedDB] Created messages store');
         }
 
         // 创建 devices store (存储设备列表)
         if (!db.objectStoreNames.contains('devices')) {
           const deviceStore = db.createObjectStore('devices', { keyPath: 'peerId' });
           deviceStore.createIndex('username', 'username', { unique: false });
+          console.log('[IndexedDB] Created devices store');
         }
 
-        console.log('[IndexedDB] Object stores created');
+        // 创建 security_keys store (存储密钥对) - 用于 cryptoManager
+        if (!db.objectStoreNames.contains('security_keys')) {
+          db.createObjectStore('security_keys', { keyPath: 'id' });
+          console.log('[IndexedDB] Created security_keys store');
+        }
+
+        console.log('[IndexedDB] All object stores created');
       };
     });
   }

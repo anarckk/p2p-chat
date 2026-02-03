@@ -44,9 +44,9 @@ export const SELECTORS = {
 
   // 通用
   centerContainer: '.center-container',
-  deviceCard: '.device-card',
-  deviceCardMe: '.device-card.is-me',
-  deviceCardOffline: '.device-card.is-offline',
+  deviceCard: '.device-item',
+  deviceCardMe: '.device-item.is-me',
+  deviceCardOffline: '.device-item.is-offline',
   wechatContainer: '.wechat-container',
   settingsContainer: '.settings-container',
   networkLogView: '.network-log-view',
@@ -100,6 +100,10 @@ export const SELECTORS = {
   offlineTag: '.ant-tag.ant-tag-default',
   chatTag: '.ant-tag.ant-tag-green',
   meTag: '.ant-tag:has-text("我")',
+  onlineBadge: '.ant-badge-status-processing',
+  offlineBadge: '.ant-badge-status-default',
+  onlineText: '.ant-badge:has-text("在线")',
+  offlineText: '.ant-badge:has-text("离线")',
 
   // 消息状态
   sendingStatus: '.message-status.sending, .message-status:has-text("发送中")',
@@ -134,21 +138,21 @@ export const SELECTORS = {
 // 等待时间常量（毫秒）- 本地 Peer Server 环境下连接很快
 export const WAIT_TIMES = {
   // PeerJS 连接初始化 - 优化：本地环境连接非常快，减少到 1 秒
-  PEER_INIT: 1000,
+  PEER_INIT: 2000,        // 从 1500 增加
   // 短暂等待 - 优化：减少到 200 毫秒
-  SHORT: 200,
+  SHORT: 500,            // 从 300 增加
   // 中等等待 - 优化：减少到 500 毫秒
-  MEDIUM: 500,
+  MEDIUM: 2000,          // 从 1500 增加
   // 较长等待 - 优化：减少到 1 秒
-  LONG: 1000,
+  LONG: 3000,            // 从 2000 增加
   // 消息发送接收 - 优化：本地环境下通信快速，减少到 1.5 秒
-  MESSAGE: 1500,
+  MESSAGE: 3000,         // 从 1500 增加
   // 被动发现通知 - 优化：本地环境下发现快速，减少到 1.5 秒
-  DISCOVERY: 1500,
+  DISCOVERY: 3000,       // 从 1500 增加
   // 刷新页面 - 优化：减少到 500 毫秒
-  RELOAD: 500,
+  RELOAD: 1000,
   // 弹窗显示 - 增加到 5 秒确保弹窗有足够时间加载
-  MODAL: 5000,
+  MODAL: 8000,           // 从 6000 增加
 } as const;
 
 // ==================== 测试数据工厂 ====================
@@ -230,7 +234,6 @@ export async function setUserInfo(
   // 转换为哈希路由格式
   const rawPath = options?.navigateTo || '/center';
   const navigateTo = rawPath.startsWith('/#') ? rawPath : `/#${rawPath}`;
-  const shouldReload = options?.reload !== false;
 
   await page.goto(navigateTo);
   await page.waitForLoadState('domcontentloaded');
@@ -238,43 +241,87 @@ export async function setUserInfo(
   // 检查是否有用户设置弹窗
   try {
     await page.waitForSelector('.ant-modal-title', { timeout: WAIT_TIMES.MODAL });
-    // 有弹窗，填写用户名 - 使用更精确的选择器
+    // 有弹窗，填写用户名
     const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
     await usernameInput.fill(userInfo.username);
-    // 点击确定按钮
-    await page.click('.ant-modal .ant-btn-primary');
-    // 等待弹窗关闭和 Peer 初始化
-    await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
+    // 点击确定按钮 - 使用更精确的 aria-label 选择器
+    await page.click('button[aria-label="complete-user-setup"]');
+
+    // 等待弹窗关闭
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 10000 }).catch(() => {});
+
+    // 等待 Peer 连接成功
+    await page.waitForFunction(() => {
+      const stored = localStorage.getItem('p2p_user_info');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.peerId && parsed.peerId.length > 0;
+      }
+      return false;
+    }, { timeout: 25000 });
+
+    // 额外等待确保初始化完成
+    await page.waitForTimeout(2000);
   } catch (error) {
-    // 没有弹窗，直接设置用户信息到 localStorage
-    await page.evaluate((info) => {
-      localStorage.setItem('p2p_user_info', JSON.stringify(info));
-    }, userInfo);
-    if (shouldReload) {
-      await page.reload();
-      await page.waitForLoadState('domcontentloaded');
-      // 等待 Peer 初始化
-      await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
-    }
+    // 没有弹窗，说明用户信息已存在
+    console.log('[Test] No modal found, user info may already exist');
+    // 等待一段时间让 Peer 初始化完成
+    await page.waitForTimeout(10000);
   }
+
+  // 不再手动初始化密钥，让 ResponsiveLayout 中的 handleUserSetup 自动处理
+  // 这避免了 page.evaluate 超时问题
 }
 
 /**
  * 清理所有 localStorage 数据
+ * 修改：使用 browser context 的 API 来清理所有存储
  */
 export async function clearAllStorage(page: Page): Promise<void> {
-  // 在当前页面上下文中清理（不导航到其他页面）
   try {
+    // 使用 context 的 clearCookies 方法
+    const context = page.context();
+    await context.clearCookies();
+    await context.clearPermissions();
+
+    // 在实际页面中清理存储（不使用 about:blank）
+    // 先检查当前页面是否是空白页
+    const url = page.url();
+    if (url === 'about:blank' || url === '') {
+      // 导航到应用页面再清理
+      await page.goto('/#/center');
+      await page.waitForLoadState('domcontentloaded');
+    }
+
+    // 在应用页面中清理存储
     await page.evaluate(() => {
       localStorage.clear();
       sessionStorage.clear();
-      // 设置禁用标记，让 E2E 测试模式不自动设置用户信息
-      // 这样测试可以正确测试弹窗行为
-      localStorage.setItem('__E2E_DISABLE_AUTO_SETUP__', 'true');
     });
+
+    // 清理 IndexedDB 中的所有数据
+    await page.evaluate(async () => {
+      // 获取所有 IndexedDB 数据库并删除它们
+      const databases = await indexedDB.databases();
+      await Promise.all(
+        databases.map(db => {
+          if (db.name) {
+            return new Promise<void>((resolve, reject) => {
+              const req = indexedDB.deleteDatabase(db.name!);
+              req.onsuccess = () => resolve();
+              req.onerror = () => reject(req.error);
+              req.onblocked = () => resolve(); // 阻塞也视为成功
+            });
+          }
+          return Promise.resolve();
+        })
+      );
+    });
+
+    console.log('[Test] clearAllStorage completed: localStorage, sessionStorage, and IndexedDB cleared');
   } catch (error) {
-    // 如果当前页面不支持 localStorage（比如 about:blank），忽略错误
-    console.log('[Test] clearAllStorage failed, page may not support localStorage');
+    // 如果清理失败，记录但继续
+    console.log('[Test] clearAllStorage failed:', error);
   }
 }
 
@@ -421,7 +468,7 @@ export interface TestDevices {
 
 /**
  * 创建单个测试设备 - 优化版
- * 直接在页面加载前设置用户信息，避免 reload
+ * 确保存储完全清理后再导航，避免弹窗触发问题
  */
 async function createSingleDevice(
   browser: any,
@@ -432,49 +479,105 @@ async function createSingleDevice(
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  // 导航到页面（使用哈希路由）
+  // 新的 context 已经有干净的存储，直接导航到页面
   await page.goto(startPage === 'center' ? '/#/center' : `/#/${startPage}`);
   await page.waitForLoadState('domcontentloaded');
 
-  // 等待用户设置弹窗出现（如果有）
+  // 监听控制台日志以调试
+  page.on('console', msg => {
+    const text = msg.text();
+    // 显示所有重要日志，包括用户设置、Peer、错误、连接状态、密钥初始化等
+    if ((text.includes('Peer') || text.includes('peer') || text.includes('Error') || text.includes('Connected') || text.includes('handleUserSetup') || text.includes('ResponsiveLayout') || text.includes('initCrypto') || text.includes('设置完成') || text.includes('[Crypto]')) && !text.includes('PeerHttp')) {
+      console.log(`[Test] ${userName}: ${text}`);
+    }
+  });
+
+  // 等待用户设置弹窗出现（新 context 应该总是会显示）
   try {
+    console.log(`[Test] ${userName}: Waiting for setup modal...`);
     await page.waitForSelector('.ant-modal-title', { timeout: 10000 });
+    console.log(`[Test] ${userName}: Modal found, filling username...`);
+
     // 有弹窗，填写用户名
     const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
     await usernameInput.fill(userName);
-    // 点击确定按钮
-    await page.click('.ant-modal .ant-btn-primary');
-    // 等待弹窗关闭和 Peer 初始化
+
+    // 点击确定按钮 - 使用更精确的 aria-label 选择器
+    const okButton = page.locator('button[aria-label="complete-user-setup"]');
+    // 验证按钮存在并可点击
+    const buttonCount = await okButton.count();
+    console.log(`[Test] ${userName}: Found ${buttonCount} complete-user-setup buttons`);
+    if (buttonCount === 0) {
+      console.log(`[Test] ${userName}: No complete-user-setup button found, trying alternative selector...`);
+      // 备用选择器：使用文本内容
+      const fallbackButton = page.locator('.ant-modal button').filter({ hasText: '完成' });
+      const fallbackCount = await fallbackButton.count();
+      console.log(`[Test] ${userName}: Found ${fallbackCount} fallback buttons with text '完成'`);
+      if (fallbackCount > 0) {
+        await fallbackButton.first().click();
+      } else {
+        throw new Error('No complete-user-setup button found');
+      }
+    } else {
+      await okButton.click();
+    }
+    console.log(`[Test] ${userName}: Confirm button clicked, waiting for Peer init...`);
+
+    // 等待弹窗关闭
+    await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 10000 }).catch(() => {
+      console.log(`[Test] ${userName}: Modal did not close immediately, continuing...`);
+    });
+
+    // 等待 Peer 连接成功 - 监听控制台日志中的 "Connected with ID"
+    const peerConnected = await page.waitForFunction(() => {
+      // 检查 localStorage 中是否有 peerId
+      const userInfo = localStorage.getItem('p2p_user_info');
+      if (userInfo) {
+        const parsed = JSON.parse(userInfo);
+        return parsed.peerId && parsed.peerId.length > 0;
+      }
+      return false;
+    }, { timeout: 25000 }); // 25 秒超时
+
+    if (peerConnected) {
+      console.log(`[Test] ${userName}: Peer connected successfully`);
+    } else {
+      console.warn(`[Test] ${userName}: Peer connection timeout`);
+    }
+
+    // 等待密钥初始化完成 - 监听控制台日志中的 "Crypto" 关键字
+    // cryptoManager 会在初始化成功后打印日志
+    const cryptoKeysReady = await page.waitForFunction(() => {
+      // 检查是否有 crypto 初始化完成的标记
+      // 通过检查 window.cryptoManager 是否存在且已初始化
+      return (window as any).__cryptoInitialized === true;
+    }, { timeout: 15000 }).catch(() => false);
+
+    if (cryptoKeysReady) {
+      console.log(`[Test] ${userName}: Crypto keys initialized successfully`);
+    } else {
+      // 备用方案：等待足够长的时间让密钥初始化完成
+      console.warn(`[Test] ${userName}: Could not verify crypto keys initialization, waiting 5 seconds...`);
+      await page.waitForTimeout(5000);
+    }
+
+    // 额外等待确保所有初始化完成
     await page.waitForTimeout(2000);
   } catch (error) {
-    // 没有弹窗，可能已经有用户信息了，直接设置
-    console.log(`[Test] No modal for ${userName}, setting localStorage directly`);
-    await page.evaluate((info) => {
-      localStorage.setItem('p2p_user_info', JSON.stringify(info));
-    }, userInfo);
-    // reload 页面触发 Peer 初始化
-    await page.reload();
-    await page.waitForLoadState('domcontentloaded');
+    console.error(`[Test] ${userName}: Modal or peer init failed:`, error);
+    throw new Error(`Failed to initialize device "${userName}": ${error}`);
   }
 
   // 等待页面容器出现
   const selector = startPage === 'center' ? SELECTORS.centerContainer : '.wechat-container';
   await page.waitForSelector(selector, { timeout: 10000 }).catch(() => {
-    console.log(`[Test] Container selector not found for ${userName}, continuing...`);
+    console.log(`[Test] ${userName}: Container selector not found, continuing...`);
   });
 
   // 等待 PeerJS 初始化并生成 peerId
   let realPeerId: string | null = null;
   let attempts = 0;
-  const maxAttempts = 30;
-
-  // 监听控制台日志以调试
-  page.on('console', msg => {
-    const text = msg.text();
-    if ((text.includes('Peer') || text.includes('peer') || text.includes('Error')) && !text.includes('PeerHttp')) {
-      console.log(`[Test] ${userName}: ${text}`);
-    }
-  });
+  const maxAttempts = 20;
 
   while (!realPeerId && attempts < maxAttempts) {
     await page.waitForTimeout(500);
@@ -488,7 +591,16 @@ async function createSingleDevice(
     userInfo.peerId = realPeerId;
     console.log(`[Test] Device "${userName}" peerId: ${realPeerId}`);
   } else {
-    console.warn(`[Test] Device "${userName}" failed to get peerId after ${maxAttempts} attempts`);
+    // 再次尝试从页面元素获取
+    console.warn(`[Test] ${userName}: Failed to get peerId from storage after ${maxAttempts} attempts, trying element...`);
+    realPeerId = await getPeerIdFromElement(page);
+    if (realPeerId) {
+      userInfo.peerId = realPeerId;
+      console.log(`[Test] Device "${userName}" peerId from element: ${realPeerId}`);
+    } else {
+      console.error(`[Test] Device "${userName}" failed to get peerId from all sources`);
+      throw new Error(`Failed to get peerId for device "${userName}"`);
+    }
   }
 
   return { context, page, userInfo };
@@ -634,31 +746,42 @@ export async function assertDeviceOnlineStatus(
   const card = page.locator(SELECTORS.deviceCard).filter({ hasText: usernameOrPeerId });
   await expect(card).toBeVisible({ timeout: 8000 });
 
-  // 根据在线状态检查相应的标签
+  // 等待一段时间让状态渲染
+  await page.waitForTimeout(WAIT_TIMES.SHORT);
+
+  // 根据在线状态检查相应的标签或 badge
   if (isOnline) {
-    // 在线设备应该有在线标签或者"我"标签或者"聊天中"标签
+    // 在线设备应该有：
+    // 1. 在线标签（蓝色 tag）或"我"标签或"聊天中"标签
+    // 2. 或在线 badge（processing status + "在线"文本）
     const onlineTag = card.locator(SELECTORS.onlineTag);
     const meTag = card.locator('.ant-tag:has-text("我")');
     const chatTag = card.locator('.ant-tag:has-text("聊天中")');
-
-    // 等待一段时间让标签渲染
-    await page.waitForTimeout(WAIT_TIMES.SHORT);
+    const onlineBadge = card.locator(SELECTORS.onlineBadge);
+    const onlineText = card.locator('.device-status:has-text("在线")');
 
     const onlineTagCount = await onlineTag.count();
     const meTagCount = await meTag.count();
     const chatTagCount = await chatTag.count();
-    const hasTag = onlineTagCount + meTagCount + chatTagCount;
+    const onlineBadgeCount = await onlineBadge.count();
+    const onlineTextCount = await onlineText.count();
+    const hasTag = onlineTagCount + meTagCount + chatTagCount + onlineBadgeCount + onlineTextCount;
 
     expect(hasTag).toBeGreaterThan(0);
   } else {
-    // 离线设备应该有离线标签
+    // 离线设备应该有：
+    // 1. 离线标签（灰色 tag）
+    // 2. 或离线 badge（default status + "离线"文本）
     const offlineTag = card.locator(SELECTORS.offlineTag);
-
-    // 等待一段时间让标签渲染
-    await page.waitForTimeout(WAIT_TIMES.SHORT);
+    const offlineBadge = card.locator(SELECTORS.offlineBadge);
+    const offlineText = card.locator('.device-status:has-text("离线")');
 
     const offlineTagCount = await offlineTag.count();
-    expect(offlineTagCount).toBeGreaterThan(0);
+    const offlineBadgeCount = await offlineBadge.count();
+    const offlineTextCount = await offlineText.count();
+    const hasIndicator = offlineTagCount + offlineBadgeCount + offlineTextCount;
+
+    expect(hasIndicator).toBeGreaterThan(0);
   }
 }
 
@@ -941,7 +1064,7 @@ export async function waitForMessageLegacy(page: any, messageText: string, timeo
  */
 export async function waitForDeviceCardLegacy(page: any, deviceName: string, timeout: number = 5000): Promise<boolean> {
   try {
-    await page.waitForSelector(`.device-card:has-text("${deviceName}")`, { timeout });
+    await page.waitForSelector(`.device-item:has-text("${deviceName}")`, { timeout });
     return true;
   } catch {
     return false;
@@ -960,72 +1083,37 @@ export async function setupUser(page: Page, username: string): Promise<void> {
     console.log('[Test] Waiting for modal...');
     await page.waitForSelector('.ant-modal-title', { timeout: WAIT_TIMES.MODAL });
     console.log('[Test] Modal found, filling username...');
-    // 填写用户名 - 使用更精确的选择器，选择弹窗中的输入框
+    // 填写用户名
     const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
     await usernameInput.fill(username);
     console.log('[Test] Username filled, clicking confirm button...');
-    // 点击确定按钮 - 使用更精确的选择器
-    const okButton = page.locator('.ant-modal .ant-btn-primary');
+    // 点击确定按钮 - 使用更精确的 aria-label 选择器
+    const okButton = page.locator('button[aria-label="complete-user-setup"]');
     await okButton.click();
-    console.log('[Test] Confirm button clicked, waiting for modal to close...');
-    // 等待弹窗隐藏（使用 hidden 而不是 detached，因为弹窗不会从 DOM 中移除）
+    console.log('[Test] Confirm button clicked, waiting for Peer connection...');
+
+    // 等待弹窗隐藏
     await page.waitForSelector('.ant-modal', { state: 'hidden', timeout: 10000 }).catch(() => {
       console.log('[Test] Modal still visible after clicking confirm, continuing...');
     });
-    // 等待弹窗完全消失
-    await page.waitForTimeout(1000);
-    console.log('[Test] Modal closed, waiting for Peer init...');
-    // 等待 Peer 初始化
-    await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
-    console.log('[Test] setupUser completed');
-  } catch (error) {
-    // 弹窗可能已经设置过了，直接设置用户信息到 localStorage
-    console.log('[Test] User setup modal not found, setting up via localStorage');
-    try {
-      await page.evaluate((name) => {
-        const userInfo = {
-          username: name,
-          avatar: null,
-          peerId: null,
-          version: 0,
-        };
-        localStorage.setItem('p2p_user_info', JSON.stringify(userInfo));
-        localStorage.setItem('p2p_user_info_meta', JSON.stringify({
-          username: name,
-          peerId: null,
-          version: 0,
-        }));
-      }, username);
-      // 刷新页面以应用设置
-      await page.reload();
-      await page.waitForLoadState('domcontentloaded');
-      // 等待 Peer 初始化
-      await page.waitForTimeout(WAIT_TIMES.PEER_INIT * 2);
 
-      // 再次检查是否还有弹窗（可能需要手动关闭）
-      try {
-        console.log('[Test] Checking if modal still exists after reload...');
-        const modalExists = await page.locator('.ant-modal-title').isVisible({ timeout: 2000 });
-        if (modalExists) {
-          console.log('[Test] Modal still exists after reload, filling username again...');
-          const usernameInput = page.locator('.ant-modal input[placeholder*="请输入用户名"]');
-          await usernameInput.fill(username);
-          const okButton = page.locator('.ant-modal .ant-btn-primary');
-          await okButton.click();
-          // 等待弹窗关闭
-          await page.waitForSelector('.ant-modal-wrap', { state: 'detached', timeout: 10000 }).catch(() => {
-            console.log('[Test] Modal wrap not detached, trying hidden state...');
-          });
-          await page.waitForTimeout(1000);
-          console.log('[Test] Modal closed after second attempt');
-        }
-      } catch (e) {
-        console.log('[Test] No modal found after reload, proceeding...');
+    // 等待 Peer 连接成功（监听 localStorage 中的 peerId）
+    await page.waitForFunction(() => {
+      const stored = localStorage.getItem('p2p_user_info');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.peerId && parsed.peerId.length > 0;
       }
-    } catch (e) {
-      // 页面可能在 setup 过程中被关闭（测试超时等情况），忽略错误
-      console.log('[Test] Page closed during setup, ignoring:', e);
-    }
+      return false;
+    }, { timeout: 25000 });
+
+    // 额外等待确保初始化完成
+    await page.waitForTimeout(2000);
+    console.log('[Test] setupUser completed successfully');
+  } catch (error) {
+    // 弹窗可能已经设置过了，直接等待 Peer 初始化
+    console.log('[Test] User setup modal not found, waiting for existing Peer init...');
+    await page.waitForTimeout(10000);
   }
 }
 

@@ -43,12 +43,8 @@ test.describe('A11y - 可访问性测试', () => {
       const refreshButton = page.locator('button[aria-label="refresh-discovery"]');
       await expect(refreshButton).toBeVisible();
 
-      // 检查查询按钮
-      const queryButton = page.locator('button[aria-label="query-devices-button"]');
-      await expect(queryButton).toBeVisible();
-
       // 检查添加设备按钮
-      const addButton = page.locator('button[aria-label="add-device"]');
+      const addButton = page.locator('button[aria-label="add-device-button"]');
       await expect(addButton).toBeVisible();
     });
 
@@ -159,8 +155,7 @@ test.describe('A11y - 可访问性测试', () => {
       const focusableElements = [
         'button[aria-label="refresh-discovery"]',
         'input[placeholder*="Peer ID"]',
-        'button[aria-label="query-devices-button"]',
-        'button[aria-label="add-device"]',
+        'button[aria-label="add-device-button"]',
       ];
 
       for (const selector of focusableElements) {
@@ -919,7 +914,7 @@ test.describe('A11y - 可访问性测试', () => {
       await page.locator('input[placeholder*="Peer ID"]').fill(invalidPeerId);
 
       // 点击添加按钮
-      const addButton = page.locator('button[aria-label="add-device"]');
+      const addButton = page.locator('button[aria-label="add-device-button"]');
       await addButton.click();
       await page.waitForTimeout(WAIT_TIMES.SHORT);
 
@@ -956,7 +951,7 @@ test.describe('A11y - 可访问性测试', () => {
       await page.locator('input[placeholder*="Peer ID"]').fill(validPeerId);
 
       // 点击添加按钮
-      const addButton = page.locator('button[aria-label="add-device"]');
+      const addButton = page.locator('button[aria-label="add-device-button"]');
       await addButton.click();
       await page.waitForTimeout(WAIT_TIMES.MEDIUM);
 
@@ -1102,8 +1097,8 @@ test.describe('A11y - 可访问性测试', () => {
       // 等待页面加载
       await page.waitForSelector('.center-container', { timeout: 10000 });
 
-      // 检查导航菜单是否可见
-      const menuItems = page.locator('.ant-menu-item');
+      // 移动端使用底部菜单（.footer-item），而不是 .ant-menu-item
+      const menuItems = page.locator('.mobile-footer .footer-item');
       const menuCount = await menuItems.count();
 
       expect(menuCount).toBeGreaterThan(0);

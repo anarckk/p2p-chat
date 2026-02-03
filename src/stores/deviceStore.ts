@@ -397,48 +397,54 @@ export const useDeviceStore = defineStore('device', () => {
     // 立即执行一次清理（异步）
     cleanupExpiredDevices().catch((e) => console.error('[DeviceStore] Initial cleanup failed:', e));
 
-    // 执行心跳检查
-    heartbeatTimer = window.setInterval(async () => {
-      console.log('[DeviceStore] Running heartbeat check...');
-      const now = Date.now();
-      const checkedDevices: OnlineDevice[] = [];
+    // 添加随机初始延迟（0-5秒），防止多个设备的心跳完全同步
+    const initialDelay = Math.floor(Math.random() * 5000);
 
-      // 收集所有设备进行心跳检查（向所有已知设备发起在线检查）
-      devices.value.forEach((device) => {
-        // 向所有设备发起心跳检查
-        checkedDevices.push(device);
-      });
+    // 延迟启动心跳定时器
+    setTimeout(() => {
+      // 执行心跳检查
+      heartbeatTimer = window.setInterval(async () => {
+        console.log('[DeviceStore] Running heartbeat check...');
+        const now = Date.now();
+        const checkedDevices: OnlineDevice[] = [];
 
-      // 异步检查每个设备
-      for (const device of checkedDevices) {
-        try {
-          const isOnline = await onCheck(device);
-          if (isOnline) {
-            await updateHeartbeat(device.peerId);
-          } else {
-            // 设备离线，更新状态
+        // 收集所有设备进行心跳检查（向所有已知设备发起在线检查）
+        devices.value.forEach((device) => {
+          // 向所有设备发起心跳检查
+          checkedDevices.push(device);
+        });
+
+        // 异步检查每个设备
+        for (const device of checkedDevices) {
+          try {
+            const isOnline = await onCheck(device);
+            if (isOnline) {
+              await updateHeartbeat(device.peerId);
+            } else {
+              // 设备离线，更新状态
+              const dev = devices.value.get(device.peerId);
+              if (dev) {
+                dev.isOnline = false;
+              }
+            }
+          } catch (e) {
+            // 检查失败，标记为离线
             const dev = devices.value.get(device.peerId);
             if (dev) {
               dev.isOnline = false;
             }
           }
-        } catch (e) {
-          // 检查失败，标记为离线
-          const dev = devices.value.get(device.peerId);
-          if (dev) {
-            dev.isOnline = false;
-          }
         }
-      }
 
-      // 更新在线状态
-      await updateOnlineStatus();
+        // 更新在线状态
+        await updateOnlineStatus();
 
-      // 清理过期设备
-      await cleanupExpiredDevices();
-    }, intervalSeconds * 1000);
+        // 清理过期设备
+        await cleanupExpiredDevices();
+      }, intervalSeconds * 1000);
 
-    console.log('[DeviceStore] Heartbeat timer started (interval: ' + intervalSeconds + 's)');
+      console.log('[DeviceStore] Heartbeat timer started (interval: ' + intervalSeconds + 's)');
+    }, initialDelay);
   }
 
   /**

@@ -62,7 +62,27 @@ export function registerProtocolHandlers(instance: any): any {
         deviceStore.addOrUpdateDevice(deviceInfo);
 
         // 触发自定义事件，通知 UI 自动刷新
-        window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+        // 检查是否有组件正在监听这个事件
+        // 使用任何方式检查事件监听器是否存在
+        let hasListener = false;
+        try {
+          // 尝试检查是否有事件监听器
+          const eventTarget = window as any;
+          if (eventTarget._events && eventTarget._events['discovery-devices-updated']) {
+            hasListener = true;
+          }
+        } catch (e) {
+          // 如果检查失败，假设有监听器
+          hasListener = true;
+        }
+
+        if (hasListener) {
+          window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+        } else {
+          // 如果没有监听器，暂存事件以便后续处理
+          (window as any).__pendingDiscoveryUpdate = true;
+          console.log('[Peer] Discovery update event queued for later processing');
+        }
       }
     }
   };
@@ -102,7 +122,27 @@ export function registerProtocolHandlers(instance: any): any {
     deviceStore.addOrUpdateDevice(device);
 
     // 触发自定义事件，通知 UI 自动刷新
-    window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+    // 检查是否有组件正在监听这个事件
+    // 使用任何方式检查事件监听器是否存在
+    let hasListener = false;
+    try {
+      // 尝试检查是否有事件监听器
+      const eventTarget = window as any;
+      if (eventTarget._events && eventTarget._events['discovery-devices-updated']) {
+        hasListener = true;
+      }
+    } catch (e) {
+      // 如果检查失败，假设有监听器
+      hasListener = true;
+    }
+
+    if (hasListener) {
+      window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+    } else {
+      // 如果没有监听器，暂存事件以便后续处理
+      (window as any).__pendingDiscoveryUpdate = true;
+      console.log('[Peer] Discovery update event queued for later processing');
+    }
 
     // 如果不在聊天列表中，自动添加到聊天列表
     if (!chatStore.getContact(from)) {
@@ -373,7 +413,27 @@ export function registerProtocolHandlers(instance: any): any {
           }
 
           // 触发自定义事件，通知 UI 自动刷新
-          window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+          // 检查是否有组件正在监听这个事件
+          // 使用任何方式检查事件监听器是否存在
+          let hasListener = false;
+          try {
+            // 尝试检查是否有事件监听器
+            const eventTarget = window as any;
+            if (eventTarget._events && eventTarget._events['discovery-devices-updated']) {
+              hasListener = true;
+            }
+          } catch (e) {
+            // 如果检查失败，假设有监听器
+            hasListener = true;
+          }
+
+          if (hasListener) {
+            window.dispatchEvent(new CustomEvent('discovery-devices-updated'));
+          } else {
+            // 如果没有监听器，暂存事件以便后续处理
+            (window as any).__pendingDiscoveryUpdate = true;
+            console.log('[Peer] Discovery update event queued for later processing');
+          }
 
           console.log('[Peer] User info updated for device:', from);
         }

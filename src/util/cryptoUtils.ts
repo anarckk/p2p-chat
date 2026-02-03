@@ -18,19 +18,28 @@ import { useDeviceStore } from '../stores/deviceStore';
  * 需要签名验证的协议类型
  *
  * 这些协议类型涉及安全敏感操作，必须验证签名
+ *
+ * 注意：discovery_notification_request 被移到可选签名列表中，因为：
+ * 1. 首次发现时设备间还没有交换公钥，无法验证签名
+ * 2. 公钥会在发现请求的 payload 中传递
+ * 3. 接收方保存公钥后，后续通信就可以验证签名
  */
 const SIGNATURE_REQUIRED_PROTOCOLS = new Set([
   'key_exchange_request',
   'key_exchange_response',
   'call_request',
   'call_response',
-  'discovery_notification_request',
 ]);
 
 /**
  * 可选签名验证的协议类型
  *
  * 这些协议类型如果提供了签名就验证，没有签名也能正常处理（向后兼容）
+ *
+ * 注意：discovery_notification_request 是可选签名的，因为：
+ * 1. 首次发现时设备间还没有交换公钥，无法验证签名
+ * 2. 公钥会在发现请求的 payload 中传递
+ * 3. 接收方保存公钥后，后续通信就可以验证签名
  */
 const SIGNATURE_OPTIONAL_PROTOCOLS = new Set([
   'chat_message_request',
@@ -41,6 +50,8 @@ const SIGNATURE_OPTIONAL_PROTOCOLS = new Set([
   'user_info_response',
   'device_list_request',
   'device_list_response',
+  'discovery_notification_request',
+  'discovery_notification_response',
 ]);
 
 /**
@@ -132,21 +143,22 @@ export async function verifyMessageSignature(
 
   // 检查消息是否包含签名
   if (!message.signature) {
-    // 没有签名，检查是否应该跳过验证
-    const shouldSkip = shouldSkipSignatureVerification(message.type);
-    if (shouldSkip) {
+    // 没有签名的处理逻辑
+    if (SIGNATURE_REQUIRED_PROTOCOLS.has(message.type)) {
+      // 必须签名的协议，没有签名则验证失败
+      console.warn('[Signature] Missing required signature:', {
+        type: message.type,
+        from: peerId.substring(0, 8) + '...',
+      });
+      return false;
+    } else {
+      // 可选签名或不支持签名的协议，跳过验证
       console.log('[Signature] No signature in message, skipping verification:', {
         type: message.type,
         from: peerId.substring(0, 8) + '...',
       });
-      return null; // null 表示跳过验证
+      return null;
     }
-
-    console.warn('[Signature] Missing required signature:', {
-      type: message.type,
-      from: peerId.substring(0, 8) + '...',
-    });
-    return false;
   }
 
   // 获取对方公钥
@@ -157,21 +169,22 @@ export async function verifyMessageSignature(
   }
 
   if (!device.publicKey) {
-    // 没有公钥，检查是否应该跳过验证
-    const shouldSkip = shouldSkipSignatureVerification(message.type);
-    if (shouldSkip) {
+    // 没有公钥的处理逻辑
+    if (SIGNATURE_REQUIRED_PROTOCOLS.has(message.type)) {
+      // 必须签名的协议，没有公钥则验证失败
+      console.warn('[Signature] No public key for required protocol:', {
+        type: message.type,
+        from: peerId.substring(0, 8) + '...',
+      });
+      return false;
+    } else {
+      // 可选签名或不支持签名的协议，跳过验证
       console.log('[Signature] No public key for device, skipping verification:', {
         type: message.type,
         from: peerId.substring(0, 8) + '...',
       });
       return null;
     }
-
-    console.warn('[Signature] No public key for device:', {
-      type: message.type,
-      from: peerId.substring(0, 8) + '...',
-    });
-    return false;
   }
 
   try {
